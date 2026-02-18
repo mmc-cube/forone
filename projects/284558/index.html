@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>智能垃圾桶控制</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#f0f2f5;color:#333;padding:12px;max-width:500px;margin:0 auto}
+.header{text-align:center;padding:16px 0 8px}
+.header h1{font-size:20px;font-weight:600}
+.status-bar{display:flex;align-items:center;justify-content:center;gap:8px;margin:8px 0 16px;font-size:13px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.dot.on{background:#52c41a}
+.dot.off{background:#ff4d4f}
+.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.card-title{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.bin{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0}
+.bin:last-child{border-bottom:none}
+.bin-info{display:flex;align-items:center;gap:10px}
+.bin-icon{font-size:28px}
+.bin-name{font-size:15px;font-weight:500}
+.bin-state{font-size:12px;margin-top:2px}
+.bin-state.open{color:#52c41a}
+.bin-state.closed{color:#999}
+.bin-cnt{font-size:13px;color:#666;min-width:50px;text-align:center}
+.bin-cnt span{font-size:20px;font-weight:700;color:#333}
+.bin-btns{display:flex;gap:6px}
+.btn{border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer;transition:opacity .2s}
+.btn:active{opacity:.7}
+.btn-open{background:#e6f7ff;color:#1890ff}
+.btn-close{background:#fff2e8;color:#fa8c16}
+.btn:disabled{background:#f5f5f5;color:#ccc;cursor:default}
+.btn:disabled:active{opacity:1}
+.btn-clr{background:#ff4d4f;color:#fff;width:100%;padding:12px;font-size:15px;border-radius:10px;margin-top:4px}
+.alert-box{border-radius:10px;padding:12px;text-align:center;margin-bottom:12px}
+.alert-box.safe{background:#f6ffed;border:1px solid #b7eb8f}
+.alert-box.alarm{background:#fff1f0;border:1px solid #ffa39e}
+.alert-text{font-size:15px;font-weight:600}
+.alert-text.safe{color:#52c41a}
+.alert-text.alarm{color:#cf1322}
+.bar{height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;margin-top:4px}
+.bar-fill{height:100%;border-radius:3px;transition:width .3s}
+.bar-fill.safe{background:#52c41a}
+.bar-fill.warn{background:#faad14}
+.bar-fill.full{background:#ff4d4f}
+.collapse-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.collapse-header .arrow{transition:transform .2s;font-size:12px;color:#999}
+.collapse-header .arrow.open{transform:rotate(90deg)}
+.log{font-size:11px;color:#999;max-height:120px;overflow-y:auto;margin-top:8px;font-family:monospace;word-break:break-all;display:none}
+.log.open{display:block}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>智能垃圾桶控制台</h1>
+  <div class="status-bar">
+    <span class="dot off" id="dotMqtt"></span>
+    <span id="connText">未连接</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">垃圾桶状态</div>
+  <div id="binList"></div>
+</div>
+
+<div class="alert-box safe" id="alertBox">
+  <div class="alert-text safe" id="alertText">✓ 所有垃圾桶正常</div>
+</div>
+<div id="clrBtnWrap" style="display:none;margin-bottom:12px">
+  <button class="btn btn-clr" onclick="sendCmd('CLR')">清除报警 & 自动开盖</button>
+</div>
+
+<div class="card">
+  <div class="collapse-header" onclick="toggleLog()">
+    <span style="font-size:15px;font-weight:600">通信日志</span>
+    <span class="arrow" id="logArrow">▶</span>
+  </div>
+  <div class="log" id="logBox"></div>
+</div>
+
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+const BROKER = 'wss://broker.emqx.io:8084/mqtt';
+const TOPIC_UP = 'stm32/up';
+const TOPIC_DOWN = 'stm32/down';
+const BIN_NAMES = ['1号桶','2号桶','3号桶','4号桶'];
+const MAX_CNT = 4;
+
+let client = null;
+let bins = [
+  {open:0, cnt:0},
+  {open:0, cnt:0},
+  {open:0, cnt:0},
+  {open:0, cnt:0}
+];
+
+function toggleLog(){
+  const box = document.getElementById('logBox');
+  const arrow = document.getElementById('logArrow');
+  const isOpen = box.classList.toggle('open');
+  arrow.classList.toggle('open', isOpen);
+}
+
+function initUI(){
+  const list = document.getElementById('binList');
+  list.innerHTML = '';
+  for(let i=0;i<4;i++){
+    const b = bins[i];
+    const pct = Math.min(b.cnt/MAX_CNT*100,100);
+    const cls = pct>=100?'full':pct>=75?'warn':'safe';
+    const stCls = b.open?'open':'closed';
+    const stTxt = b.open?'已打开':'已关闭';
+    const openDis = b.open?'disabled':'';
+    const closeDis = b.open?'':'disabled';
+    list.innerHTML += `
+    <div class="bin">
+      <div class="bin-info">
+        <div class="bin-icon">🗑️</div>
+        <div>
+          <div class="bin-name">${BIN_NAMES[i]}</div>
+          <div class="bin-state ${stCls}">${stTxt}</div>
+          <div class="bar"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
+        </div>
+      </div>
+      <div class="bin-cnt"><span>${b.cnt}</span>/${MAX_CNT}</div>
+      <div class="bin-btns">
+        <button class="btn btn-open" onclick="sendCmd('O${i+1}')" ${openDis}>开</button>
+        <button class="btn btn-close" onclick="sendCmd('C${i+1}')" ${closeDis}>关</button>
+      </div>
+    </div>`;
+  }
+
+  const alertBox = document.getElementById('alertBox');
+  const alertText = document.getElementById('alertText');
+  const clrWrap = document.getElementById('clrBtnWrap');
+  let hasAlarm = bins.some(b=>b.cnt>=MAX_CNT);
+  if(hasAlarm){
+    let which = bins.findIndex(b=>b.cnt>=MAX_CNT);
+    alertBox.className = 'alert-box alarm';
+    alertText.className = 'alert-text alarm';
+    alertText.textContent = '⚠ ' + BIN_NAMES[which] + ' 已满！请清理';
+    clrWrap.style.display = 'block';
+  } else {
+    alertBox.className = 'alert-box safe';
+    alertText.className = 'alert-text safe';
+    alertText.textContent = '✓ 所有垃圾桶正常';
+    clrWrap.style.display = 'none';
+  }
+}
+
+function addLog(msg){
+  const box = document.getElementById('logBox');
+  const t = new Date().toLocaleTimeString();
+  box.innerHTML = `<div>[${t}] ${msg}</div>` + box.innerHTML;
+  if(box.children.length > 50) box.lastChild.remove();
+}
+
+function parseReport(payload){
+  const m = payload.match(/^S:(\d{4}),C:(\d+),(\d+),(\d+),(\d+)$/);
+  if(!m) return;
+  for(let i=0;i<4;i++){
+    bins[i].open = parseInt(m[1][i]);
+    bins[i].cnt = parseInt(m[i+2]);
+  }
+  initUI();
+}
+
+function sendCmd(cmd){
+  if(!client || !client.connected) return;
+  client.publish(TOPIC_DOWN, cmd);
+  addLog('发送: ' + cmd);
+}
+
+function connect(){
+  const dot = document.getElementById('dotMqtt');
+  const txt = document.getElementById('connText');
+  txt.textContent = '连接中...';
+
+  const clientId = 'web_' + Math.random().toString(16).substr(2,8);
+  client = mqtt.connect(BROKER, {clientId, clean:true, connectTimeout:5000});
+
+  client.on('connect', function(){
+    dot.className = 'dot on';
+    txt.textContent = '已连接';
+    client.subscribe(TOPIC_UP);
+    addLog('MQTT 已连接，已订阅 ' + TOPIC_UP);
+  });
+
+  client.on('message', function(topic, msg){
+    const payload = msg.toString();
+    addLog('收到: ' + payload);
+    if(topic === TOPIC_UP) parseReport(payload);
+  });
+
+  client.on('close', function(){
+    dot.className = 'dot off';
+    txt.textContent = '已断开，重连中...';
+  });
+
+  client.on('error', function(err){
+    addLog('错误: ' + err.message);
+  });
+}
+
+initUI();
+connect();
+</script>
+</body>
+</html>

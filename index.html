@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>应用入口</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+        .container {
+            width: 85%;
+            max-width: 360px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+        h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .subtitle {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 36px;
+        }
+        .input-wrap {
+            position: relative;
+            margin-bottom: 16px;
+        }
+        input {
+            width: 100%;
+            padding: 14px 48px 14px 18px;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input::placeholder { color: rgba(255,255,255,0.3); }
+        input:focus { border-color: rgba(255,255,255,0.4); }
+        .toggle-pwd {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.4);
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn:active { opacity: 0.8; }
+        .msg {
+            margin-top: 14px;
+            font-size: 13px;
+            min-height: 20px;
+            color: #ff6b6b;
+            transition: opacity 0.3s;
+        }
+        .msg.ok { color: #51cf66; }
+
+        /* 管理员面板 */
+        .admin-panel { display: none; margin-top: 20px; text-align: left; }
+        .admin-panel.show { display: block; }
+        .admin-title {
+            font-size: 14px;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .project-list { list-style: none; }
+        .project-list li {
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+        .project-list li:active { background: rgba(255,255,255,0.15); }
+        .project-list li .name { font-size: 15px; }
+        .project-list li .arrow { color: rgba(255,255,255,0.3); }
+        .admin-logout {
+            margin-top: 16px;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            background: transparent;
+            color: rgba(255,255,255,0.5);
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        /* 加载中动画 */
+        .loading { display: none; margin-top: 20px; }
+        .loading.show { display: block; }
+        .loading .spinner {
+            width: 28px; height: 28px;
+            border: 3px solid rgba(255,255,255,0.15);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🔐</div>
+        <h1>应用入口</h1>
+        <p class="subtitle">输入口令进入对应应用</p>
+
+        <div class="input-wrap">
+            <input type="password" id="pwd" placeholder="请输入口令" autocomplete="off">
+            <button class="toggle-pwd" id="togglePwd" onclick="togglePassword()">👁</button>
+        </div>
+        <button class="btn" id="enterBtn" onclick="enter()">进 入</button>
+        <div class="msg" id="msg"></div>
+        <div class="loading" id="loading"><div class="spinner"></div></div>
+
+        <!-- 管理员面板 -->
+        <div class="admin-panel" id="adminPanel">
+            <div class="admin-title">全部项目</div>
+            <ul class="project-list" id="projectList"></ul>
+            <button class="admin-logout" onclick="adminLogout()">退出管理模式</button>
+        </div>
+    </div>
+
+    <script>
+        // ========== 配置 ==========
+        // 内置项目列表（兜底，保证 file:// 协议下也能用）
+        // 新增项目时同步更新这里，或者部署后靠 projects.json 自动覆盖
+        const BUILTIN_PROJECTS = ["284558", "demo_app2"];
+
+        let PROJECTS = [...BUILTIN_PROJECTS];
+
+        // 你的 Cloudflare Pages 基础 URL（部署后改成实际地址）
+        const BASE_URL = '';  // 留空表示相对路径，同域部署时直接用相对路径
+
+        // 管理员密码（改成你自己的）
+        const ADMIN_PWD = 'admin888';
+
+        // ========== 初始化：加载项目列表 ==========
+        async function loadProjects() {
+            try {
+                const res = await fetch('projects.json');
+                if (res.ok) {
+                    PROJECTS = await res.json();
+                }
+            } catch (e) {
+                console.log('使用内置项目列表');
+            }
+            // 加载完列表后，检查是否有记住的口令，自动跳转
+            autoLogin();
+        }
+        loadProjects();
+
+        // ========== 自动登录 ==========
+        function autoLogin() {
+            const saved = localStorage.getItem('app_token');
+            if (!saved) return;
+            const matched = PROJECTS.find(p => p.toLowerCase() === saved.toLowerCase());
+            if (matched) {
+                goToProject(matched);
+            } else {
+                // 口令已失效（项目被删了），清除记录
+                localStorage.removeItem('app_token');
+            }
+        }
+
+        // ========== 跳转 ==========
+        function goToProject(name) {
+            showMsg('验证成功，正在跳转...', true);
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('enterBtn').disabled = true;
+            setTimeout(() => {
+                const url = BASE_URL
+                    ? `${BASE_URL}/projects/${name}/index.html`
+                    : `projects/${name}/index.html`;
+                window.location.href = url;
+            }, 300);
+        }
+
+        // ========== 核心逻辑 ==========
+        function enter() {
+            const pwd = document.getElementById('pwd').value.trim().toLowerCase();
+            const msg = document.getElementById('msg');
+            const loading = document.getElementById('loading');
+
+            if (!pwd) {
+                showMsg('请输入口令', false);
+                return;
+            }
+
+            // 匹配项目文件夹名
+            const matched = PROJECTS.find(p => p.toLowerCase() === pwd);
+
+            // 管理员模式
+            if (pwd === ADMIN_PWD.toLowerCase()) {
+                showMsg('管理员模式', true);
+                showAdminPanel();
+                return;
+            }
+
+            if (matched) {
+                // 记住口令，下次自动跳转
+                localStorage.setItem('app_token', matched);
+                goToProject(matched);
+            } else {
+                showMsg('口令错误，请重试', false);
+                document.getElementById('pwd').value = '';
+                document.getElementById('pwd').focus();
+            }
+        }
+
+        function showMsg(text, success) {
+            const msg = document.getElementById('msg');
+            msg.textContent = text;
+            msg.className = 'msg' + (success ? ' ok' : '');
+        }
+
+        function togglePassword() {
+            const input = document.getElementById('pwd');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        // 回车键触发
+        document.getElementById('pwd').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') enter();
+        });
+
+        // ========== 管理员面板 ==========
+        function showAdminPanel() {
+            document.querySelector('.input-wrap').style.display = 'none';
+            document.getElementById('enterBtn').style.display = 'none';
+            document.getElementById('adminPanel').classList.add('show');
+
+            const list = document.getElementById('projectList');
+            list.innerHTML = '';
+            PROJECTS.forEach(p => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span class="name">${p}</span><span class="arrow">›</span>`;
+                li.onclick = () => goToProject(p);
+                list.appendChild(li);
+            });
+        }
+
+        function adminLogout() {
+            document.querySelector('.input-wrap').style.display = '';
+            document.getElementById('enterBtn').style.display = '';
+            document.getElementById('adminPanel').classList.remove('show');
+            document.getElementById('msg').textContent = '';
+            document.getElementById('pwd').value = '';
+        }
+    </script>
+</body>
+</html>
