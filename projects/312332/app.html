@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧雨水利用系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #fff;
+            color: #333;
+        }
+
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        /* 头部 */
+        .header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #999;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ddd;
+        }
+
+        .status-dot.connected {
+            background: #4CAF50;
+        }
+
+        /* 内容区 */
+        .content {
+            padding: 20px;
+        }
+
+        /* 数据区 */
+        .data-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .data-item {
+            text-align: center;
+        }
+
+        .data-label {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 4px;
+        }
+
+        .data-value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .data-unit {
+            font-size: 11px;
+            color: #ccc;
+        }
+
+        /* 水位特殊 */
+        .water-section {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+
+        .water-item {
+            flex: 1;
+            text-align: center;
+        }
+
+        .water-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .water-label {
+            font-size: 12px;
+            color: #999;
+        }
+
+        /* 设备控制 */
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            margin-top: 20px;
+        }
+
+        .device-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .device-item:last-child {
+            border-bottom: none;
+        }
+
+        .device-name {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .device-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            width: 44px;
+            height: 32px;
+            border: 1px solid #ddd;
+            background: #fff;
+            color: #333;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-small:active {
+            background: #f0f0f0;
+        }
+
+        .btn-small.active {
+            background: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+
+        /* 参数设置 */
+        .param-item {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+
+        .param-label {
+            flex: 1;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .param-input {
+            width: 70px;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .param-btn {
+            width: 50px;
+            padding: 6px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .param-btn:active {
+            background: #45a049;
+        }
+
+        /* 警告 */
+        .alert-section {
+            display: none;
+            padding: 12px 14px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .alert-section.show {
+            display: block;
+        }
+
+        .alert-item {
+            font-size: 12px;
+            color: #856404;
+            padding: 4px 0;
+        }
+
+        /* 响应式 */
+        @media (max-width: 480px) {
+            .data-section {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>智慧雨水系统</h1>
+            <div class="status">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">连接中</span>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 警告 -->
+            <div class="alert-section" id="alertSection">
+                <div id="alertList"></div>
+            </div>
+
+            <!-- 水位 -->
+            <div class="water-section">
+                <div class="water-item">
+                    <div class="water-value" id="waterHeight">--</div>
+                    <div class="water-label">水位 cm</div>
+                </div>
+                <div class="water-item">
+                    <div class="water-value" id="waterVolume">--</div>
+                    <div class="water-label">储量 升</div>
+                </div>
+            </div>
+
+            <!-- 传感器数据 -->
+            <div class="data-section">
+                <div class="data-item">
+                    <div class="data-label">温度</div>
+                    <div class="data-value" id="temperature">--</div>
+                    <div class="data-unit">°C</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">湿度</div>
+                    <div class="data-value" id="humidity">--</div>
+                    <div class="data-unit">%</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">光照</div>
+                    <div class="data-value" id="light">--</div>
+                    <div class="data-unit">lux</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">土壤</div>
+                    <div class="data-value" id="soil">--</div>
+                    <div class="data-unit">%</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">CO₂</div>
+                    <div class="data-value" id="co2">--</div>
+                    <div class="data-unit">ppm</div>
+                </div>
+            </div>
+
+            <!-- 设备控制 -->
+            <div class="section-title">设备控制</div>
+            <div class="device-item">
+                <div class="device-name">雨水泵</div>
+                <div class="device-buttons">
+                    <button class="btn-small" onclick="control('rain', 'on')">启</button>
+                    <button class="btn-small" onclick="control('rain', 'off')">关</button>
+                </div>
+            </div>
+            <div class="device-item">
+                <div class="device-name">自来水泵</div>
+                <div class="device-buttons">
+                    <button class="btn-small" onclick="control('tap', 'on')">启</button>
+                    <button class="btn-small" onclick="control('tap', 'off')">关</button>
+                </div>
+            </div>
+            <div class="device-item">
+                <div class="device-name">风扇/补光</div>
+                <div class="device-buttons">
+                    <button class="btn-small" onclick="control('fan', 'on')">启</button>
+                    <button class="btn-small" onclick="control('fan', 'off')">关</button>
+                </div>
+            </div>
+
+            <!-- 参数设置 -->
+            <div class="section-title">参数设置</div>
+            <div class="param-item">
+                <div class="param-label">雨水阈值 (cm)</div>
+                <input type="number" class="param-input" id="threshold1" placeholder="50">
+                <button class="param-btn" onclick="sendThreshold(1)">发送</button>
+            </div>
+            <div class="param-item">
+                <div class="param-label">土壤阈值 (%)</div>
+                <input type="number" class="param-input" id="threshold2" placeholder="35">
+                <button class="param-btn" onclick="sendThreshold(2)">发送</button>
+            </div>
+            <div class="param-item">
+                <div class="param-label">光照阈值 (lux)</div>
+                <input type="number" class="param-input" id="threshold3" placeholder="300">
+                <button class="param-btn" onclick="sendThreshold(3)">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MQTT_BROKER = 'wss://broker.emqx.io:8083/mqtt';
+        const TOPIC_UPLOAD = '123124/234235/zhihuiyushui/upload';
+        const TOPIC_CMD = '123124/234235/zhihuiyushui/cmd';
+
+        let client = null;
+        let lastData = {};
+
+        function initMQTT() {
+            const options = {
+                clean: true,
+                connectTimeout: 5000,
+                reconnectPeriod: 3000,
+            };
+
+            client = mqtt.connect(MQTT_BROKER, options);
+
+            client.on('connect', () => {
+                updateConnectionStatus(true);
+                client.subscribe(TOPIC_UPLOAD);
+            });
+
+            client.on('message', (topic, message) => {
+                if (topic === TOPIC_UPLOAD) {
+                    handleUploadData(message.toString());
+                }
+            });
+
+            client.on('disconnect', () => {
+                updateConnectionStatus(false);
+            });
+
+            client.on('error', () => {
+                updateConnectionStatus(false);
+            });
+        }
+
+        function updateConnectionStatus(connected) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            if (connected) {
+                dot.classList.add('connected');
+                text.textContent = '已连接';
+            } else {
+                dot.classList.remove('connected');
+                text.textContent = '连接中';
+            }
+        }
+
+        function handleUploadData(data) {
+            try {
+                const parts = data.split(',');
+                if (parts.length < 11) return;
+
+                lastData = {
+                    waterHeight: parseInt(parts[0]),
+                    waterVolume: parseInt(parts[1]),
+                    temperature: parseInt(parts[2]),
+                    humidity: parseInt(parts[3]),
+                    light: parseInt(parts[4]),
+                    soil: parseInt(parts[5]),
+                    co2: parseInt(parts[6]),
+                    rainPump: parseInt(parts[7]),
+                    tapPump: parseInt(parts[8]),
+                    fanLed: parseInt(parts[9]),
+                    thresholds: parts[10].split('|').map(x => parseInt(x))
+                };
+
+                updateUI();
+                checkAlerts();
+                updateThresholdInputs();
+            } catch (e) {
+                console.error('数据解析失败:', e);
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('waterHeight').textContent = lastData.waterHeight ?? '--';
+            document.getElementById('waterVolume').textContent = lastData.waterVolume ?? '--';
+            document.getElementById('temperature').textContent = lastData.temperature ?? '--';
+            document.getElementById('humidity').textContent = lastData.humidity ?? '--';
+            document.getElementById('light').textContent = lastData.light ?? '--';
+            document.getElementById('soil').textContent = lastData.soil ?? '--';
+            document.getElementById('co2').textContent = lastData.co2 ?? '--';
+        }
+
+        function checkAlerts() {
+            const alertSection = document.getElementById('alertSection');
+            const alertList = document.getElementById('alertList');
+            alertList.innerHTML = '';
+
+            if (!lastData.thresholds) {
+                alertSection.classList.remove('show');
+                return;
+            }
+
+            const alerts = [];
+
+            if (lastData.waterHeight >= lastData.thresholds[0]) {
+                alerts.push('雨水储量超限');
+            }
+            if (lastData.soil <= lastData.thresholds[1]) {
+                alerts.push('土壤严重缺水');
+            }
+            if (lastData.light <= lastData.thresholds[2]) {
+                alerts.push('光照强度不足');
+            }
+
+            if (alerts.length > 0) {
+                alertSection.classList.add('show');
+                alerts.forEach(alert => {
+                    const item = document.createElement('div');
+                    item.className = 'alert-item';
+                    item.textContent = '⚠️ ' + alert;
+                    alertList.appendChild(item);
+                });
+            } else {
+                alertSection.classList.remove('show');
+            }
+        }
+
+        function updateThresholdInputs() {
+            if (lastData.thresholds) {
+                document.getElementById('threshold1').value = lastData.thresholds[0] || '';
+                document.getElementById('threshold2').value = lastData.thresholds[1] || '';
+                document.getElementById('threshold3').value = lastData.thresholds[2] || '';
+            }
+        }
+
+        function control(type, action) {
+            let cmd = '';
+            if (type === 'rain') {
+                cmd = action === 'on' ? '05' : '06';
+            } else if (type === 'tap') {
+                cmd = action === 'on' ? '07' : '08';
+            } else if (type === 'fan') {
+                cmd = action === 'on' ? '09' : '10';
+            }
+
+            if (client && client.connected && cmd) {
+                client.publish(TOPIC_CMD, cmd);
+            }
+        }
+
+        function sendThreshold(index) {
+            const inputs = ['threshold1', 'threshold2', 'threshold3'];
+            const value = document.getElementById(inputs[index - 1]).value;
+            if (value === '') return;
+
+            const cmd = `0${index + 1},${value}`;
+            if (client && client.connected) {
+                client.publish(TOPIC_CMD, cmd);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initMQTT();
+        });
+    </script>
+</body>
+</html>
