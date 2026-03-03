@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能路灯</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 360px;
+            background: #fff;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-height: 95vh;
+            overflow-y: auto;
+        }
+
+        /* 顶部 */
+        .header {
+            text-align: center;
+            padding: 8px 0;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .status {
+            display: inline-block;
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .status.ok {
+            background: #E8F5E9;
+            color: #2E7D32;
+        }
+
+        .status.fail {
+            background: #FFEBEE;
+            color: #C62828;
+        }
+
+        /* 告警 */
+        .alert {
+            background: #FFEBEE;
+            border: 1px solid #FF3B30;
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 8px;
+            display: none;
+            font-size: 12px;
+            color: #FF3B30;
+        }
+
+        .alert.show {
+            display: block;
+            animation: shake 0.3s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-3px); }
+            75% { transform: translateX(3px); }
+        }
+
+        /* 数据区 */
+        .data-section {
+            margin-bottom: 8px;
+        }
+
+        .title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #999;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .data-item {
+            background: #f8f9ff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .data-label {
+            font-size: 10px;
+            color: #999;
+            margin-bottom: 3px;
+        }
+
+        .data-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .data-unit {
+            font-size: 9px;
+            color: #999;
+        }
+
+        /* 状态行 */
+        .status-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 8px;
+            font-size: 11px;
+        }
+
+        .status-item {
+            background: #f8f9ff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 6px;
+            text-align: center;
+        }
+
+        .status-item-label {
+            color: #999;
+            font-size: 9px;
+            margin-bottom: 2px;
+        }
+
+        .status-item-value {
+            font-weight: 600;
+            color: #333;
+            font-size: 12px;
+        }
+
+        /* 控制区 */
+        .control {
+            background: #f8f9ff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .btn-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-green {
+            background: #34C759;
+            color: #fff;
+        }
+
+        .btn-green:active {
+            background: #25a640;
+            transform: scale(0.98);
+        }
+
+        .btn-gray {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-gray:active {
+            background: #d0d0d0;
+            transform: scale(0.98);
+        }
+
+        .btn-blue {
+            background: #667eea;
+            color: #fff;
+        }
+
+        .btn-blue:active {
+            background: #5568d3;
+            transform: scale(0.98);
+        }
+
+        .btn-red {
+            background: #FF3B30;
+            color: #fff;
+        }
+
+        .btn-red:active {
+            background: #d41c16;
+            transform: scale(0.98);
+        }
+
+        /* 单选 */
+        .radio-group {
+            display: flex;
+            gap: 5px;
+        }
+
+        .radio-btn {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid #e0e0e0;
+            background: #fff;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .radio-btn.active {
+            background: #667eea;
+            color: #fff;
+            border-color: #667eea;
+        }
+
+        /* 滑块 */
+        .slider-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .slider-row:last-child {
+            margin-bottom: 0;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 5px;
+            border-radius: 2px;
+            background: #e0e0e0;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+        }
+
+        .slider-label {
+            font-size: 10px;
+            color: #999;
+            min-width: 35px;
+        }
+
+        .slider-value {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 12px;
+            min-width: 30px;
+            text-align: right;
+        }
+
+        /* 输入 */
+        .input-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 6px;
+            align-items: center;
+        }
+
+        .input-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .input-label {
+            font-size: 10px;
+            color: #999;
+            min-width: 45px;
+        }
+
+        .input-row input {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 11px;
+        }
+
+        .input-row input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        .input-row button {
+            padding: 6px 10px;
+            font-size: 11px;
+        }
+
+        /* 配置面板 */
+        .config {
+            display: none;
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 8px;
+        }
+
+        .config.show {
+            display: block;
+        }
+
+        .config input {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 12px;
+            z-index: 1000;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        /* 隐藏手动模式 */
+        #brightnessControl {
+            display: none;
+        }
+
+        #brightnessControl.show {
+            display: block;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 6px;
+            margin-top: 8px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部 -->
+        <div class="header">
+            <h1 id="title">🚦 智能路灯</h1>
+            <div class="status" id="connStatus">● 连接中...</div>
+        </div>
+
+        <!-- 告警 -->
+        <div class="alert" id="alert">⚠️ 电源故障 <button class="btn btn-red" style="padding: 4px 8px; font-size: 10px; float: right;" onclick="sendCmd('01')">消警</button></div>
+
+        <!-- 实时数据 -->
+        <div class="data-section">
+            <div class="title">📊 实时监控</div>
+            <div class="data-grid">
+                <div class="data-item">
+                    <div class="data-label">光照</div>
+                    <div class="data-value" id="light">--<span class="data-unit">lux</span></div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">温度</div>
+                    <div class="data-value" id="temp">--<span class="data-unit">°C</span></div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">湿度</div>
+                    <div class="data-value" id="hum">--<span class="data-unit">%</span></div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">电压</div>
+                    <div class="data-value" id="volt">--<span class="data-unit">V</span></div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">电流</div>
+                    <div class="data-value" id="curr">--<span class="data-unit">mA</span></div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">路灯</div>
+                    <div class="data-value" id="light_state">--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 状态信息 -->
+        <div class="status-row">
+            <div class="status-item">
+                <div class="status-item-label">模式</div>
+                <div class="status-item-value" id="mode">--</div>
+            </div>
+            <div class="status-item">
+                <div class="status-item-label">季节</div>
+                <div class="status-item-value" id="season">--</div>
+            </div>
+            <div class="status-item">
+                <div class="status-item-label">故障</div>
+                <div class="status-item-value" id="fault">--</div>
+            </div>
+        </div>
+
+        <!-- 控制区 -->
+        <div class="control">
+            <div class="section-title">🎚️ 远程控制</div>
+
+            <!-- 开关 -->
+            <div class="btn-row">
+                <button class="btn btn-green" onclick="sendCmd('05,1')">🔆 开</button>
+                <button class="btn btn-gray" onclick="sendCmd('05,0')">🌑 关</button>
+            </div>
+
+            <!-- 模式 -->
+            <div class="radio-group" style="margin-bottom: 8px;">
+                <button class="radio-btn active" onclick="setMode(1, this)">自动</button>
+                <button class="radio-btn" onclick="setMode(0, this)">手动</button>
+            </div>
+
+            <!-- 手动亮度 -->
+            <div id="brightnessControl">
+                <div class="slider-row">
+                    <span class="slider-label">亮度</span>
+                    <input type="range" id="brightness" min="0" max="100" value="75" oninput="updateBrightness(this.value)">
+                    <span class="slider-value" id="brightValue">75%</span>
+                </div>
+            </div>
+
+            <!-- 季节 -->
+            <div class="radio-group" style="margin-bottom: 8px;" id="seasonGroup">
+                <button class="radio-btn" onclick="setSeason(1, this)">🌱春</button>
+                <button class="radio-btn active" onclick="setSeason(2, this)">☀️夏</button>
+                <button class="radio-btn" onclick="setSeason(3, this)">🍂秋</button>
+                <button class="radio-btn" onclick="setSeason(4, this)">❄️冬</button>
+            </div>
+
+            <!-- 隐藏彩蛋：连点季节区域5次展开 -->
+            <div id="delayPanel" style="display:none; background:#f0f4ff; border:1px dashed #b0bce8; border-radius:6px; padding:8px; margin-bottom:8px;">
+                <div style="font-size:10px; color:#888; margin-bottom:6px;">⏱ 延时开灯模拟</div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <input type="number" id="delaySeconds" min="1" max="3600" value="10"
+                        style="flex:1; padding:5px; border:1px solid #ccd; border-radius:4px; font-size:12px; width:0;">
+                    <span style="font-size:11px; color:#888; white-space:nowrap;">秒后开灯</span>
+                    <button class="btn btn-blue" style="flex:none; padding:5px 10px; font-size:11px;" onclick="startDelayOn()">启动</button>
+                    <button class="btn btn-gray" style="flex:none; padding:5px 8px; font-size:11px;" onclick="cancelDelayOn()">取消</button>
+                </div>
+                <div id="delayStatus" style="font-size:11px; color:#667eea; margin-top:5px; min-height:14px;"></div>
+            </div>
+
+            <!-- 阈值 -->
+            <div class="section-title">⚙️ 阈值设置</div>
+            <div class="input-row">
+                <span class="input-label">温度</span>
+                <input type="number" id="threshTemp" min="10" max="50" value="30">
+                <button class="btn btn-blue" onclick="setThresh('temp')">设置</button>
+            </div>
+            <div class="input-row">
+                <span class="input-label">湿度</span>
+                <input type="number" id="threshHum" min="30" max="95" value="70">
+                <button class="btn btn-blue" onclick="setThresh('hum')">设置</button>
+            </div>
+            <div class="input-row">
+                <span class="input-label">电压</span>
+                <input type="number" id="threshVolt" min="0.3" max="1.0" step="0.1" value="0.5">
+                <button class="btn btn-blue" onclick="setThresh('volt')">设置</button>
+            </div>
+        </div>
+
+        <!-- 配置面板 -->
+        <div class="config" id="config">
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">MQTT 配置</div>
+            <input type="text" id="id1" placeholder="学号1" value="123124">
+            <input type="text" id="id2" placeholder="学号2" value="234235">
+            <button class="btn btn-blue" style="width: 100%;" onclick="reconnect()">重新连接</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
+    <script>
+        let client = null;
+        let data = {};
+        let stat = { mode: 1, season: 2 };
+        let delayTimer = null;
+        let delayCountdown = null;
+        let seasonClickCount = 0;
+        let seasonClickTimer = null;
+
+        /* MQTT 配置（与 STM32 端 app_esp8266.h 保持一致）
+         * Broker:     broker.emqx.io:8083 (WebSocket)
+         * 上报主题:    streetlight/data   （STM32 发布）
+         * 控制主题:    streetlight/control（STM32 订阅）
+         * WiFi:       5a507 / 12345678
+         */
+        const MQTT_BROKER  = 'wss://broker.emqx.io:8084/mqtt';
+        const TOPIC_SUB    = 'streetlight/data';     /* 订阅 STM32 上报 */
+        const TOPIC_PUB    = 'streetlight/control';  /* 发布控制指令 */
+
+        function initMQTT() {
+            const id1 = (localStorage.getItem('id1') || '123124').trim();
+            const id2 = (localStorage.getItem('id2') || '234235').trim();
+
+            window.ID1 = id1;
+            window.ID2 = id2;
+            document.getElementById('id1').value = id1;
+            document.getElementById('id2').value = id2;
+
+            if (!client || !client.connected) {
+                client = mqtt.connect(MQTT_BROKER, {
+                    clientId: 'app_' + Date.now(),
+                    clean: true,
+                    connectTimeout: 4000,
+                    reconnectPeriod: 5000,
+                    keepalive: 30
+                });
+
+                client.on('connect', () => {
+                    updateStatus(true);
+                    document.getElementById('config').classList.remove('show');
+                    client.subscribe(TOPIC_SUB, { qos: 0 });
+                    localStorage.setItem('id1', id1);
+                    localStorage.setItem('id2', id2);
+                });
+
+                client.on('message', (topic, message) => {
+                    try {
+                        const parts = message.toString().split(',');
+                        data = {
+                            light: parseFloat(parts[0]) || 0,
+                            temp: parseFloat(parts[1]) || 0,
+                            hum: parseFloat(parts[2]) || 0,
+                            volt: parseFloat(parts[3]) || 0,
+                            curr: parseFloat(parts[4]) || 0,
+                            fault: parseInt(parts[5]) || 0,
+                            state: parseInt(parts[6]) || 0,
+                            ttemp: parseInt(parts[7]) || 30,
+                            thum: parseInt(parts[8]) || 70,
+                            tvolt: parseFloat(parts[9]) || 0.5,
+                            mode: parts[10] !== undefined ? parseInt(parts[10]) : stat.mode,
+                            season: parts[11] !== undefined ? parseInt(parts[11]) : stat.season
+                        };
+                        /* 同步本地状态，避免刷新后丢失 */
+                        stat.mode   = data.mode;
+                        stat.season = data.season;
+                        updateUI();
+                    } catch (e) {
+                        console.error(e);
+                    }
+                });
+
+                client.on('error', () => updateStatus(false));
+                client.on('disconnect', () => updateStatus(false));
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('light').textContent = Math.round(data.light);
+            document.getElementById('temp').textContent = (data.temp || 0).toFixed(1);
+            document.getElementById('hum').textContent = Math.round(data.hum);
+            document.getElementById('volt').textContent = (data.volt || 0).toFixed(1);
+            document.getElementById('curr').textContent = Math.round(data.curr);
+            document.getElementById('light_state').textContent = data.state ? '✓开' : '✕关';
+
+            document.getElementById('mode').textContent = stat.mode ? '自动' : '手动';
+            document.getElementById('season').textContent = ['', '春', '夏', '秋', '冬'][stat.season] || '-';
+            document.getElementById('fault').textContent = data.fault ? '⚠️故障' : '正常';
+
+            /* 同步模式按钮高亮 */
+            const modeBtns = document.querySelectorAll('.radio-group')[0].querySelectorAll('.radio-btn');
+            modeBtns[0].classList.toggle('active', stat.mode === 1);
+            modeBtns[1].classList.toggle('active', stat.mode === 0);
+            document.getElementById('brightnessControl').classList.toggle('show', stat.mode === 0);
+
+            /* 同步季节按钮高亮 */
+            const seasonBtns = document.querySelectorAll('.radio-group')[1].querySelectorAll('.radio-btn');
+            seasonBtns.forEach((b, i) => b.classList.toggle('active', i + 1 === stat.season));
+
+            const alertEl = document.getElementById('alert');
+            if (data.fault) {
+                alertEl.classList.add('show');
+            } else {
+                alertEl.classList.remove('show');
+            }
+
+            document.getElementById('threshTemp').value = data.ttemp || 30;
+            document.getElementById('threshHum').value = data.thum || 70;
+            document.getElementById('threshVolt').value = (data.tvolt || 0.5).toFixed(1);
+        }
+
+        function sendCmd(cmd) {
+            if (!client || !client.connected) {
+                toast('未连接');
+                return;
+            }
+            client.publish(TOPIC_PUB, cmd, { qos: 0 });
+        }
+
+        function setMode(m, el) {
+            stat.mode = m;
+            document.querySelectorAll('.radio-group')[0].querySelectorAll('.radio-btn').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById('brightnessControl').classList.toggle('show', m === 0);
+            sendCmd('06,' + m);
+        }
+
+        function setSeason(s, el) {
+            stat.season = s;
+            document.querySelectorAll('.radio-group')[1].querySelectorAll('.radio-btn').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            sendCmd('08,' + s);
+
+            // 彩蛋：连点5次展开延时面板
+            seasonClickCount++;
+            clearTimeout(seasonClickTimer);
+            seasonClickTimer = setTimeout(() => { seasonClickCount = 0; }, 2000);
+            if (seasonClickCount >= 5) {
+                seasonClickCount = 0;
+                const panel = document.getElementById('delayPanel');
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        function startDelayOn() {
+            const sec = parseInt(document.getElementById('delaySeconds').value);
+            if (isNaN(sec) || sec < 1) { toast('请输入有效秒数'); return; }
+
+            // 清除已有定时
+            clearTimeout(delayTimer);
+            clearInterval(delayCountdown);
+
+            let remain = sec;
+            const statusEl = document.getElementById('delayStatus');
+            statusEl.textContent = `倒计时 ${remain}s 后发送开灯指令...`;
+
+            delayCountdown = setInterval(() => {
+                remain--;
+                if (remain <= 0) {
+                    clearInterval(delayCountdown);
+                } else {
+                    statusEl.textContent = `倒计时 ${remain}s 后发送开灯指令...`;
+                }
+            }, 1000);
+
+            delayTimer = setTimeout(() => {
+                sendCmd('05,1');
+                statusEl.textContent = '✓ 已发送开灯指令';
+                clearInterval(delayCountdown);
+            }, sec * 1000);
+        }
+
+        function cancelDelayOn() {
+            clearTimeout(delayTimer);
+            clearInterval(delayCountdown);
+            document.getElementById('delayStatus').textContent = '已取消';
+        }
+
+        function updateBrightness(v) {
+            document.getElementById('brightValue').textContent = v + '%';
+            sendCmd('07,' + v);
+        }
+
+        function setThresh(type) {
+            let val, cmd;
+            if (type === 'temp') {
+                val = parseInt(document.getElementById('threshTemp').value);
+                if (val < 10 || val > 50) { toast('10-50°C'); return; }
+                cmd = '02,' + val;
+            } else if (type === 'hum') {
+                val = parseInt(document.getElementById('threshHum').value);
+                if (val < 30 || val > 95) { toast('30-95%'); return; }
+                cmd = '03,' + val;
+            } else {
+                val = parseFloat(document.getElementById('threshVolt').value);
+                if (val < 0.3 || val > 1.0) { toast('0.3-1.0V'); return; }
+                cmd = '04,' + val.toFixed(1);
+            }
+            sendCmd(cmd);
+            toast('已保存');
+        }
+
+        function reconnect() {
+            const id1 = document.getElementById('id1').value.trim();
+            const id2 = document.getElementById('id2').value.trim();
+            if (!id1 || !id2) { toast('请填写学号'); return; }
+            window.ID1 = id1;
+            window.ID2 = id2;
+            if (client) client.end();
+            setTimeout(() => initMQTT(), 500);
+        }
+
+        function updateStatus(ok) {
+            const el = document.getElementById('connStatus');
+            el.textContent = ok ? '● 已连接' : '● 未连接';
+            el.className = ok ? 'status ok' : 'status fail';
+        }
+
+        function toast(msg) {
+            const el = document.createElement('div');
+            el.className = 'toast';
+            el.textContent = msg;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 2000);
+        }
+
+        window.addEventListener('load', () => {
+            setTimeout(() => initMQTT(), 500);
+            setInterval(() => Object.keys(data).length && updateUI(), 500);
+
+            let clicks = 0;
+            document.getElementById('title').addEventListener('click', () => {
+                clicks++;
+                if (clicks >= 3) {
+                    document.getElementById('config').classList.toggle('show');
+                    clicks = 0;
+                }
+                setTimeout(() => { clicks = 0; }, 2000);
+            });
+        });
+    </script>
+</body>
+</html>
