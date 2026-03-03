@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>智能蔬菜大棚</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,'PingFang SC',Arial,sans-serif;background:#f5f5f5;color:#111;font-size:13px}
+#app{display:flex;flex-direction:column;width:100%;height:100%;max-width:430px;margin:0 auto;overflow:hidden;background:#f5f5f5}
+
+/* ── 顶栏 ── */
+.topbar{flex-shrink:0;background:#fff;padding:12px 16px 11px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eee}
+.topbar-title{font-size:15px;font-weight:700;color:#111;letter-spacing:.1px}
+.topbar-sub{font-size:9px;color:#aaa;letter-spacing:.5px;margin-top:1px}
+.conn-pill{display:flex;align-items:center;gap:5px;background:#f5f5f5;border:1px solid #e8e8e8;border-radius:20px;padding:4px 10px 4px 8px;font-size:11px;font-weight:600;color:#888;flex-shrink:0}
+.cdot{width:7px;height:7px;border-radius:50%;background:#ccc;flex-shrink:0;transition:background .3s,box-shadow .3s}
+.cdot.on{background:#22c55e;box-shadow:0 0 5px rgba(34,197,94,.5)}
+.cdot.off{background:#f87171}
+
+/* ── 主体 ── */
+.body{flex:1;display:flex;flex-direction:column;gap:8px;padding:10px 10px 8px;overflow:hidden;min-height:0}
+
+/* ── 报警条 ── */
+.alarm-bar{flex-shrink:0;border-radius:10px;padding:9px 13px;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;transition:all .35s}
+.a-ico{font-size:15px;flex-shrink:0}
+.a-normal{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+.a-temp{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;animation:blink .6s infinite}
+.a-soil{background:#fff7ed;color:#ea580c;border:1px solid #fed7aa}
+.a-light{background:#fefce8;color:#ca8a04;border:1px solid #fef08a}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── 传感器2+2格 ── */
+.sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0}
+.s-cell{background:#fff;border:1px solid #ebebeb;border-radius:14px;padding:13px 14px;display:flex;flex-direction:column;gap:3px}
+.s-label{font-size:9px;color:#aaa;font-weight:600;letter-spacing:.6px;text-transform:uppercase}
+.s-num{font-size:30px;font-weight:800;line-height:1.05;color:#111}
+.s-unit{font-size:12px;font-weight:500;color:#bbb;margin-left:2px}
+.s-bar-wrap{height:3px;background:#f0f0f0;border-radius:2px;overflow:hidden;margin-top:4px}
+.s-bar{height:100%;border-radius:2px;transition:width .5s,background .3s;background:#22c55e}
+.s-hint{font-size:9px;color:#bbb;line-height:1.3;margin-top:1px}
+.c-green{color:#111}.c-yellow{color:#d97706}.c-red{color:#dc2626}.c-blue{color:#111}
+
+/* ── 中间一行：执行器 + 消警 ── */
+.mid-row{flex-shrink:0;display:flex;gap:8px}
+.act-card{flex:1;background:#fff;border:1px solid #ebebeb;border-radius:14px;padding:10px 12px}
+.sec-title{font-size:9px;font-weight:700;color:#bbb;letter-spacing:.7px;text-transform:uppercase;margin-bottom:8px}
+.act-row{display:flex;gap:6px}
+.act-badge{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 2px;border-radius:10px;border:1px solid #eee;background:#fafafa;font-size:9px;font-weight:700;color:#bbb;transition:all .2s;cursor:pointer}
+.act-badge.on{background:#f0fdf4;border-color:#bbf7d0;color:#16a34a}
+.act-badge .a-icon{font-size:16px}
+.act-badge .a-dot{width:5px;height:5px;border-radius:50%;background:#e5e5e5;transition:all .25s}
+.act-badge.on .a-dot{background:#22c55e;box-shadow:0 0 4px rgba(34,197,94,.6)}
+.clear-btn{flex-shrink:0;width:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:#fff5f5;border:1px solid #fecaca;border-radius:14px;color:#ef4444;font-size:9px;font-weight:700;cursor:pointer;padding:0 4px;text-align:center}
+.clear-btn .c-icon{font-size:18px}
+.clear-btn:active{background:#fee2e2}
+
+/* ── 阈值区 ── */
+.th-card{flex-shrink:0;background:#fff;border:1px solid #ebebeb;border-radius:14px;padding:10px 12px}
+.th-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.th-item{display:flex;flex-direction:column;gap:4px}
+.th-label{font-size:9px;font-weight:700;color:#aaa;letter-spacing:.3px}
+.th-inp-row{display:flex;align-items:center;gap:4px}
+.th-inp{flex:1;min-width:0;height:32px;background:#f8f8f8;border:1px solid #e8e8e8;border-radius:8px;padding:0 8px;font-size:15px;font-weight:700;color:#111;outline:none;transition:border-color .2s;width:100%}
+.th-inp:focus{border-color:#22c55e;background:#fff}
+.th-inp.err{border-color:#f87171}
+.th-unit{font-size:9px;color:#bbb;white-space:nowrap;flex-shrink:0;min-width:18px}
+.th-btn{height:32px;padding:0 10px;background:#111;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;transition:opacity .15s}
+.th-btn:active{opacity:.6}
+
+/* ── 底栏 ── */
+.footer{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:5px 12px;background:#fff;border-top:1px solid #eee}
+.footer-info{font-size:9px;color:#ccc;line-height:1.6}
+.footer-info b{color:#aaa}
+.cfg-btn{font-size:9px;font-weight:700;color:#aaa;background:none;border:1px solid #e8e8e8;border-radius:6px;padding:4px 10px;cursor:pointer}
+.cfg-btn:active{background:#f5f5f5}
+
+/* ── 配置弹窗 ── */
+.overlay{display:none;position:absolute;inset:0;z-index:90;background:rgba(0,0,0,.4);align-items:flex-end;justify-content:center}
+.overlay.show{display:flex}
+.modal{width:100%;background:#fff;border-radius:20px 20px 0 0;padding:20px 16px 34px;border-top:1px solid #eee}
+.modal-title{font-size:16px;font-weight:800;color:#111;margin-bottom:16px}
+.mf{margin-bottom:10px}
+.mf label{display:block;font-size:10px;color:#aaa;margin-bottom:4px;font-weight:700;letter-spacing:.4px}
+.m-inp{width:100%;height:40px;background:#f8f8f8;border:1px solid #eee;border-radius:9px;padding:0 12px;font-size:14px;color:#111;outline:none;transition:border-color .2s}
+.m-inp:focus{border-color:#22c55e;background:#fff}
+.modal-btns{display:flex;gap:8px;margin-top:16px}
+.m-cancel{flex:1;height:44px;background:#f5f5f5;color:#888;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer}
+.m-ok{flex:1;height:44px;background:#111;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer}
+
+/* ── Toast ── */
+.toast{position:absolute;bottom:16px;left:50%;transform:translateX(-50%) translateY(6px);background:#111;color:#fff;border:none;padding:8px 18px;border-radius:20px;font-size:11px;font-weight:700;opacity:0;pointer-events:none;transition:all .25s;white-space:nowrap;z-index:80}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── 顶栏 ── -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">🌿 智能蔬菜大棚</div>
+      <div class="topbar-sub">INTELLIGENT GREENHOUSE MONITOR</div>
+    </div>
+    <div class="conn-pill">
+      <span class="cdot off" id="cdot"></span>
+      <span id="clabel">连接中</span>
+    </div>
+  </div>
+
+  <!-- ── 主体 ── -->
+  <div class="body">
+
+    <!-- 报警条 -->
+    <div class="alarm-bar a-normal" id="alarm-bar">
+      <div class="a-ico" id="a-ico">✅</div>
+      <div id="a-txt">系统运行正常</div>
+    </div>
+
+    <!-- 传感器格 -->
+    <div class="sensor-grid">
+      <div class="s-cell">
+        <div class="s-label">温度</div>
+        <div class="s-num c-green" id="sv-temp">--<span class="s-unit">℃</span></div>
+        <div class="s-hint" id="sh-temp">等待数据</div>
+      </div>
+      <div class="s-cell">
+        <div class="s-label">环境湿度</div>
+        <div class="s-num c-blue" id="sv-humi">--<span class="s-unit">%</span></div>
+        <div class="s-hint">DHT11</div>
+      </div>
+      <div class="s-cell">
+        <div class="s-label">光照强度</div>
+        <div class="s-num c-yellow" id="sv-light">--<span class="s-unit" style="font-size:9px">ADC</span></div>
+        <div class="s-hint">阈值 <span id="sh-li-val">1500</span></div>
+      </div>
+      <div class="s-cell">
+        <div class="s-label">土壤湿度</div>
+        <div class="s-num c-blue" id="sv-soil">--<span class="s-unit">%</span></div>
+        <div class="s-bar-wrap"><div class="s-bar" id="soil-bar" style="width:0%"></div></div>
+        <div class="s-hint">阈值 <span id="sh-so-val">50</span>%</div>
+      </div>
+    </div>
+
+    <!-- 中行：执行器状态 + 消警 -->
+    <div class="mid-row">
+      <div class="act-card" style="flex:1">
+        <div class="sec-title">执行器状态 — 点击控制</div>
+        <div class="act-row">
+          <div class="act-badge" id="ab-heat" onclick="toggle('heat')">
+            <div class="a-icon">🔥</div>
+            <div class="a-dot"></div>
+            <div>加热</div>
+          </div>
+          <div class="act-badge" id="ab-fan" onclick="toggle('fan')">
+            <div class="a-icon">💨</div>
+            <div class="a-dot"></div>
+            <div>风扇</div>
+          </div>
+          <div class="act-badge" id="ab-pump" onclick="toggle('pump')">
+            <div class="a-icon">💧</div>
+            <div class="a-dot"></div>
+            <div>水泵</div>
+          </div>
+        </div>
+      </div>
+      <div class="clear-btn" onclick="clearAlarm()">
+        <div class="c-icon">🔕</div>
+        <div>一键<br>消警</div>
+      </div>
+    </div>
+
+    <!-- 阈值区 -->
+    <div class="th-card">
+      <div class="sec-title">阈值设置</div>
+      <div class="th-grid">
+
+        <div class="th-item">
+          <div class="th-label">🌡️ 温度上限</div>
+          <div class="th-inp-row">
+            <input class="th-inp" id="ti-th" type="number" min="15" max="50" value="30" oninput="chk(this,15,50)">
+            <span class="th-unit">℃</span>
+            <button class="th-btn" onclick="send('02','ti-th',15,50)">发</button>
+          </div>
+        </div>
+
+        <div class="th-item">
+          <div class="th-label">❄️ 温度下限</div>
+          <div class="th-inp-row">
+            <input class="th-inp" id="ti-tl" type="number" min="5" max="30" value="15" oninput="chk(this,5,30)">
+            <span class="th-unit">℃</span>
+            <button class="th-btn" onclick="send('03','ti-tl',5,30)">发</button>
+          </div>
+        </div>
+
+        <div class="th-item">
+          <div class="th-label">☀️ 光照阈值</div>
+          <div class="th-inp-row">
+            <input class="th-inp" id="ti-li" type="number" min="0" max="4095" value="1500" oninput="chk(this,0,4095)">
+            <span class="th-unit">ADC</span>
+            <button class="th-btn" onclick="send('04','ti-li',0,4095)">发</button>
+          </div>
+        </div>
+
+        <div class="th-item">
+          <div class="th-label">🪣 土壤阈值</div>
+          <div class="th-inp-row">
+            <input class="th-inp" id="ti-so" type="number" min="0" max="100" value="50" oninput="chk(this,0,100)">
+            <span class="th-unit">%</span>
+            <button class="th-btn" onclick="send('05','ti-so',0,100)">发</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 底栏 -->
+    <div class="footer">
+      <div class="footer-info">
+        <div>Broker <b id="f-host">broker.emqx.io</b> &nbsp;WS <b>8083</b></div>
+        <div>Topic <b id="f-prefix">12345678/87654321</b>/nongye_dapeng</div>
+      </div>
+      <button class="cfg-btn" onclick="openCfg()">⚙️ 配置</button>
+    </div>
+
+  </div><!-- /body -->
+
+  <!-- ── 配置弹窗 ── -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <div class="modal-title">修改 MQTT 配置</div>
+      <div class="mf"><label>BROKER 地址</label><input class="m-inp" id="mf-host" value="broker.emqx.io"></div>
+      <div class="mf"><label>WEBSOCKET 端口</label><input class="m-inp" id="mf-port" type="number" value="8083"></div>
+      <div class="mf"><label>学号 1（Topic 第1段）</label><input class="m-inp" id="mf-id1" value="12345678"></div>
+      <div class="mf"><label>学号 2（Topic 第2段）</label><input class="m-inp" id="mf-id2" value="87654321"></div>
+      <div class="modal-btns">
+        <button class="m-cancel" onclick="closeCfg()">取消</button>
+        <button class="m-ok"     onclick="applyCfg()">保存并重连</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+</div><!-- /app -->
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.0.5/dist/mqtt.min.js"></script>
+<script>
+/* ═══ 配置 ═══ */
+let cfg={host:'broker.emqx.io',port:8083,id1:'12345678',id2:'87654321',sys:'nongye_dapeng'};
+const UP  =()=>`${cfg.id1}/${cfg.id2}/${cfg.sys}/upload`;
+const DOWN=()=>`${cfg.id1}/${cfg.id2}/${cfg.sys}/cmd`;
+
+/* ═══ 数据 ═══ */
+const D={temp:null,humi:null,light:null,soil:null,heater:0,fan:0,pump:0,th_h:30,th_l:15,th_li:1500,th_so:50};
+let client=null,connected=false,offTimer=null;
+
+/* ═══ MQTT ═══ */
+function mqttConnect(){
+  if(client){try{client.end(true)}catch(e){}}
+  client=mqtt.connect(`ws://${cfg.host}:${cfg.port}/mqtt`,{
+    clientId:'w_'+Math.random().toString(16).slice(2),
+    clean:true,reconnectPeriod:3000,connectTimeout:8000
+  });
+  client.on('connect',()=>{
+    connected=true;setConn(true);
+    client.subscribe(UP(),{qos:0});
+    toast('MQTT 已连接');resetOff();
+  });
+  ['disconnect','error','offline'].forEach(ev=>client.on(ev,()=>{connected=false;setConn(false)}));
+  client.on('reconnect',()=>setConn(false,'重连中'));
+  client.on('message',(topic,msg)=>{
+    if(topic!==UP())return;
+    parse(msg.toString().trim());resetOff();
+  });
+}
+
+function parse(raw){
+  const p=raw.split(',');
+  if(p.length<11)return;
+  D.temp=parseFloat(p[0]);D.humi=parseFloat(p[1]);
+  D.light=parseInt(p[2]);D.soil=parseInt(p[3]);
+  D.heater=parseInt(p[4]);D.fan=parseInt(p[5]);D.pump=parseInt(p[6]);
+  D.th_h=parseInt(p[7]);D.th_l=parseInt(p[8]);
+  D.th_li=parseInt(p[9]);D.th_so=parseInt(p[10]);
+  render();
+}
+
+/* ═══ 渲染 ═══ */
+function render(){
+  if(D.temp!==null){
+    const el=document.getElementById('sv-temp');
+    el.innerHTML=D.temp.toFixed(1)+'<span class="s-unit">℃</span>';
+    el.className='s-num '+(D.temp<5||D.temp>45?'c-red':D.temp<15||D.temp>30?'c-yellow':'c-green');
+    document.getElementById('sh-temp').textContent=D.temp<D.th_l?'⬇ 加热中':D.temp>D.th_h?'⬆ 散热中':'正常范围';
+  }
+  if(D.humi!==null) document.getElementById('sv-humi').innerHTML=D.humi+'<span class="s-unit">%</span>';
+  if(D.light!==null){
+    document.getElementById('sv-light').innerHTML=D.light+'<span class="s-unit" style="font-size:9px">ADC</span>';
+    document.getElementById('sh-li-val').textContent=D.th_li;
+  }
+  if(D.soil!==null){
+    document.getElementById('sv-soil').innerHTML=D.soil+'<span class="s-unit">%</span>';
+    const bar=document.getElementById('soil-bar');
+    bar.style.width=Math.min(D.soil,100)+'%';
+    bar.style.background=D.soil<20?'#ef4444':D.soil<40?'#f59e0b':'#22c55e';
+    document.getElementById('sh-so-val').textContent=D.th_so;
+  }
+  // 报警
+  const alm=document.getElementById('alarm-bar');
+  const ico=document.getElementById('a-ico');
+  const txt=document.getElementById('a-txt');
+  if(D.temp!==null&&(D.temp<5||D.temp>45)){
+    alm.className='alarm-bar a-temp';ico.textContent='🚨';txt.textContent='TEMP ALARM — 温度危险！';
+  }else if(D.soil!==null&&D.soil<20){
+    alm.className='alarm-bar a-soil';ico.textContent='⚠️';txt.textContent='SOIL DRY — 土壤严重缺水！';
+  }else if(D.light!==null&&D.light<D.th_li){
+    alm.className='alarm-bar a-light';ico.textContent='💡';txt.textContent='LIGHT LOW — 光照不足！';
+  }else{
+    alm.className='alarm-bar a-normal';ico.textContent='✅';txt.textContent='系统运行正常';
+  }
+  // 执行器
+  setAct('ab-heat',D.heater);setAct('ab-fan',D.fan);setAct('ab-pump',D.pump);
+  // 阈值同步
+  sync('ti-th',D.th_h);sync('ti-tl',D.th_l);sync('ti-li',D.th_li);sync('ti-so',D.th_so);
+  // 底栏
+  document.getElementById('f-host').textContent=cfg.host;
+  document.getElementById('f-prefix').textContent=cfg.id1+'/'+cfg.id2;
+}
+
+function setAct(id,on){document.getElementById(id).classList.toggle('on',!!on)}
+function sync(id,val){const el=document.getElementById(id);if(document.activeElement!==el)el.value=val}
+
+/* ═══ 连接状态 ═══ */
+function setConn(on,lbl){
+  document.getElementById('cdot').className='cdot '+(on?'on':'off');
+  document.getElementById('clabel').textContent=on?'在线':(lbl||'离线');
+  // 离线时执行器变暗
+  ['ab-heat','ab-fan','ab-pump'].forEach(id=>{
+    document.getElementById(id).style.opacity=on?'1':'0.45';
+    document.getElementById(id).style.pointerEvents=on?'':'none';
+  });
+  document.querySelector('.clear-btn').style.opacity=on?'1':'0.45';
+  document.querySelector('.clear-btn').style.pointerEvents=on?'':'none';
+}
+function resetOff(){clearTimeout(offTimer);offTimer=setTimeout(()=>setConn(false),10000)}
+
+/* ═══ 指令 ═══ */
+function pub(pl){
+  if(!client||!connected){toast('未连接，无法发送');return false;}
+  client.publish(DOWN(),pl,{qos:0});return true;
+}
+function toggle(key){
+  const m={heat:[D.heater?'07':'06'],fan:[D.fan?'09':'08'],pump:[D.pump?'0B':'0A']};
+  if(pub(m[key][0]))toast('已发送 '+m[key][0]);
+}
+function clearAlarm(){if(pub('01'))toast('消警指令已发送')}
+
+/* ═══ 阈值 ═══ */
+function chk(el,mn,mx){
+  const v=parseFloat(el.value),ok=!isNaN(v)&&v>=mn&&v<=mx;
+  el.classList.toggle('err',!ok);return ok;
+}
+function send(code,inpId,mn,mx){
+  const el=document.getElementById(inpId);
+  if(!chk(el,mn,mx))return;
+  if(pub(code+','+parseInt(el.value)))toast('已发送 '+code+','+parseInt(el.value));
+}
+
+/* ═══ 配置弹窗 ═══ */
+function openCfg(){
+  document.getElementById('mf-host').value=cfg.host;
+  document.getElementById('mf-port').value=cfg.port;
+  document.getElementById('mf-id1').value=cfg.id1;
+  document.getElementById('mf-id2').value=cfg.id2;
+  document.getElementById('overlay').classList.add('show');
+}
+function closeCfg(){document.getElementById('overlay').classList.remove('show')}
+function applyCfg(){
+  cfg.host=document.getElementById('mf-host').value.trim()||cfg.host;
+  cfg.port=parseInt(document.getElementById('mf-port').value)||cfg.port;
+  cfg.id1=document.getElementById('mf-id1').value.trim()||cfg.id1;
+  cfg.id2=document.getElementById('mf-id2').value.trim()||cfg.id2;
+  closeCfg();mqttConnect();
+}
+
+/* ═══ Toast ═══ */
+let toastTm=null;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(toastTm);
+  toastTm=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+mqttConnect();
+
+/* ── 模拟数据（MQTT未连接时展示用，连线后自动覆盖） ── */
+D.temp=24.6; D.humi=63; D.light=1823; D.soil=58;
+D.heater=0;  D.fan=1;   D.pump=0;
+D.th_h=30;   D.th_l=15; D.th_li=1500; D.th_so=50;
+render();
+</script>
+</body>
+</html>
