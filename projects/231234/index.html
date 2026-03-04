@@ -503,12 +503,12 @@
 
             <!-- 开关 -->
             <div class="btn-row">
-                <button class="btn btn-green" onclick="sendCmd('05,1')">🔆 开</button>
-                <button class="btn btn-gray" onclick="sendCmd('05,0')">🌑 关</button>
+                <button class="btn btn-green" onclick="setLight(1)">🔆 开</button>
+                <button class="btn btn-gray" onclick="setLight(0)">🌑 关</button>
             </div>
 
             <!-- 模式 -->
-            <div class="radio-group" style="margin-bottom: 8px;">
+            <div class="radio-group" id="modeGroup" style="margin-bottom: 8px;">
                 <button class="radio-btn active" onclick="setMode(1, this)">自动</button>
                 <button class="radio-btn" onclick="setMode(0, this)">手动</button>
             </div>
@@ -522,38 +522,47 @@
                 </div>
             </div>
 
-            <!-- 季节 -->
+            <!-- 季节选择 -->
+            <div class="section-title" style="margin-top:0;">🌤️ 季节延时控制</div>
+            <div style="font-size:11px; color:#aaa; margin-bottom:6px; display:none;">
+                选择季节后点执行，按当前灯状态延时开/关（春30s · 夏50s · 秋80s · 冬100s）
+            </div>
             <div class="radio-group" style="margin-bottom: 8px;" id="seasonGroup">
                 <button class="radio-btn" onclick="setSeason(1, this)">🌱春</button>
                 <button class="radio-btn active" onclick="setSeason(2, this)">☀️夏</button>
                 <button class="radio-btn" onclick="setSeason(3, this)">🍂秋</button>
                 <button class="radio-btn" onclick="setSeason(4, this)">❄️冬</button>
             </div>
-
-            <!-- 隐藏彩蛋：连点季节区域5次展开 -->
-            <div id="delayPanel" style="display:none; background:#f0f4ff; border:1px dashed #b0bce8; border-radius:6px; padding:8px; margin-bottom:8px;">
-                <div style="font-size:10px; color:#888; margin-bottom:6px;">⏱ 延时开灯模拟</div>
-                <div style="display:flex; gap:6px; align-items:center;">
-                    <input type="number" id="delaySeconds" min="1" max="3600" value="10"
-                        style="flex:1; padding:5px; border:1px solid #ccd; border-radius:4px; font-size:12px; width:0;">
-                    <span style="font-size:11px; color:#888; white-space:nowrap;">秒后开灯</span>
-                    <button class="btn btn-blue" style="flex:none; padding:5px 10px; font-size:11px;" onclick="startDelayOn()">启动</button>
-                    <button class="btn btn-gray" style="flex:none; padding:5px 8px; font-size:11px;" onclick="cancelDelayOn()">取消</button>
-                </div>
-                <div id="delayStatus" style="font-size:11px; color:#667eea; margin-top:5px; min-height:14px;"></div>
+            <div class="btn-row" style="margin-bottom:6px;">
+                <button class="btn btn-blue" onclick="startSeasonDelay()">▶ 执行</button>
+                <button class="btn btn-gray" onclick="cancelSeasonDelay()">✕ 取消</button>
             </div>
+            <!-- 倒计时状态 -->
+            <div id="delayStatus" style="font-size:12px; color:#667eea; min-height:18px; margin-bottom:6px;"></div>
 
             <!-- 阈值 -->
             <div class="section-title">⚙️ 阈值设置</div>
+            <!-- 当前阈值（只读，来自下位机上报） -->
             <div class="input-row">
-                <span class="input-label">温度</span>
-                <input type="number" id="threshTemp" min="10" max="50" value="30">
-                <button class="btn btn-blue" onclick="setThresh('temp')">设置</button>
+                <span class="input-label">当前温度</span>
+                <span id="curThreshTemp" style="flex:1; font-size:13px; font-weight:600; color:#333;">--</span>
+                <span style="font-size:11px; color:#999;">°C</span>
             </div>
             <div class="input-row">
-                <span class="input-label">湿度</span>
+                <span class="input-label">当前湿度</span>
+                <span id="curThreshHum" style="flex:1; font-size:13px; font-weight:600; color:#333;">--</span>
+                <span style="font-size:11px; color:#999;">%</span>
+            </div>
+            <!-- 设置阈值（用户输入，不被下位机覆盖） -->
+            <div class="input-row" style="margin-top:6px;">
+                <span class="input-label">设置温度</span>
+                <input type="number" id="threshTemp" min="10" max="50" value="30">
+                <button class="btn btn-blue" onclick="setThresh('temp')">提交</button>
+            </div>
+            <div class="input-row">
+                <span class="input-label">设置湿度</span>
                 <input type="number" id="threshHum" min="30" max="95" value="70">
-                <button class="btn btn-blue" onclick="setThresh('hum')">设置</button>
+                <button class="btn btn-blue" onclick="setThresh('hum')">提交</button>
             </div>
         </div>
 
@@ -573,8 +582,10 @@
         let stat = { mode: 1, season: 2 };
         let delayTimer = null;
         let delayCountdown = null;
-        let seasonClickCount = 0;
-        let seasonClickTimer = null;
+        let maxBrightTimer = null;   /* 手动全亮 10s 保护计时器 */
+
+        /* 各季节延时秒数：春30 夏50 秋80 冬100 */
+        const SEASON_DELAY = { 1: 30, 2: 50, 3: 80, 4: 100 };
 
         /* MQTT 配置（与 STM32 端 app_esp8266.h 保持一致）
          * Broker:     broker.emqx.io:8083 (WebSocket)
@@ -615,22 +626,22 @@
                 client.on('message', (topic, message) => {
                     try {
                         const parts = message.toString().split(',');
+                        /* 上报格式：lux,temp,humi,volt,curr,fault,duty,lamp,mode,t_thr,h_thr */
                         data = {
                             light: parseFloat(parts[0]) || 0,
-                            temp: parseFloat(parts[1]) || 0,
-                            hum: parseFloat(parts[2]) || 0,
-                            volt: parseFloat(parts[3]) || 0,
-                            curr: parseFloat(parts[4]) || 0,
-                            fault: parseInt(parts[5]) || 0,
-                            state: parseInt(parts[6]) || 0,
-                            ttemp: parseInt(parts[7]) || 30,
-                            thum: parseInt(parts[8]) || 70,
-                            mode: parts[9] !== undefined ? parseInt(parts[9]) : stat.mode,
-                            season: parts[10] !== undefined ? parseInt(parts[10]) : stat.season
+                            temp:  parseFloat(parts[1]) || 0,
+                            hum:   parseFloat(parts[2]) || 0,
+                            volt:  parseFloat(parts[3]) || 0,
+                            curr:  parseFloat(parts[4]) || 0,
+                            fault: parseInt(parts[5])   || 0,
+                            duty:  parseInt(parts[6])   || 0,   /* 0-100 */
+                            lamp:  parseInt(parts[7])   || 0,   /* 0=关 1=开 */
+                            mode:  parts[8] !== undefined ? parseInt(parts[8]) : stat.mode,
+                            ttemp: parts[9] !== undefined ? parseInt(parts[9]) : 30,
+                            thum:  parts[10] !== undefined ? parseInt(parts[10]) : 70
                         };
-                        /* 同步本地状态，避免刷新后丢失 */
-                        stat.mode   = data.mode;
-                        stat.season = data.season;
+                        /* 以下位机为真相来源，同步本地状态 */
+                        stat.mode = data.mode;
                         updateUI();
                     } catch (e) {
                         console.error(e);
@@ -648,17 +659,21 @@
             document.getElementById('hum').textContent = Math.round(data.hum);
             document.getElementById('volt').textContent = (data.volt || 0).toFixed(1);
             document.getElementById('curr').textContent = Math.round(data.curr);
-            document.getElementById('light_state').textContent = data.state ? '✓开' : '✕关';
+            /* lamp=开关状态，duty=当前亮度 */
+            document.getElementById('light_state').textContent =
+                data.lamp ? ('✓' + data.duty + '%') : '✕关';
 
-            document.getElementById('mode').textContent = stat.mode ? '自动' : '手动';
+            document.getElementById('mode').textContent = data.mode ? '自动' : '手动';
             document.getElementById('season').textContent = ['', '春', '夏', '秋', '冬'][stat.season] || '-';
             document.getElementById('fault').textContent = data.fault ? '⚠️故障' : '正常';
 
-            /* 同步模式按钮高亮 */
-            const modeBtns = document.querySelectorAll('.radio-group')[0].querySelectorAll('.radio-btn');
-            modeBtns[0].classList.toggle('active', stat.mode === 1);
-            modeBtns[1].classList.toggle('active', stat.mode === 0);
-            document.getElementById('brightnessControl').classList.toggle('show', stat.mode === 0);
+            /* 同步模式按钮高亮（以下位机上报为准） */
+            const modeBtns = document.getElementById('modeGroup').querySelectorAll('.radio-btn');
+            modeBtns[0].classList.toggle('active', data.mode === 1);
+            modeBtns[1].classList.toggle('active', data.mode === 0);
+            document.getElementById('brightnessControl').classList.toggle('show', data.mode === 0);
+
+
 
             /* 同步季节按钮高亮 */
             const seasonBtns = document.querySelectorAll('.radio-group')[1].querySelectorAll('.radio-btn');
@@ -671,8 +686,9 @@
                 alertEl.classList.remove('show');
             }
 
-            document.getElementById('threshTemp').value = data.ttemp || 30;
-            document.getElementById('threshHum').value = data.thum || 70;
+            /* 同步当前阈值显示（只读，不覆盖用户输入框） */
+            document.getElementById('curThreshTemp').textContent = data.ttemp !== undefined ? data.ttemp : '--';
+            document.getElementById('curThreshHum').textContent  = data.thum  !== undefined ? data.thum  : '--';
         }
 
         function sendCmd(cmd) {
@@ -683,68 +699,92 @@
             client.publish(TOPIC_PUB, cmd, { qos: 0 });
         }
 
-        function setMode(m, el) {
-            stat.mode = m;
-            document.querySelectorAll('.radio-group')[0].querySelectorAll('.radio-btn').forEach(b => b.classList.remove('active'));
-            el.classList.add('active');
-            document.getElementById('brightnessControl').classList.toggle('show', m === 0);
+        function setLight(on) {
+            sendCmd('04,' + (on ? 1 : 0));
+        }
+
+        function setMode(m) {
             sendCmd('06,' + m);
+            /* 乐观更新：立即刷新本地高亮，不等下位机确认 */
+            stat.mode = m;
+            data.mode = m;
+            const modeBtns = document.getElementById('modeGroup').querySelectorAll('.radio-btn');
+            modeBtns[0].classList.toggle('active', m === 1);
+            modeBtns[1].classList.toggle('active', m === 0);
+            document.getElementById('brightnessControl').classList.toggle('show', m === 0);
         }
 
         function setSeason(s, el) {
+            /* 季节是纯上位机逻辑，只更新本地状态和高亮，不下发指令 */
             stat.season = s;
             document.querySelectorAll('.radio-group')[1].querySelectorAll('.radio-btn').forEach(b => b.classList.remove('active'));
             el.classList.add('active');
-            sendCmd('08,' + s);
-
-            // 彩蛋：连点5次展开延时面板
-            seasonClickCount++;
-            clearTimeout(seasonClickTimer);
-            seasonClickTimer = setTimeout(() => { seasonClickCount = 0; }, 2000);
-            if (seasonClickCount >= 5) {
-                seasonClickCount = 0;
-                const panel = document.getElementById('delayPanel');
-                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-            }
         }
 
-        function startDelayOn() {
-            const sec = parseInt(document.getElementById('delaySeconds').value);
-            if (isNaN(sec) || sec < 1) { toast('请输入有效秒数'); return; }
+        function startSeasonDelay() {
+            const sec = SEASON_DELAY[stat.season] || 30;
+            const turnOn = !data.lamp;   /* 灯关 → 延时开；灯开 → 延时关 */
+            const action = turnOn ? '开灯' : '关灯';
 
-            // 清除已有定时
             clearTimeout(delayTimer);
             clearInterval(delayCountdown);
 
             let remain = sec;
             const statusEl = document.getElementById('delayStatus');
-            statusEl.textContent = `倒计时 ${remain}s 后发送开灯指令...`;
+            statusEl.textContent = `⏱ ${remain}s 后${action}`;
 
             delayCountdown = setInterval(() => {
                 remain--;
                 if (remain <= 0) {
                     clearInterval(delayCountdown);
                 } else {
-                    statusEl.textContent = `倒计时 ${remain}s 后发送开灯指令...`;
+                    statusEl.textContent = `⏱ ${remain}s 后${action}`;
                 }
             }, 1000);
 
             delayTimer = setTimeout(() => {
-                sendCmd('05,1');
-                statusEl.textContent = '✓ 已发送开灯指令';
                 clearInterval(delayCountdown);
+                setLight(turnOn ? 1 : 0);
+                statusEl.textContent = `✓ 已${action}`;
+                setTimeout(() => { statusEl.textContent = ''; }, 3000);
             }, sec * 1000);
         }
 
-        function cancelDelayOn() {
+        function cancelSeasonDelay() {
             clearTimeout(delayTimer);
             clearInterval(delayCountdown);
-            document.getElementById('delayStatus').textContent = '已取消';
+            const statusEl = document.getElementById('delayStatus');
+            statusEl.textContent = '已取消';
+            setTimeout(() => { statusEl.textContent = ''; }, 2000);
         }
 
         function updateBrightness(v) {
             document.getElementById('brightValue').textContent = v + '%';
-            sendCmd('07,' + v);
+            sendCmd('05,' + v);
+
+            /* 手动全亮保护：100% 持续 10s 自动关灯，含重试确认 */
+            clearTimeout(maxBrightTimer);
+            maxBrightTimer = null;
+            if (parseInt(v) === 100) {
+                maxBrightTimer = setTimeout(() => {
+                    maxBrightTimer = null;
+                    toast('全亮超时，正在关灯...');
+                    /* 每 2s 重发一次 04,0，最多重试 5 次，收到下位机确认（lamp=0）立即停止 */
+                    let retries = 0;
+                    function tryOff() {
+                        if (data.lamp === 0) {
+                            toast('已自动关灯');
+                            return;
+                        }
+                        sendCmd('04,0');
+                        retries++;
+                        if (retries < 5) {
+                            setTimeout(tryOff, 2000);
+                        }
+                    }
+                    tryOff();
+                }, 10000);
+            }
         }
 
         function setThresh(type) {
