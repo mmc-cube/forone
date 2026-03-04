@@ -13,37 +13,44 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f0f2f8;
             min-height: 100vh;
-            padding: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            padding: 0;
+            margin: 0;
+            /* 手机状态栏安全区域 */
+            padding-top: env(safe-area-inset-top);
+            padding-top: constant(safe-area-inset-top);
         }
 
         .container {
             width: 100%;
-            max-width: 360px;
+            max-width: 100%;
+            background: #f0f2f8;
+            border-radius: 0;
+            padding: 16px 12px 24px 12px;
+            min-height: 100vh;
+        }
+
+        /* 卡片通用 */
+        .card {
             background: #fff;
-            border-radius: 12px;
-            padding: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            max-height: 95vh;
-            overflow-y: auto;
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
         }
 
         /* 顶部 */
         .header {
             text-align: center;
-            padding: 8px 0;
-            margin-bottom: 10px;
-            border-bottom: 2px solid #f0f0f0;
+            padding: 10px 0 6px 0;
+            margin-bottom: 12px;
         }
 
         .header h1 {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 700;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
             cursor: pointer;
             user-select: none;
         }
@@ -93,85 +100,80 @@
 
         /* 数据区 */
         .data-section {
-            margin-bottom: 8px;
+            margin-bottom: 0;
         }
 
         .title {
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 600;
-            color: #999;
-            margin-bottom: 6px;
+            color: #888;
+            margin-bottom: 10px;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .data-grid {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 6px;
-            margin-bottom: 8px;
+            gap: 8px;
+            margin-bottom: 0;
         }
 
         .data-item {
-            background: #f8f9ff;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            padding: 8px;
+            background: #f4f6ff;
+            border-radius: 10px;
+            padding: 10px 6px;
             text-align: center;
         }
 
         .data-label {
-            font-size: 10px;
+            font-size: 11px;
             color: #999;
-            margin-bottom: 3px;
+            margin-bottom: 4px;
         }
 
         .data-value {
-            font-size: 14px;
+            font-size: 18px;
             font-weight: 700;
             color: #667eea;
         }
 
         .data-unit {
-            font-size: 9px;
-            color: #999;
+            font-size: 10px;
+            color: #aaa;
         }
 
         /* 状态行 */
         .status-row {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 6px;
-            margin-bottom: 8px;
+            gap: 8px;
+            margin-bottom: 0;
             font-size: 11px;
         }
 
         .status-item {
-            background: #f8f9ff;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            padding: 6px;
+            background: #f4f6ff;
+            border-radius: 10px;
+            padding: 8px 6px;
             text-align: center;
         }
 
         .status-item-label {
-            color: #999;
-            font-size: 9px;
-            margin-bottom: 2px;
+            color: #aaa;
+            font-size: 10px;
+            margin-bottom: 3px;
         }
 
         .status-item-value {
             font-weight: 600;
             color: #333;
-            font-size: 12px;
+            font-size: 13px;
         }
 
         /* 控制区 */
         .control {
-            background: #f8f9ff;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 10px;
-            margin-bottom: 8px;
+            margin-bottom: 0;
         }
 
         .btn-row {
@@ -186,10 +188,10 @@
 
         .btn {
             flex: 1;
-            padding: 8px;
+            padding: 11px 8px;
             border: none;
             border-radius: 6px;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
@@ -438,16 +440,16 @@
 <body>
     <div class="container">
         <!-- 顶部 -->
-        <div class="header">
+        <div class="card header">
             <h1 id="title">🚦 智能路灯</h1>
             <div class="status" id="connStatus">● 连接中...</div>
         </div>
 
         <!-- 告警 -->
-        <div class="alert" id="alert">⚠️ 电源故障 <button class="btn btn-red" style="padding: 4px 8px; font-size: 10px; float: right;" onclick="sendCmd('01')">消警</button></div>
+        <div class="alert" id="alert">⚠️ 供电异常：自动模式下检测到电压持续偏低</div>
 
         <!-- 实时数据 -->
-        <div class="data-section">
+        <div class="card data-section">
             <div class="title">📊 实时监控</div>
             <div class="data-grid">
                 <div class="data-item">
@@ -478,23 +480,25 @@
         </div>
 
         <!-- 状态信息 -->
-        <div class="status-row">
-            <div class="status-item">
-                <div class="status-item-label">模式</div>
-                <div class="status-item-value" id="mode">--</div>
-            </div>
-            <div class="status-item">
-                <div class="status-item-label">季节</div>
-                <div class="status-item-value" id="season">--</div>
-            </div>
-            <div class="status-item">
-                <div class="status-item-label">故障</div>
-                <div class="status-item-value" id="fault">--</div>
+        <div class="card" style="padding: 12px 14px;">
+            <div class="status-row">
+                <div class="status-item">
+                    <div class="status-item-label">模式</div>
+                    <div class="status-item-value" id="mode">--</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-item-label">季节</div>
+                    <div class="status-item-value" id="season">--</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-item-label">故障</div>
+                    <div class="status-item-value" id="fault">--</div>
+                </div>
             </div>
         </div>
 
         <!-- 控制区 -->
-        <div class="control">
+        <div class="card control">
             <div class="section-title">🎚️ 远程控制</div>
 
             <!-- 开关 -->
@@ -551,15 +555,10 @@
                 <input type="number" id="threshHum" min="30" max="95" value="70">
                 <button class="btn btn-blue" onclick="setThresh('hum')">设置</button>
             </div>
-            <div class="input-row">
-                <span class="input-label">电压</span>
-                <input type="number" id="threshVolt" min="0.3" max="1.0" step="0.1" value="0.5">
-                <button class="btn btn-blue" onclick="setThresh('volt')">设置</button>
-            </div>
         </div>
 
         <!-- 配置面板 -->
-        <div class="config" id="config">
+        <div class="config card" id="config">
             <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">MQTT 配置</div>
             <input type="text" id="id1" placeholder="学号1" value="123124">
             <input type="text" id="id2" placeholder="学号2" value="234235">
@@ -626,9 +625,8 @@
                             state: parseInt(parts[6]) || 0,
                             ttemp: parseInt(parts[7]) || 30,
                             thum: parseInt(parts[8]) || 70,
-                            tvolt: parseFloat(parts[9]) || 0.5,
-                            mode: parts[10] !== undefined ? parseInt(parts[10]) : stat.mode,
-                            season: parts[11] !== undefined ? parseInt(parts[11]) : stat.season
+                            mode: parts[9] !== undefined ? parseInt(parts[9]) : stat.mode,
+                            season: parts[10] !== undefined ? parseInt(parts[10]) : stat.season
                         };
                         /* 同步本地状态，避免刷新后丢失 */
                         stat.mode   = data.mode;
@@ -675,7 +673,6 @@
 
             document.getElementById('threshTemp').value = data.ttemp || 30;
             document.getElementById('threshHum').value = data.thum || 70;
-            document.getElementById('threshVolt').value = (data.tvolt || 0.5).toFixed(1);
         }
 
         function sendCmd(cmd) {
@@ -760,10 +757,6 @@
                 val = parseInt(document.getElementById('threshHum').value);
                 if (val < 30 || val > 95) { toast('30-95%'); return; }
                 cmd = '03,' + val;
-            } else {
-                val = parseFloat(document.getElementById('threshVolt').value);
-                if (val < 0.3 || val > 1.0) { toast('0.3-1.0V'); return; }
-                cmd = '04,' + val.toFixed(1);
             }
             sendCmd(cmd);
             toast('已保存');
