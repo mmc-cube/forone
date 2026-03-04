@@ -636,12 +636,10 @@
                             fault: parseInt(parts[5])   || 0,
                             duty:  parseInt(parts[6])   || 0,   /* 0-100 */
                             lamp:  parseInt(parts[7])   || 0,   /* 0=关 1=开 */
-                            mode:  parts[8] !== undefined ? parseInt(parts[8]) : stat.mode,
+                            mode:  stat.mode,
                             ttemp: parts[9] !== undefined ? parseInt(parts[9]) : 30,
                             thum:  parts[10] !== undefined ? parseInt(parts[10]) : 70
                         };
-                        /* 以下位机为真相来源，同步本地状态 */
-                        stat.mode = data.mode;
                         updateUI();
                     } catch (e) {
                         console.error(e);
@@ -768,15 +766,16 @@
             if (parseInt(v) === 100) {
                 maxBrightTimer = setTimeout(() => {
                     maxBrightTimer = null;
-                    toast('全亮超时，正在关灯...');
-                    /* 每 2s 重发一次 04,0，最多重试 5 次，收到下位机确认（lamp=0）立即停止 */
+                    toast('全亮超时，触发告警...');
+                    /* 08 = 原子指令：下位机立即关灯 + 启动蜂鸣器 */
                     let retries = 0;
                     function tryOff() {
                         if (data.lamp === 0) {
+                            sendCmd('07,0');  /* 关灯确认后停蜂鸣器 */
                             toast('已自动关灯');
                             return;
                         }
-                        sendCmd('04,0');
+                        sendCmd('08');
                         retries++;
                         if (retries < 5) {
                             setTimeout(tryOff, 2000);
