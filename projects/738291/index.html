@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>智能电动窗帘控制系统</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 12px;
+            padding-bottom: 24px;
+        }
+
+        /* ===== 状态栏 ===== */
+        .statusbar {
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .conn-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+            flex-shrink: 0;
+        }
+        .dot.online { background: var(--ok); }
+        .dot.offline { background: var(--alarm); }
+        .gear-btn {
+            background: none; border: none;
+            font-size: 20px; cursor: pointer;
+            padding: 4px; line-height: 1;
+        }
+
+        /* ===== 卡片通用 ===== */
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .card-title {
+            font-size: 12px;
+            color: var(--sub);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+            font-weight: 600;
+        }
+
+        /* ===== 实时数据卡 ===== */
+        .data-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #F5F5F5;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 13px; color: var(--sub); }
+        .data-value-wrap { display: flex; align-items: baseline; gap: 4px; }
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+            line-height: 1;
+        }
+        .data-value.alarm { color: var(--alarm); }
+        .data-unit { font-size: 13px; color: var(--sub); }
+
+        /* 窗帘进度条 */
+        .curtain-bar-wrap { margin-top: 6px; }
+        .curtain-bar-bg {
+            height: 8px;
+            background: #E0E0E0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .curtain-bar-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 4px;
+            transition: width 0.4s ease;
+            width: 0%;
+        }
+
+        /* ===== 报警卡 ===== */
+        .alarm-ok {
+            color: var(--ok);
+            font-size: 15px;
+            font-weight: 600;
+            text-align: center;
+            padding: 4px 0;
+        }
+        .alarm-item {
+            background: #FFEBEE;
+            border-left: 4px solid var(--alarm);
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--alarm);
+            font-weight: 500;
+        }
+        .alarm-item:last-child { margin-bottom: 0; }
+
+        /* ===== 控制卡 ===== */
+        .ctrl-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+        }
+        .ctrl-btn {
+            min-height: 52px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 8px 4px;
+        }
+        .ctrl-btn:active { opacity: 0.75; transform: scale(0.97); }
+        .ctrl-btn .btn-icon { font-size: 20px; line-height: 1; }
+        .ctrl-btn.open  { background: #E3F2FD; color: #1565C0; }
+        .ctrl-btn.close { background: #FFF3E0; color: #E65100; }
+        .ctrl-btn.stop  { background: #F3E5F5; color: #6A1B9A; }
+
+        /* ===== 阈值设置卡 ===== */
+        .thr-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #F5F5F5;
+        }
+        .thr-row:last-child { border-bottom: none; }
+        .thr-label { font-size: 13px; color: var(--sub); flex: 1; }
+        .thr-input {
+            width: 72px;
+            padding: 6px 8px;
+            border: 1px solid #E0E0E0;
+            border-radius: 6px;
+            font-size: 15px;
+            text-align: center;
+            outline: none;
+            margin: 0 8px;
+        }
+        .thr-input:focus { border-color: var(--primary); }
+        .thr-send {
+            padding: 6px 14px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s;
+            min-height: 34px;
+        }
+        .thr-send:active { opacity: 0.75; }
+
+        /* ===== 日志卡 ===== */
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+        }
+        .log-toggle { font-size: 13px; color: var(--sub); }
+        .log-body { display: none; margin-top: 12px; }
+        .log-body.open { display: block; }
+        .log-list {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            font-family: monospace;
+            color: #555;
+            line-height: 1.6;
+        }
+        .log-item { padding: 2px 0; border-bottom: 1px solid #F5F5F5; }
+        .log-empty { color: #BDBDBD; font-size: 12px; text-align: center; padding: 8px 0; }
+    </style>
+</head>
+<body>
+
+<!-- ① 状态栏 -->
+<div class="statusbar">
+    <div class="conn-status">
+        <div class="dot offline" id="dot"></div>
+        <span id="connText">未连接</span>
+    </div>
+    <button class="gear-btn" onclick="openSettings()" title="设置 Topic 前缀">⚙️</button>
+</div>
+
+<!-- ② 实时数据卡 -->
+<div class="card">
+    <div class="card-title">实时数据</div>
+
+    <div class="data-row">
+        <span class="data-label">温度</span>
+        <div class="data-value-wrap">
+            <span class="data-value" id="v-temp">--</span>
+            <span class="data-unit">℃</span>
+        </div>
+    </div>
+
+    <div class="data-row">
+        <span class="data-label">湿度</span>
+        <div class="data-value-wrap">
+            <span class="data-value" id="v-humi">--</span>
+            <span class="data-unit">%</span>
+        </div>
+    </div>
+
+    <div class="data-row">
+        <span class="data-label">窗帘位置</span>
+        <div class="data-value-wrap">
+            <span class="data-value" id="v-curtain">--</span>
+            <span class="data-unit">%</span>
+        </div>
+    </div>
+    <div class="curtain-bar-wrap">
+        <div class="curtain-bar-bg">
+            <div class="curtain-bar-fill" id="curtain-bar"></div>
+        </div>
+    </div>
+
+    <div class="data-row" style="margin-top:8px;">
+        <span class="data-label">开窗阈值</span>
+        <div class="data-value-wrap">
+            <span class="data-value" style="font-size:20px;" id="v-thr-open">--</span>
+            <span class="data-unit">℃</span>
+        </div>
+    </div>
+
+    <div class="data-row">
+        <span class="data-label">关窗阈值</span>
+        <div class="data-value-wrap">
+            <span class="data-value" style="font-size:20px;" id="v-thr-close">--</span>
+            <span class="data-unit">℃</span>
+        </div>
+    </div>
+</div>
+
+<!-- ③ 报警状态卡 -->
+<div class="card" id="alarm-card">
+    <div class="card-title">报警状态</div>
+    <div class="alarm-ok" id="alarm-ok">运行正常 ✓</div>
+    <div id="alarm-list"></div>
+</div>
+
+<!-- ④ 控制卡 -->
+<div class="card">
+    <div class="card-title">远程控制</div>
+    <div class="ctrl-grid">
+        <button class="ctrl-btn open" onclick="sendCmd('01')">
+            <span class="btn-icon">🔼</span>
+            <span>开窗</span>
+        </button>
+        <button class="ctrl-btn close" onclick="sendCmd('02')">
+            <span class="btn-icon">🔽</span>
+            <span>关窗</span>
+        </button>
+        <button class="ctrl-btn stop" onclick="sendCmd('03')">
+            <span class="btn-icon">⏹</span>
+            <span>停止</span>
+        </button>
+    </div>
+</div>
+
+<!-- ⑤ 阈值设置卡 -->
+<div class="card">
+    <div class="card-title">阈值设置</div>
+    <div class="thr-row">
+        <span class="thr-label">开窗温度阈值</span>
+        <input class="thr-input" type="number" id="inp-thr-open" placeholder="℃" min="0" max="60">
+        <button class="thr-send" onclick="sendThr('04', 'inp-thr-open', 'v-thr-open')">发送</button>
+    </div>
+    <div class="thr-row">
+        <span class="thr-label">关窗温度阈值</span>
+        <input class="thr-input" type="number" id="inp-thr-close" placeholder="℃" min="0" max="60">
+        <button class="thr-send" onclick="sendThr('05', 'inp-thr-close', 'v-thr-close')">发送</button>
+    </div>
+</div>
+
+<!-- ⑥ 日志卡 -->
+<div class="card">
+    <div class="log-header" onclick="toggleLog()">
+        <div class="card-title" style="margin-bottom:0;">原始日志</div>
+        <span class="log-toggle" id="log-toggle-text">展开 ▾</span>
+    </div>
+    <div class="log-body" id="log-body">
+        <div class="log-list" id="log-list">
+            <div class="log-empty">暂无数据</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ========== 配置 ==========
+const SYS_SUFFIX = 'zhidiandongliantian';
+
+let topicPrefix = localStorage.getItem('topic_prefix') || '0/0';
+let UPLOAD_TOPIC = topicPrefix + '/' + SYS_SUFFIX + '/upload';
+let CMD_TOPIC    = topicPrefix + '/' + SYS_SUFFIX + '/cmd';
+
+// ========== 当前数据 ==========
+let curData = { temp: NaN, humi: NaN, curtain_pos: NaN, thr_open: NaN, thr_close: NaN };
+
+// ========== MQTT ==========
+let client = null;
+
+function connectMqtt() {
+    const clientId = 'webview_' + Math.random().toString(36).substr(2, 6);
+    client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+        clientId,
+        reconnectPeriod: 3000,
+        connectTimeout: 10000
+    });
+
+    client.on('connect', () => {
+        setConn(true);
+        client.subscribe(UPLOAD_TOPIC);
+    });
+
+    client.on('reconnect', () => setConn(false));
+    client.on('offline',   () => setConn(false));
+    client.on('error',     () => setConn(false));
+
+    client.on('message', (topic, payload) => {
+        const raw = payload.toString().trim();
+        addLog(raw);
+        const parts = raw.split(',');
+        if (parts.length < 5) return;
+        curData.temp        = parseFloat(parts[0]);
+        curData.humi        = parseFloat(parts[1]);
+        curData.curtain_pos = parseFloat(parts[2]);
+        curData.thr_open    = parseFloat(parts[3]);
+        curData.thr_close   = parseFloat(parts[4]);
+        updateUI();
+        checkAlarms();
+    });
+}
+
+function setConn(online) {
+    document.getElementById('dot').className = 'dot ' + (online ? 'online' : 'offline');
+    document.getElementById('connText').textContent = online ? '已连接' : '未连接';
+}
+
+// ========== 更新 UI ==========
+function updateUI() {
+    const d = curData;
+
+    const tempEl = document.getElementById('v-temp');
+    tempEl.textContent = isNaN(d.temp) ? '--' : d.temp.toFixed(1);
+
+    document.getElementById('v-humi').textContent =
+        isNaN(d.humi) ? '--' : Math.round(d.humi);
+
+    const curtainEl = document.getElementById('v-curtain');
+    curtainEl.textContent = isNaN(d.curtain_pos) ? '--' : Math.round(d.curtain_pos);
+    document.getElementById('curtain-bar').style.width =
+        (isNaN(d.curtain_pos) ? 0 : d.curtain_pos) + '%';
+
+    document.getElementById('v-thr-open').textContent =
+        isNaN(d.thr_open) ? '--' : Math.round(d.thr_open);
+    document.getElementById('v-thr-close').textContent =
+        isNaN(d.thr_close) ? '--' : Math.round(d.thr_close);
+
+    // 温度字段报警色
+    const tempAlarm = !isNaN(d.temp) && !isNaN(d.thr_open) && d.temp >= d.thr_open;
+    tempEl.className = 'data-value' + (tempAlarm ? ' alarm' : '');
+}
+
+// ========== 报警判断 ==========
+function checkAlarms() {
+    const d = curData;
+    const alarms = [];
+
+    if (!isNaN(d.temp) && !isNaN(d.thr_open) && !isNaN(d.curtain_pos)) {
+        if (d.temp >= d.thr_open && d.curtain_pos < 100) {
+            alarms.push('高温报警，窗帘未全开');
+        }
+    }
+    if (!isNaN(d.temp) && !isNaN(d.thr_close) && !isNaN(d.curtain_pos)) {
+        if (d.temp <= d.thr_close && d.curtain_pos > 0) {
+            alarms.push('低温提示，窗帘未全关');
+        }
+    }
+
+    const okEl   = document.getElementById('alarm-ok');
+    const listEl = document.getElementById('alarm-list');
+    if (alarms.length === 0) {
+        okEl.style.display   = 'block';
+        listEl.innerHTML     = '';
+    } else {
+        okEl.style.display   = 'none';
+        listEl.innerHTML = alarms.map(a =>
+            `<div class="alarm-item">⚠ ${a}</div>`
+        ).join('');
+    }
+}
+
+// ========== 发送指令 ==========
+function sendCmd(cmd) {
+    if (!client || !client.connected) {
+        alert('MQTT 未连接，请稍候');
+        return;
+    }
+    client.publish(CMD_TOPIC, cmd);
+}
+
+function sendThr(code, inputId, displayId) {
+    const val = document.getElementById(inputId).value.trim();
+    if (val === '') { alert('请输入阈值'); return; }
+    const num = parseInt(val, 10);
+    if (isNaN(num)) { alert('请输入有效数字'); return; }
+    sendCmd(code + ',' + num);
+    // 乐观更新
+    document.getElementById(displayId).textContent = num;
+    document.getElementById(inputId).value = '';
+}
+
+// ========== 设置 Topic 前缀 ==========
+function openSettings() {
+    const cur = localStorage.getItem('topic_prefix') || '0/0';
+    const val = prompt(
+        '请输入 Topic 前缀（格式：数字1/数字2）\n当前：' + cur,
+        cur
+    );
+    if (val === null) return;
+    const trimmed = val.trim();
+    if (!trimmed) return;
+    topicPrefix  = trimmed;
+    UPLOAD_TOPIC = topicPrefix + '/' + SYS_SUFFIX + '/upload';
+    CMD_TOPIC    = topicPrefix + '/' + SYS_SUFFIX + '/cmd';
+    localStorage.setItem('topic_prefix', trimmed);
+
+    // 重新订阅
+    if (client) {
+        client.unsubscribe('#');
+        client.subscribe(UPLOAD_TOPIC);
+    }
+    alert('已更新！\n上行：' + UPLOAD_TOPIC + '\n下行：' + CMD_TOPIC);
+}
+
+// ========== 日志 ==========
+const logs = [];
+function addLog(raw) {
+    const now = new Date();
+    const ts = now.toTimeString().slice(0, 8);
+    logs.unshift('[' + ts + '] ' + raw);
+    if (logs.length > 20) logs.pop();
+    const listEl = document.getElementById('log-list');
+    listEl.innerHTML = logs.map(l =>
+        `<div class="log-item">${l}</div>`
+    ).join('');
+}
+
+function toggleLog() {
+    const body = document.getElementById('log-body');
+    const txt  = document.getElementById('log-toggle-text');
+    const open = body.classList.toggle('open');
+    txt.textContent = open ? '收起 ▴' : '展开 ▾';
+}
+
+// ========== 启动 ==========
+connectMqtt();
+</script>
+</body>
+</html>

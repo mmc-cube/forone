@@ -160,11 +160,13 @@
     <script>
         // ========== 配置 ==========
         // 内置项目列表（兜底，保证 file:// 协议下也能用）
+        // 格式：{ id: "6位数字密码", name: "中文项目名" }
         // 新增项目时同步更新这里，或者部署后靠 projects.json 自动覆盖
         const BUILTIN_PROJECTS = [
-    "284558",
-    "312332",
-    "364875"
+    {"id":"284558","name":"智能垃圾桶控制系统"},
+    {"id":"312332","name":"种植监测系统"},
+    {"id":"364875","name":"未命名项目"},
+    {"id":"738291","name":"智能电动窗帘控制系统"}
 ];
 
         let PROJECTS = [...BUILTIN_PROJECTS];
@@ -180,7 +182,13 @@
             try {
                 const res = await fetch('projects.json');
                 if (res.ok) {
-                    PROJECTS = await res.json();
+                    const data = await res.json();
+                    // 兼容旧格式（字符串数组）和新格式（对象数组）
+                    if (data.length > 0 && typeof data[0] === 'string') {
+                        PROJECTS = data.map(id => ({ id, name: id }));
+                    } else {
+                        PROJECTS = data;
+                    }
                 }
             } catch (e) {
                 console.log('使用内置项目列表');
@@ -194,9 +202,9 @@
         function autoLogin() {
             const saved = localStorage.getItem('app_token');
             if (!saved) return;
-            const matched = PROJECTS.find(p => p.toLowerCase() === saved.toLowerCase());
+            const matched = PROJECTS.find(p => p.id.toLowerCase() === saved.toLowerCase());
             if (matched) {
-                goToProject(matched);
+                goToProject(matched.id);
             } else {
                 // 口令已失效（项目被删了），清除记录
                 localStorage.removeItem('app_token');
@@ -227,9 +235,6 @@
                 return;
             }
 
-            // 匹配项目文件夹名
-            const matched = PROJECTS.find(p => p.toLowerCase() === pwd);
-
             // 管理员模式
             if (pwd === ADMIN_PWD.toLowerCase()) {
                 showMsg('管理员模式', true);
@@ -237,10 +242,13 @@
                 return;
             }
 
+            // 匹配项目ID（6位数字密码）
+            const matched = PROJECTS.find(p => p.id.toLowerCase() === pwd);
+
             if (matched) {
                 // 记住口令，下次自动跳转
-                localStorage.setItem('app_token', matched);
-                goToProject(matched);
+                localStorage.setItem('app_token', matched.id);
+                goToProject(matched.id);
             } else {
                 showMsg('口令错误，请重试', false);
                 document.getElementById('pwd').value = '';
@@ -274,8 +282,8 @@
             list.innerHTML = '';
             PROJECTS.forEach(p => {
                 const li = document.createElement('li');
-                li.innerHTML = `<span class="name">${p}</span><span class="arrow">›</span>`;
-                li.onclick = () => goToProject(p);
+                li.innerHTML = `<span class="name">${p.name}</span><span class="arrow" style="font-size:12px;color:rgba(255,255,255,0.25)">${p.id}</span>`;
+                li.onclick = () => goToProject(p.id);
                 list.appendChild(li);
             });
         }

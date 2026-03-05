@@ -3,7 +3,9 @@
 
 param(
     [Parameter(Mandatory=$true)]
-    [string]$ProjectPath
+    [string]$ProjectPath,
+    [Parameter(Mandatory=$false)]
+    [string]$ProjectName = ""   # 中文项目名，用于 admin 面板显示；留空则用文件夹名
 )
 
 Set-Location $PSScriptRoot
@@ -40,12 +42,18 @@ Write-Success "Project path validated"
 Write-Info ""
 Write-Info "Step 2: Extracting project name..."
 
-$projectName = Split-Path -Leaf $ProjectPath
-Write-Host "Project name: $projectName"
+$projectId = Split-Path -Leaf $ProjectPath
+Write-Host "Project ID (folder name): $projectId"
 
-$targetPath = Join-Path "projects" $projectName
+# 中文显示名：优先用参数，否则用文件夹名
+if ([string]::IsNullOrWhiteSpace($ProjectName)) {
+    $ProjectName = $projectId
+}
+Write-Host "Project display name: $ProjectName"
+
+$targetPath = Join-Path "projects" $projectId
 if (Test-Path $targetPath) {
-    Write-Error-Custom "Error: Project '$projectName' already exists in projects/"
+    Write-Error-Custom "Error: Project '$projectId' already exists in projects/"
     Read-Host "Press any key to exit"
     exit 1
 }
@@ -57,7 +65,7 @@ Write-Info ""
 Write-Info "Step 3: Copying project files..."
 
 Copy-Item -Path $ProjectPath -Destination $targetPath -Recurse -Force
-Write-Success "Project copied to projects/$projectName"
+Write-Success "Project copied to projects/$projectId"
 
 # 4. Detect and rename entry file
 Write-Info ""
@@ -86,7 +94,6 @@ if (-not $entryFile) {
 if ($entryFile -ne "index.html") {
     Write-Host "Found entry file: $entryFile"
     $oldPath = Join-Path $targetPath $entryFile
-    $newPath = Join-Path $targetPath "index.html"
     Rename-Item -Path $oldPath -NewName "index.html" -Force
     Write-Success "Renamed $entryFile -> index.html"
 } else {
@@ -97,20 +104,38 @@ if ($entryFile -ne "index.html") {
 Write-Info ""
 Write-Info "Step 5: Updating project list..."
 
-$folders = @()
-if (Test-Path "projects") {
-    $folders = (Get-ChildItem "projects" -Directory).Name | Sort-Object
+# 读取现有 projects.json（对象数组格式），追加新项目
+$existingProjects = @()
+if (Test-Path "projects.json") {
+    $raw = Get-Content "projects.json" -Raw -Encoding UTF8
+    $parsed = $raw | ConvertFrom-Json
+    # 兼容旧格式（字符串数组）
+    foreach ($item in $parsed) {
+        if ($item -is [string]) {
+            $existingProjects += @{ id = $item; name = $item }
+        } else {
+            $existingProjects += @{ id = $item.id; name = $item.name }
+        }
+    }
 }
 
-$json = ConvertTo-Json $folders
-Write-Host "projects.json: $json"
-$json | Out-File -Encoding UTF8 -FilePath "projects.json"
+# 追加新项目（如已存在则跳过）
+if (-not ($existingProjects | Where-Object { $_.id -eq $projectId })) {
+    $existingProjects += @{ id = $projectId; name = $ProjectName }
+}
 
-# Sync to index.html
+# 按 id 排序后写回
+$sorted = $existingProjects | Sort-Object { $_.id }
+$json = $sorted | ConvertTo-Json
+$json | Out-File -Encoding UTF8 -FilePath "projects.json"
+Write-Success "projects.json updated ($projectId / $ProjectName)"
+
+# 同步更新 index.html 中的 BUILTIN_PROJECTS（对象数组格式）
 $htmlFile = "index.html"
 if (Test-Path $htmlFile) {
+    $builtinJson = $sorted | ConvertTo-Json -Compress
     $content = Get-Content $htmlFile -Raw -Encoding UTF8
-    $content = $content -replace 'const BUILTIN_PROJECTS = \[.*?\];', "const BUILTIN_PROJECTS = $json;"
+    $content = $content -replace '(?s)const BUILTIN_PROJECTS = \[.*?\];', "const BUILTIN_PROJECTS = $builtinJson;"
     $content | Out-File -Encoding UTF8 -FilePath $htmlFile
     Write-Success "index.html synced"
 }
@@ -126,8 +151,7 @@ if ([string]::IsNullOrWhiteSpace($status)) {
     Write-Warn "No changes to commit"
 } else {
     git status --short
-    $date = Get-Date -Format "yyyy-MM-dd_HH:mm"
-    git commit -m "add: New project $projectName"
+    git commit -m "add: New project $projectId ($ProjectName)"
 
     if ($LASTEXITCODE -eq 0) {
         git push
@@ -148,7 +172,8 @@ if ([string]::IsNullOrWhiteSpace($status)) {
 # Success
 Write-Info ""
 Write-Success "===== Project Added Successfully ====="
-Write-Host "Project: $projectName"
+Write-Host "Project ID: $projectId"
+Write-Host "Display name: $ProjectName"
 Write-Host "Location: projects/$projectName/"
 Write-Host "Entry file: index.html"
 Write-Host ""
