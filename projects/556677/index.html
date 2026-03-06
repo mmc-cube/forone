@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>独居老人智能监护</title>
+<script src="mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #F0F2F5;
+    --card: #FFFFFF;
+    --primary: #1976D2;
+    --alarm: #F44336;
+    --alarm-bg: #FFEBEE;
+    --ok: #388E3C;
+    --ok-bg: #E8F5E9;
+    --warn: #F57C00;
+    --text: #212121;
+    --sub: #757575;
+    --border: #E0E0E0;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body {
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 12px 12px 24px;
+  }
+
+  /* ─── 顶部状态栏 ─── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding: 4px 0;
+  }
+  .topbar-title { font-size: 18px; font-weight: 700; color: var(--text); }
+  .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #9E9E9E;
+    transition: background 0.3s;
+  }
+  .status-dot.connected { background: var(--ok); }
+  .status-dot.error { background: var(--alarm); }
+  .status-label { font-size: 12px; color: var(--sub); }
+  .setting-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--card);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow);
+  }
+
+  /* ─── 通用卡片 ─── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--sub);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  /* ─── 实时数据卡 ─── */
+  .data-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .data-item {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 72px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .data-item.full-width { grid-column: 1 / -1; }
+  .data-label { font-size: 12px; color: var(--sub); font-weight: 500; }
+  .data-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.1;
+    transition: color 0.3s;
+  }
+  .data-value.alarm { color: var(--alarm); }
+  .data-unit { font-size: 12px; color: var(--sub); }
+  .data-value-row { display: flex; align-items: baseline; gap: 4px; }
+
+  /* GPS 特殊行 */
+  .gps-item {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 12px;
+    grid-column: 1 / -1;
+  }
+  .gps-value { font-size: 15px; font-weight: 600; color: var(--primary); margin-top: 4px; }
+
+  /* ─── 报警卡 ─── */
+  .alarm-card { background: var(--ok-bg); border: 1px solid #C8E6C9; }
+  .alarm-card.has-alarm { background: var(--alarm-bg); border-color: #FFCDD2; }
+  .alarm-ok { display: flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 600; font-size: 15px; }
+  .alarm-list { display: flex; flex-direction: column; gap: 8px; }
+  .alarm-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--alarm);
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px; font-weight: 600;
+  }
+  .alarm-item.sos {
+    animation: sos-blink 0.8s ease-in-out infinite;
+  }
+  @keyframes sos-blink {
+    0%,100% { background: var(--alarm); }
+    50% { background: #B71C1C; }
+  }
+  .alarm-icon { font-size: 18px; }
+
+  /* ─── 控制卡 ─── */
+  .ctrl-btn {
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .ctrl-btn:active { opacity: 0.8; transform: scale(0.98); }
+  .ctrl-btn.danger { background: var(--alarm); color: #fff; }
+  .ctrl-btn.primary { background: var(--primary); color: #fff; }
+
+  /* ─── 阈值设置卡 ─── */
+  .threshold-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px;
+  }
+  .threshold-row:last-child { margin-bottom: 0; }
+  .threshold-label { font-size: 14px; color: var(--text); flex: 1; }
+  .threshold-input {
+    width: 80px; height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 16px; text-align: center;
+    color: var(--text);
+    outline: none;
+    background: var(--bg);
+  }
+  .threshold-input:focus { border-color: var(--primary); }
+  .threshold-send {
+    height: 40px; padding: 0 14px;
+    border: none; border-radius: 8px;
+    background: var(--primary); color: #fff;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .threshold-send:active { opacity: 0.8; }
+
+  /* ─── 日志卡 ─── */
+  .log-header {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+    margin-bottom: 0;
+  }
+  .log-toggle { font-size: 13px; color: var(--primary); }
+  .log-body { display: none; margin-top: 12px; }
+  .log-body.open { display: block; }
+  .log-list {
+    max-height: 180px; overflow-y: auto;
+    font-size: 11px; color: var(--sub);
+    font-family: "SF Mono", "Consolas", monospace;
+    line-height: 1.6;
+  }
+  .log-item { padding: 2px 0; border-bottom: 1px solid var(--border); word-break: break-all; }
+
+  /* ─── 连接设置弹窗 ─── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--card); border-radius: var(--radius);
+    padding: 20px; width: 85%; max-width: 320px;
+  }
+  .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+  .modal-field { margin-bottom: 12px; }
+  .modal-field label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 6px; }
+  .modal-field input {
+    width: 100%; height: 44px;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 15px; padding: 0 12px;
+    outline: none; background: var(--bg); color: var(--text);
+  }
+  .modal-field input:focus { border-color: var(--primary); }
+  .modal-btns { display: flex; gap: 10px; margin-top: 16px; }
+  .modal-btn {
+    flex: 1; height: 44px; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .modal-btn.cancel { background: var(--bg); color: var(--sub); }
+  .modal-btn.confirm { background: var(--primary); color: #fff; }
+
+  /* ─── 当前阈值展示 ─── */
+  .thr-display {
+    font-size: 12px; color: var(--primary); font-weight: 600;
+    margin-left: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- 顶部状态栏 -->
+<div class="topbar">
+  <div class="topbar-title">🏠 独居老人监护</div>
+  <div class="topbar-right">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-label" id="statusLabel">未连接</span>
+    <button class="setting-btn" onclick="openModal()">⚙</button>
+  </div>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+  <div class="card-title">实时数据</div>
+  <div class="data-grid">
+
+    <div class="data-item">
+      <div class="data-label">心率</div>
+      <div class="data-value-row">
+        <div class="data-value" id="valHeartRate">--</div>
+        <div class="data-unit">bpm</div>
+      </div>
+    </div>
+
+    <div class="data-item">
+      <div class="data-label">血氧</div>
+      <div class="data-value-row">
+        <div class="data-value" id="valSpO2">--</div>
+        <div class="data-unit">%</div>
+      </div>
+    </div>
+
+    <div class="data-item">
+      <div class="data-label">燃气浓度</div>
+      <div class="data-value-row">
+        <div class="data-value" id="valGas">--</div>
+        <div class="data-unit">PPM</div>
+      </div>
+    </div>
+
+    <div class="data-item">
+      <div class="data-label">跌倒状态</div>
+      <div class="data-value" id="valFall" style="font-size:18px;">--</div>
+    </div>
+
+    <div class="gps-item">
+      <div class="data-label">GPS 位置</div>
+      <div class="gps-value" id="valGps">定位中...</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 报警状态卡 -->
+<div class="card alarm-card" id="alarmCard">
+  <div class="card-title">报警状态</div>
+  <div class="alarm-ok" id="alarmOk">
+    <span>✅</span><span>运行正常</span>
+  </div>
+  <div class="alarm-list" id="alarmList"></div>
+</div>
+
+<!-- 控制卡 -->
+<div class="card">
+  <div class="card-title">远程控制</div>
+  <button class="ctrl-btn danger" onclick="sendCmd('01')">
+    🔕 消警（关蜂鸣器 / 清除报警）
+  </button>
+</div>
+
+<!-- 阈值设置卡 -->
+<div class="card">
+  <div class="card-title">阈值设置</div>
+
+  <div class="threshold-row">
+    <div class="threshold-label">心率下限<span class="thr-display" id="thrHrDisplay"></span></div>
+    <input class="threshold-input" id="inputHr" type="number" placeholder="60" min="30" max="200">
+    <button class="threshold-send" onclick="sendThreshold('02', 'inputHr')">发送</button>
+  </div>
+
+  <div class="threshold-row">
+    <div class="threshold-label">血氧下限<span class="thr-display" id="thrSpo2Display"></span></div>
+    <input class="threshold-input" id="inputSpo2" type="number" placeholder="90" min="50" max="100">
+    <button class="threshold-send" onclick="sendThreshold('03', 'inputSpo2')">发送</button>
+  </div>
+
+  <div class="threshold-row">
+    <div class="threshold-label">燃气上限<span class="thr-display" id="thrGasDisplay"></span></div>
+    <input class="threshold-input" id="inputGas" type="number" placeholder="1000" min="100" max="9999">
+    <button class="threshold-send" onclick="sendThreshold('04', 'inputGas')">发送</button>
+  </div>
+</div>
+
+<!-- 日志卡 -->
+<div class="card">
+  <div class="log-header card-title" style="margin-bottom:0;" onclick="toggleLog()">
+    <span>原始数据日志</span>
+    <span class="log-toggle" id="logToggle">▶ 展开</span>
+  </div>
+  <div class="log-body" id="logBody">
+    <div class="log-list" id="logList"></div>
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title">⚙ 连接设置</div>
+    <div class="modal-field">
+      <label>Topic 前缀（数字1/数字2）</label>
+      <input id="inputTopicPrefix" type="text" placeholder="例如: 001/001">
+    </div>
+    <div class="modal-btns">
+      <button class="modal-btn cancel" onclick="closeModal()">取消</button>
+      <button class="modal-btn confirm" onclick="saveSettings()">保存并重连</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────
+// 配置
+// ────────────────────────────────────────────────
+const SYSTEM_NAME = 'dulaojiankang';
+const DEFAULT_PREFIX = '001/001';
+
+let topicPrefix = localStorage.getItem('topic_prefix') || DEFAULT_PREFIX;
+let UPLOAD_TOPIC = topicPrefix + '/' + SYSTEM_NAME + '/upload';
+let CMD_TOPIC    = topicPrefix + '/' + SYSTEM_NAME + '/cmd';
+
+// ────────────────────────────────────────────────
+// 状态
+// ────────────────────────────────────────────────
+let lastData = null;
+let mqttClient = null;
+let logItems = [];
+
+// ────────────────────────────────────────────────
+// MQTT 连接
+// ────────────────────────────────────────────────
+function connectMqtt() {
+  const clientId = 'webview_' + Math.random().toString(36).substr(2, 8);
+
+  mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: clientId,
+    reconnectPeriod: 3000,
+    connectTimeout: 10000
+  });
+
+  mqttClient.on('connect', function() {
+    setStatus('connected', '已连接');
+    mqttClient.subscribe(UPLOAD_TOPIC, { qos: 0 }, function(err) {
+      if (!err) addLog('已订阅: ' + UPLOAD_TOPIC);
+    });
+  });
+
+  mqttClient.on('reconnect', function() {
+    setStatus('', '重连中...');
+  });
+
+  mqttClient.on('offline', function() {
+    setStatus('error', '连接断开');
+  });
+
+  mqttClient.on('error', function(err) {
+    setStatus('error', '连接错误');
+    addLog('错误: ' + err.message);
+  });
+
+  mqttClient.on('message', function(topic, payload) {
+    const msg = payload.toString();
+    addLog(msg);
+    parseMqttMessage(msg);
+  });
+}
+
+function setStatus(cls, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusLabel');
+  dot.className = 'status-dot ' + cls;
+  label.textContent = text;
+}
+
+// ────────────────────────────────────────────────
+// 数据解析（按 PRD 字段序号，逗号分隔）
+// ────────────────────────────────────────────────
+// 序号0:心率  1:血氧  2:燃气PPM  3:跌倒标志  4:SOS标志
+// 序号5:纬度  6:经度  7:心率阈值  8:血氧阈值  9:燃气阈值
+function parseMqttMessage(msg) {
+  const parts = msg.split(',');
+  if (parts.length < 10) return;
+
+  const data = {
+    heart_rate:    parseInt(parts[0]),
+    spo2:          parseInt(parts[1]),
+    gas_ppm:       parseInt(parts[2]),
+    fall_flag:     parseInt(parts[3]),
+    sos_flag:      parseInt(parts[4]),
+    latitude:      parseFloat(parts[5]),
+    longitude:     parseFloat(parts[6]),
+    hr_threshold:  parseInt(parts[7]),
+    spo2_threshold:parseInt(parts[8]),
+    gas_threshold: parseInt(parts[9])
+  };
+
+  lastData = data;
+  updateUI(data);
+  checkAlarms(data);
+}
+
+// ────────────────────────────────────────────────
+// UI 更新
+// ────────────────────────────────────────────────
+function updateUI(data) {
+  // 心率
+  const hrEl = document.getElementById('valHeartRate');
+  hrEl.textContent = data.heart_rate;
+  hrEl.className = 'data-value' + (data.heart_rate < data.hr_threshold && data.heart_rate > 0 ? ' alarm' : '');
+
+  // 血氧
+  const spo2El = document.getElementById('valSpO2');
+  spo2El.textContent = data.spo2;
+  spo2El.className = 'data-value' + (data.spo2 < data.spo2_threshold && data.spo2 > 0 ? ' alarm' : '');
+
+  // 燃气
+  const gasEl = document.getElementById('valGas');
+  gasEl.textContent = data.gas_ppm;
+  gasEl.className = 'data-value' + (data.gas_ppm > data.gas_threshold ? ' alarm' : '');
+
+  // 跌倒
+  const fallEl = document.getElementById('valFall');
+  if (data.fall_flag === 1) {
+    fallEl.textContent = '⚠️ 检测到跌倒';
+    fallEl.style.color = 'var(--alarm)';
+  } else {
+    fallEl.textContent = '✅ 正常';
+    fallEl.style.color = 'var(--ok)';
+  }
+
+  // GPS
+  const gpsEl = document.getElementById('valGps');
+  if (data.latitude === 0 && data.longitude === 0) {
+    gpsEl.textContent = '定位中...';
+    gpsEl.style.color = 'var(--sub)';
+  } else {
+    gpsEl.textContent = '获取位置中...';
+    gpsEl.style.color = 'var(--primary)';
+    fetchGeoName(data.latitude, data.longitude);
+  }
+
+  // 阈值显示
+  document.getElementById('thrHrDisplay').textContent = ' (当前: ' + data.hr_threshold + ')';
+  document.getElementById('thrSpo2Display').textContent = ' (当前: ' + data.spo2_threshold + ')';
+  document.getElementById('thrGasDisplay').textContent = ' (当前: ' + data.gas_threshold + ')';
+}
+
+// ────────────────────────────────────────────────
+// 报警判断（JS端完成，按 PRD 规则）
+// ────────────────────────────────────────────────
+function checkAlarms(data) {
+  const alarms = [];
+
+  // SOS：最高优先级
+  if (data.sos_flag === 1) {
+    alarms.push({ text: '🆘 SOS求救！', sos: true });
+  }
+  // 跌倒
+  if (data.fall_flag === 1) {
+    alarms.push({ text: '🤸 检测到跌倒', sos: false });
+  }
+  // 心率过低（有效值才判断）
+  if (data.heart_rate > 0 && data.heart_rate < data.hr_threshold) {
+    alarms.push({ text: '💓 心率过低 (' + data.heart_rate + ' bpm)', sos: false });
+  }
+  // 血氧过低
+  if (data.spo2 > 0 && data.spo2 < data.spo2_threshold) {
+    alarms.push({ text: '🩸 血氧过低 (' + data.spo2 + '%)', sos: false });
+  }
+  // 燃气超标
+  if (data.gas_ppm > data.gas_threshold) {
+    alarms.push({ text: '💨 燃气超标 (' + data.gas_ppm + ' PPM)', sos: false });
+  }
+
+  const card = document.getElementById('alarmCard');
+  const okEl = document.getElementById('alarmOk');
+  const listEl = document.getElementById('alarmList');
+
+  if (alarms.length === 0) {
+    card.classList.remove('has-alarm');
+    okEl.style.display = 'flex';
+    listEl.innerHTML = '';
+  } else {
+    card.classList.add('has-alarm');
+    okEl.style.display = 'none';
+    listEl.innerHTML = alarms.map(a =>
+      '<div class="alarm-item' + (a.sos ? ' sos' : '') + '">' +
+      '<span class="alarm-icon">' + a.text.split(' ')[0] + '</span>' +
+      '<span>' + a.text.split(' ').slice(1).join(' ') + '</span>' +
+      '</div>'
+    ).join('');
+  }
+}
+
+// ────────────────────────────────────────────────
+// GPS 逆地理编码（高德 Web API，无需 key 的免费接口）
+// ────────────────────────────────────────────────
+let lastGeoLat = null, lastGeoLon = null;
+function fetchGeoName(lat, lon) {
+  // 防止重复请求相同坐标
+  if (lat === lastGeoLat && lon === lastGeoLon) return;
+  lastGeoLat = lat; lastGeoLon = lon;
+
+  const gpsEl = document.getElementById('valGps');
+  // 使用 nominatim（OpenStreetMap）逆地理，无需 key
+  const url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' +
+              lat + '&lon=' + lon + '&zoom=14&accept-language=zh';
+  fetch(url)
+    .then(r => r.json())
+    .then(d => {
+      const addr = d.address;
+      let name = '';
+      if (addr) {
+        name = addr.city || addr.county || addr.state || addr.country || '';
+        if (addr.suburb) name = addr.suburb + ' · ' + name;
+      }
+      gpsEl.textContent = name || (lat.toFixed(4) + ', ' + lon.toFixed(4));
+      gpsEl.style.color = 'var(--primary)';
+    })
+    .catch(() => {
+      gpsEl.textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
+    });
+}
+
+// ────────────────────────────────────────────────
+// 发送指令
+// ────────────────────────────────────────────────
+function sendCmd(cmd) {
+  if (!mqttClient || !mqttClient.connected) {
+    alert('MQTT 未连接，请检查网络');
+    return;
+  }
+  mqttClient.publish(CMD_TOPIC, cmd, { qos: 0 });
+  addLog('▶ 发送: ' + cmd);
+}
+
+function sendThreshold(code, inputId) {
+  const val = document.getElementById(inputId).value.trim();
+  if (!val || isNaN(parseInt(val)) || parseInt(val) <= 0) {
+    alert('请输入有效数值');
+    return;
+  }
+  const cmd = code + ',' + parseInt(val);
+  sendCmd(cmd);
+  // 乐观更新显示
+  document.getElementById(inputId).value = '';
+}
+
+// ────────────────────────────────────────────────
+// 日志
+// ────────────────────────────────────────────────
+function addLog(msg) {
+  const now = new Date();
+  const ts = now.getHours().toString().padStart(2,'0') + ':' +
+             now.getMinutes().toString().padStart(2,'0') + ':' +
+             now.getSeconds().toString().padStart(2,'0');
+  logItems.unshift('[' + ts + '] ' + msg);
+  if (logItems.length > 20) logItems = logItems.slice(0, 20);
+
+  const el = document.getElementById('logList');
+  el.innerHTML = logItems.map(l =>
+    '<div class="log-item">' + escHtml(l) + '</div>'
+  ).join('');
+}
+
+function toggleLog() {
+  const body = document.getElementById('logBody');
+  const toggle = document.getElementById('logToggle');
+  if (body.classList.contains('open')) {
+    body.classList.remove('open');
+    toggle.textContent = '▶ 展开';
+  } else {
+    body.classList.add('open');
+    toggle.textContent = '▼ 收起';
+  }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ────────────────────────────────────────────────
+// 设置弹窗
+// ────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('inputTopicPrefix').value = topicPrefix;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+function saveSettings() {
+  const val = document.getElementById('inputTopicPrefix').value.trim();
+  if (!val) { alert('请输入 Topic 前缀'); return; }
+  topicPrefix = val;
+  localStorage.setItem('topic_prefix', topicPrefix);
+  UPLOAD_TOPIC = topicPrefix + '/' + SYSTEM_NAME + '/upload';
+  CMD_TOPIC    = topicPrefix + '/' + SYSTEM_NAME + '/cmd';
+  closeModal();
+  // 重连
+  if (mqttClient) { mqttClient.end(true); }
+  setTimeout(connectMqtt, 500);
+}
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ────────────────────────────────────────────────
+// 启动
+// ────────────────────────────────────────────────
+connectMqtt();
+</script>
+</body>
+</html>
