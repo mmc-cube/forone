@@ -201,6 +201,13 @@
 
         // ========== 自动登录 ==========
         function autoLogin() {
+            // 检查 admin 自动登录
+            if (localStorage.getItem('admin_token') === 'admin888') {
+                showMsg('管理员模式', true);
+                showAdminPanel();
+                return;
+            }
+            // 检查项目密码自动登录
             const saved = localStorage.getItem('app_token');
             if (!saved) return;
             const matched = PROJECTS.find(p => p.id.toLowerCase() === saved.toLowerCase());
@@ -239,6 +246,7 @@
             // 管理员模式
             if (pwd === ADMIN_PWD.toLowerCase()) {
                 showMsg('管理员模式', true);
+                localStorage.setItem('admin_token', 'admin888');
                 showAdminPanel();
                 return;
             }
@@ -290,6 +298,7 @@
         }
 
         function adminLogout() {
+            localStorage.removeItem('admin_token');
             document.querySelector('.input-wrap').style.display = '';
             document.getElementById('enterBtn').style.display = '';
             document.getElementById('adminPanel').classList.remove('show');
