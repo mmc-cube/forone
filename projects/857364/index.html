@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>独居老人智能监护</title>
+<script src="mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --alarm: #F44336;
+    --alarm-bg: #FFEBEE;
+    --ok: #4CAF50;
+    --ok-bg: #E8F5E9;
+    --warn: #FF9800;
+    --text: #212121;
+    --sub: #757575;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+    color: var(--text);
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 12px;
+    padding-bottom: 24px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 12px 16px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--sub);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #F0F0F0;
+  }
+  .card-body { padding: 12px 16px; }
+
+  /* 状态栏 */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+  }
+  .status-title { font-size: 17px; font-weight: 700; }
+  .conn-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--sub);
+  }
+  .conn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ccc;
+    transition: background 0.3s;
+  }
+  .conn-dot.connected { background: var(--ok); }
+  .conn-dot.connecting { background: var(--warn); animation: blink 1s infinite; }
+
+  /* 数据行 */
+  .data-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #F5F5F5;
+  }
+  .data-row:last-child { border-bottom: none; }
+  .data-label { font-size: 13px; color: var(--sub); }
+  .data-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .data-value.alarm { color: var(--alarm); }
+  .data-unit { font-size: 13px; font-weight: 400; color: var(--sub); }
+
+  /* 标志行（跌倒/SOS） */
+  .flag-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #F5F5F5;
+  }
+  .flag-row:last-child { border-bottom: none; }
+  .flag-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .flag-badge.ok { background: var(--ok-bg); color: var(--ok); }
+  .flag-badge.alarm { background: var(--alarm-bg); color: var(--alarm); }
+  .flag-badge.sos-active {
+    background: var(--alarm);
+    color: #fff;
+    animation: sos-flash 0.6s infinite;
+  }
+
+  /* GPS行 */
+  .gps-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+  }
+  .gps-value { font-size: 14px; font-weight: 600; color: var(--text); text-align: right; max-width: 220px; }
+  .gps-value.locating { color: var(--sub); font-style: italic; }
+
+  /* 报警卡 */
+  .alarm-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--alarm-bg);
+    border-left: 4px solid var(--alarm);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--alarm);
+  }
+  .alarm-item.sos { animation: sos-flash 0.6s infinite; }
+  .alarm-item:last-child { margin-bottom: 0; }
+  .ok-state {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ok);
+    font-size: 15px;
+    font-weight: 600;
+    padding: 4px 0;
+  }
+
+  /* 按钮 */
+  .btn {
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn:active { opacity: 0.8; transform: scale(0.98); }
+  .btn-alarm { background: var(--alarm); color: #fff; }
+  .btn-primary { background: var(--primary); color: #fff; }
+
+  /* 阈值设置 */
+  .threshold-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #F5F5F5;
+  }
+  .threshold-row:last-child { border-bottom: none; }
+  .threshold-label { font-size: 14px; color: var(--text); flex: 1; }
+  .threshold-input {
+    width: 80px;
+    height: 38px;
+    border: 1.5px solid #E0E0E0;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    outline: none;
+  }
+  .threshold-input:focus { border-color: var(--primary); }
+  .btn-send {
+    height: 38px;
+    padding: 0 14px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn-send:active { opacity: 0.8; }
+  .btn-send.sent {
+    background: var(--ok);
+    animation: sent-flash 0.5s;
+  }
+
+  /* 日志卡 */
+  .log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .log-toggle { font-size: 12px; color: var(--primary); }
+  .log-body { display: none; padding: 0 16px 12px; }
+  .log-body.open { display: block; }
+  .log-list {
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--sub);
+    line-height: 1.6;
+  }
+  .log-item { border-bottom: 1px solid #F5F5F5; padding: 3px 0; word-break: break-all; }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  @keyframes sos-flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  @keyframes sent-flash {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ① 状态栏卡 -->
+<div class="card">
+  <div class="status-bar">
+    <div class="status-title">独居老人监护</div>
+    <div class="conn-badge">
+      <div class="conn-dot connecting" id="connDot"></div>
+      <span id="connText">连接中...</span>
+    </div>
+  </div>
+</div>
+
+<!-- ② 实时数据卡 -->
+<div class="card">
+  <div class="card-header">实时数据</div>
+  <div class="card-body">
+    <div class="data-row">
+      <span class="data-label">心率</span>
+      <div class="data-value" id="valHR">--<span class="data-unit">bpm</span></div>
+    </div>
+    <div class="data-row">
+      <span class="data-label">血氧</span>
+      <div class="data-value" id="valSpO2">--<span class="data-unit">%</span></div>
+    </div>
+    <div class="data-row">
+      <span class="data-label">燃气浓度</span>
+      <div class="data-value" id="valGas">--<span class="data-unit">PPM</span></div>
+    </div>
+    <div class="flag-row">
+      <span class="data-label">跌倒状态</span>
+      <span class="flag-badge ok" id="flagFall">正常</span>
+    </div>
+    <div class="flag-row">
+      <span class="data-label">SOS 状态</span>
+      <span class="flag-badge ok" id="flagSOS">正常</span>
+    </div>
+    <div class="gps-row">
+      <span class="data-label">GPS 位置</span>
+      <span class="gps-value locating" id="valGPS">定位中...</span>
+    </div>
+  </div>
+</div>
+
+<!-- ③ 报警状态卡 -->
+<div class="card">
+  <div class="card-header">报警状态</div>
+  <div class="card-body" id="alarmBody">
+    <div class="ok-state">✓ 运行正常</div>
+  </div>
+</div>
+
+<!-- ④ 控制卡 -->
+<div class="card">
+  <div class="card-header">远程控制</div>
+  <div class="card-body">
+    <button class="btn btn-alarm" onclick="sendCmd('01')">
+      🔕 消警（关闭蜂鸣器 / 清除报警）
+    </button>
+  </div>
+</div>
+
+<!-- ⑤ 阈值设置卡 -->
+<div class="card">
+  <div class="card-header">阈值设置</div>
+  <div class="card-body">
+    <div class="threshold-row">
+      <span class="threshold-label">心率阈值 <span style="color:var(--sub);font-size:12px;" id="curHRThr"></span></span>
+      <input class="threshold-input" type="number" id="inHRThr" placeholder="bpm">
+      <button class="btn-send" id="btnHR" onclick="sendThreshold('02', 'inHRThr', 'btnHR', 'curHRThr', 'bpm')">发送</button>
+    </div>
+    <div class="threshold-row">
+      <span class="threshold-label">血氧阈值 <span style="color:var(--sub);font-size:12px;" id="curSpO2Thr"></span></span>
+      <input class="threshold-input" type="number" id="inSpO2Thr" placeholder="%">
+      <button class="btn-send" id="btnSpO2" onclick="sendThreshold('03', 'inSpO2Thr', 'btnSpO2', 'curSpO2Thr', '%')">发送</button>
+    </div>
+    <div class="threshold-row">
+      <span class="threshold-label">燃气阈值 <span style="color:var(--sub);font-size:12px;" id="curGasThr"></span></span>
+      <input class="threshold-input" type="number" id="inGasThr" placeholder="PPM">
+      <button class="btn-send" id="btnGas" onclick="sendThreshold('04', 'inGasThr', 'btnGas', 'curGasThr', 'PPM')">发送</button>
+    </div>
+  </div>
+</div>
+
+<!-- ⑥ 日志卡（默认折叠） -->
+<div class="card">
+  <div class="log-header" onclick="toggleLog()">
+    <div class="card-header" style="border:none;padding:0;font-size:13px;">原始数据日志</div>
+    <span class="log-toggle" id="logToggleBtn">展开 ▼</span>
+  </div>
+  <div class="log-body" id="logBody">
+    <div class="log-list" id="logList">
+      <div class="log-item" style="color:#bbb;">暂无数据</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== MQTT 配置 =====================
+const UPLOAD_TOPIC = '001/001/dulaojiankang/upload';
+const CMD_TOPIC    = '001/001/dulaojiankang/cmd';
+
+let geoCache = {};  // GPS 逆地理编码缓存
+let logOpen = false;
+let logData = [];
+let lastData = {};
+
+// ===================== MQTT 连接 =====================
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+  clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+  reconnectPeriod: 3000,
+  connectTimeout: 10000
+});
+
+client.on('connect', () => {
+  setConnState('connected');
+  client.subscribe(UPLOAD_TOPIC);
+});
+
+client.on('reconnect', () => setConnState('connecting'));
+client.on('offline', () => setConnState('disconnected'));
+client.on('error', () => setConnState('disconnected'));
+
+client.on('message', (topic, payload) => {
+  const raw = payload.toString().trim();
+  addLog(raw);
+  const parts = raw.split(',');
+  if (parts.length < 10) return;
+
+  const data = {
+    heart_rate:      parseInt(parts[0]),
+    spo2:            parseInt(parts[1]),
+    gas_ppm:         parseInt(parts[2]),
+    fall_flag:       parseInt(parts[3]),
+    sos_flag:        parseInt(parts[4]),
+    latitude:        parseFloat(parts[5]),
+    longitude:       parseFloat(parts[6]),
+    hr_threshold:    parseInt(parts[7]),
+    spo2_threshold:  parseInt(parts[8]),
+    gas_threshold:   parseInt(parts[9])
+  };
+  lastData = data;
+  updateUI(data);
+  checkAlarms(data);
+});
+
+// ===================== UI 更新 =====================
+function updateUI(d) {
+  // 心率
+  const hrAlarm = d.heart_rate < d.hr_threshold && d.heart_rate > 0;
+  setDataValue('valHR', d.heart_rate, 'bpm', hrAlarm);
+
+  // 血氧
+  const spo2Alarm = d.spo2 < d.spo2_threshold && d.spo2 > 0;
+  setDataValue('valSpO2', d.spo2, '%', spo2Alarm);
+
+  // 燃气
+  const gasAlarm = d.gas_ppm > d.gas_threshold;
+  setDataValue('valGas', d.gas_ppm, 'PPM', gasAlarm);
+
+  // 跌倒标志
+  const fallEl = document.getElementById('flagFall');
+  if (d.fall_flag === 1) {
+    fallEl.textContent = '⚠ 检测到跌倒';
+    fallEl.className = 'flag-badge alarm';
+  } else {
+    fallEl.textContent = '正常';
+    fallEl.className = 'flag-badge ok';
+  }
+
+  // SOS 标志
+  const sosEl = document.getElementById('flagSOS');
+  if (d.sos_flag === 1) {
+    sosEl.textContent = '🆘 SOS 求救中';
+    sosEl.className = 'flag-badge sos-active';
+  } else {
+    sosEl.textContent = '正常';
+    sosEl.className = 'flag-badge ok';
+  }
+
+  // GPS
+  updateGPS(d.latitude, d.longitude);
+
+  // 阈值显示
+  document.getElementById('curHRThr').textContent = '当前 ' + d.hr_threshold + ' bpm';
+  document.getElementById('curSpO2Thr').textContent = '当前 ' + d.spo2_threshold + '%';
+  document.getElementById('curGasThr').textContent = '当前 ' + d.gas_threshold + ' PPM';
+}
+
+function setDataValue(id, val, unit, isAlarm) {
+  const el = document.getElementById(id);
+  el.innerHTML = val + '<span class="data-unit">' + unit + '</span>';
+  el.className = 'data-value' + (isAlarm ? ' alarm' : '');
+}
+
+// ===================== GPS 逆地理编码 =====================
+function updateGPS(lat, lng) {
+  const gpsEl = document.getElementById('valGPS');
+  if (lat === 0 && lng === 0) {
+    gpsEl.textContent = '定位中...';
+    gpsEl.className = 'gps-value locating';
+    return;
+  }
+  // 精度截取到2位小数作为缓存key（避免每50ms请求）
+  const key = lat.toFixed(2) + ',' + lng.toFixed(2);
+  if (geoCache[key]) {
+    gpsEl.textContent = geoCache[key];
+    gpsEl.className = 'gps-value';
+    return;
+  }
+  // 显示坐标（先占位，等接口返回再替换）
+  gpsEl.textContent = lat.toFixed(4) + ', ' + lng.toFixed(4);
+  gpsEl.className = 'gps-value';
+  // 调用高德逆地理编码（无需 key 的免费接口）
+  fetch('https://restapi.amap.com/v3/geocode/regeo?key=0113a13c197cd4c0ecea6727a7ec5db3&location=' + lng + ',' + lat + '&radius=100&extensions=base&batch=false&roadlevel=0')
+    .then(r => r.json())
+    .then(json => {
+      if (json.status === '1' && json.regeocode) {
+        const addr = json.regeocode.formatted_address || '';
+        if (addr) {
+          geoCache[key] = addr;
+          // 只更新如果坐标还相同
+          if (lastData.latitude && lastData.latitude.toFixed(2) === lat.toFixed(2)) {
+            gpsEl.textContent = addr;
+          }
+        }
+      }
+    })
+    .catch(() => {});
+}
+
+// ===================== 报警判断（APP 端完成）=====================
+function checkAlarms(d) {
+  const alarms = [];
+
+  // SOS 最高优先级
+  if (d.sos_flag === 1) {
+    alarms.push({ text: '🆘 SOS 紧急求救！', isSOS: true });
+  }
+  // 跌倒
+  if (d.fall_flag === 1) {
+    alarms.push({ text: '⚠ 检测到跌倒', isSOS: false });
+  }
+  // 心率过低
+  if (d.heart_rate > 0 && d.heart_rate < d.hr_threshold) {
+    alarms.push({ text: '❤ 心率过低：' + d.heart_rate + ' bpm（阈值 ' + d.hr_threshold + '）', isSOS: false });
+  }
+  // 血氧过低
+  if (d.spo2 > 0 && d.spo2 < d.spo2_threshold) {
+    alarms.push({ text: '💧 血氧过低：' + d.spo2 + '%（阈值 ' + d.spo2_threshold + '%）', isSOS: false });
+  }
+  // 燃气超标
+  if (d.gas_ppm > d.gas_threshold) {
+    alarms.push({ text: '🔥 燃气超标：' + d.gas_ppm + ' PPM（阈值 ' + d.gas_threshold + '）', isSOS: false });
+  }
+
+  renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+  const body = document.getElementById('alarmBody');
+  if (alarms.length === 0) {
+    body.innerHTML = '<div class="ok-state">✓ 运行正常</div>';
+    return;
+  }
+  body.innerHTML = alarms.map(a =>
+    '<div class="alarm-item' + (a.isSOS ? ' sos' : '') + '">' + a.text + '</div>'
+  ).join('');
+}
+
+// ===================== 指令发送 =====================
+function sendCmd(cmd) {
+  if (!client.connected) { alert('MQTT 未连接，请稍候重试'); return; }
+  client.publish(CMD_TOPIC, cmd);
+  addLog('↑ 发送指令: ' + cmd);
+}
+
+function sendThreshold(code, inputId, btnId, curId, unit) {
+  const val = document.getElementById(inputId).value.trim();
+  if (!val || isNaN(Number(val))) { alert('请输入有效数字'); return; }
+  sendCmd(code + ',' + val);
+  // 乐观更新
+  document.getElementById(curId).textContent = '当前 ' + val + ' ' + unit;
+  document.getElementById(inputId).value = '';
+  // 按钮反馈
+  const btn = document.getElementById(btnId);
+  btn.textContent = '✓';
+  btn.classList.add('sent');
+  setTimeout(() => { btn.textContent = '发送'; btn.classList.remove('sent'); }, 1500);
+}
+
+// ===================== 连接状态 =====================
+function setConnState(state) {
+  const dot = document.getElementById('connDot');
+  const txt = document.getElementById('connText');
+  dot.className = 'conn-dot ' + state;
+  if (state === 'connected') txt.textContent = '已连接';
+  else if (state === 'connecting') txt.textContent = '连接中...';
+  else txt.textContent = '未连接';
+}
+
+// ===================== 日志 =====================
+function addLog(msg) {
+  const now = new Date();
+  const t = now.toTimeString().substr(0, 8);
+  logData.unshift('[' + t + '] ' + msg);
+  if (logData.length > 20) logData.pop();
+  if (logOpen) renderLog();
+}
+
+function renderLog() {
+  const list = document.getElementById('logList');
+  list.innerHTML = logData.map(l => '<div class="log-item">' + l + '</div>').join('');
+}
+
+function toggleLog() {
+  logOpen = !logOpen;
+  document.getElementById('logBody').className = 'log-body' + (logOpen ? ' open' : '');
+  document.getElementById('logToggleBtn').textContent = logOpen ? '收起 ▲' : '展开 ▼';
+  if (logOpen) renderLog();
+}
+</script>
+</body>
+</html>
