@@ -14,6 +14,7 @@
     --alarm: #F44336;
     --warn: #FF9800;
     --ok: #4CAF50;
+    --manual: #9C27B0;
     --text: #212121;
     --sub: #757575;
     --border: #E0E0E0;
@@ -89,7 +90,7 @@
   /* ── 2. 实时数据卡 ── */
   .data-row {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     padding: 10px 0;
     border-bottom: 1px solid var(--border);
@@ -123,6 +124,17 @@
     color: var(--sub);
   }
 
+  /* 模式标签 */
+  .mode-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.3s, color 0.3s;
+  }
+  .mode-badge.auto   { background: #E8F5E9; color: var(--ok); }
+  .mode-badge.manual { background: #F3E5F5; color: var(--manual); }
 
   /* ── 3. 报警状态卡 ── */
   .alarm-ok {
@@ -158,6 +170,13 @@
     padding: 12px 16px;
   }
 
+  .btn-group-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 0 16px 12px;
+  }
+
   .ctrl-btn {
     height: 52px;
     border: none;
@@ -173,11 +192,12 @@
   }
   .ctrl-btn:active { opacity: 0.75; transform: scale(0.96); }
 
-  .ctrl-btn.open  { background: #E3F2FD; color: #1565C0; }
-  .ctrl-btn.close { background: #FCE4EC; color: #C62828; }
-  .ctrl-btn.stop  { background: #F3E5F5; color: #6A1B9A; }
+  .ctrl-btn.open   { background: #E3F2FD; color: #1565C0; }
+  .ctrl-btn.close  { background: #FCE4EC; color: #C62828; }
+  .ctrl-btn.auto   { background: #E8F5E9; color: #2E7D32; }
+  .ctrl-btn.manual { background: #F3E5F5; color: #6A1B9A; }
 
-  .ctrl-btn .btn-icon { font-size: 20px; }
+  .ctrl-btn .btn-icon  { font-size: 20px; }
   .ctrl-btn .btn-label { font-size: 12px; }
 
   /* ── 5. 阈值设置卡 ── */
@@ -359,6 +379,13 @@
         </div>
       </div>
 
+      <div class="data-row">
+        <span class="data-label">🔄 控制模式</span>
+        <div class="data-value-wrap">
+          <span class="mode-badge auto" id="modeBadge">自动</span>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -379,6 +406,7 @@
     <div class="card-header">
       <span class="card-title">远程控制</span>
     </div>
+    <!-- 开/关窗帘 -->
     <div class="btn-group">
       <button class="ctrl-btn open" onclick="sendCmd('01')">
         <span class="btn-icon">↑</span>
@@ -387,6 +415,17 @@
       <button class="ctrl-btn close" onclick="sendCmd('02')">
         <span class="btn-icon">↓</span>
         <span class="btn-label">关窗帘</span>
+      </button>
+    </div>
+    <!-- 模式切换 -->
+    <div class="btn-group-2">
+      <button class="ctrl-btn auto" onclick="sendCmd('06,0')">
+        <span class="btn-icon">🤖</span>
+        <span class="btn-label">切换自动</span>
+      </button>
+      <button class="ctrl-btn manual" onclick="sendCmd('06,1')">
+        <span class="btn-icon">✋</span>
+        <span class="btn-label">切换手动</span>
       </button>
     </div>
   </div>
@@ -440,7 +479,7 @@ const CMD_TOPIC    = '001/001/zhidiandongliantian/cmd';
 // =============================================
 let currentData = {
   temp: null, humi: null, curtain_pos: null,
-  thr_open: null, thr_close: null
+  thr_open: null, thr_close: null, manual: null
 };
 
 let logItems = [];
@@ -479,12 +518,13 @@ function connectMqtt() {
       humi:        parseFloat(parts[1]),
       curtain_pos: parseFloat(parts[2]),
       thr_open:    parseFloat(parts[3]),
-      thr_close:   parseFloat(parts[4])
+      thr_close:   parseFloat(parts[4]),
+      manual:      parts.length >= 6 ? parseInt(parts[5]) : null
     };
 
     // 过滤 NaN
     for (const k in data) {
-      if (!isNaN(data[k])) currentData[k] = data[k];
+      if (data[k] !== null && !isNaN(data[k])) currentData[k] = data[k];
     }
 
     updateUI(currentData);
@@ -551,6 +591,18 @@ function updateUI(data) {
     document.getElementById('valThrOpen').textContent = Math.round(data.thr_open);
   if (data.thr_close !== null)
     document.getElementById('valThrClose').textContent = Math.round(data.thr_close);
+
+  // 控制模式
+  if (data.manual !== null) {
+    const badge = document.getElementById('modeBadge');
+    if (data.manual === 1) {
+      badge.textContent = '手动';
+      badge.className = 'mode-badge manual';
+    } else {
+      badge.textContent = '自动';
+      badge.className = 'mode-badge auto';
+    }
+  }
 
   // 更新时间
   const now = new Date();
