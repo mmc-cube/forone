@@ -368,6 +368,7 @@ const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
 client.on('connect', () => {
   setConnState('connected');
   client.subscribe(UPLOAD_TOPIC);
+  client.subscribe(CMD_TOPIC);  // 回显：确认指令已发到 broker
 });
 
 client.on('reconnect', () => setConnState('connecting'));
@@ -376,6 +377,10 @@ client.on('error', () => setConnState('disconnected'));
 
 client.on('message', (topic, payload) => {
   const raw = payload.toString().trim();
+  if (topic === CMD_TOPIC) {
+    addLog('✓ 指令已到达broker: ' + raw);
+    return;
+  }
   addLog(raw);
   const parts = raw.split(',');
   if (parts.length < 10) return;
@@ -529,11 +534,13 @@ function sendCmd(cmd) {
 }
 
 function sendThreshold(code, inputId, btnId, curId, unit) {
-  const val = document.getElementById(inputId).value.trim();
-  if (!val || isNaN(Number(val))) { alert('请输入有效数字'); return; }
-  sendCmd(code + ',' + val);
+  const raw = document.getElementById(inputId).value;
+  const num = parseInt(raw, 10);
+  if (!raw || isNaN(num) || num <= 0) { alert('请输入有效正整数'); return; }
+  const cmd = code + ',' + num;
+  sendCmd(cmd);
   // 乐观更新
-  document.getElementById(curId).textContent = '当前 ' + val + ' ' + unit;
+  document.getElementById(curId).textContent = '当前 ' + num + ' ' + unit;
   document.getElementById(inputId).value = '';
   // 按钮反馈
   const btn = document.getElementById(btnId);
