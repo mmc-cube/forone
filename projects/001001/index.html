@@ -345,9 +345,10 @@
 <div class="card">
   <div class="card-header">远程控制</div>
   <div class="card-body">
-    <button class="btn btn-alarm" onclick="sendCmd('01')">
+    <button class="btn btn-alarm" id="btnClear" onclick="onClearClick()">
       🔕 消警（关闭蜂鸣器 / 清除报警）
     </button>
+    <div id="clearHint" style="text-align:center;font-size:12px;color:var(--sub);margin-top:6px;min-height:18px;"></div>
   </div>
 </div>
 
@@ -680,6 +681,9 @@ function renderTrend() {
   if (r.statusWarn) {
     document.getElementById('trendStatus').textContent = '⚠ 静息心率偏高';
     document.getElementById('trendStatus').className = 'trend-val-warn';
+    // 趋势预警推送（冷却 30 分钟）
+    sendPush('trend', '📈 健康趋势预警', `老人静息心率持续偏高（基线 ${r.baseline} bpm，最近10条均超基线15%），请关注。\n时间：${new Date().toLocaleString()}`, TREND_PUSH_COOLDOWN);
+    sendSMS('trend', `【监护系统】老人静息心率持续偏高（基线${r.baseline}bpm），请关注健康状态。`, TREND_PUSH_COOLDOWN);
   } else {
     document.getElementById('trendStatus').textContent = '正常 ✓';
     document.getElementById('trendStatus').className = 'trend-val-ok';
@@ -688,6 +692,9 @@ function renderTrend() {
   if (r.nightWarn) {
     document.getElementById('trendNight').textContent = '⚠ 夜间睡眠异常';
     document.getElementById('trendNight').className = 'trend-val-warn';
+    // 夜间异常推送（冷却 30 分钟）
+    sendPush('nightTrend', '🌙 夜间睡眠异常', `老人夜间心率未明显下降（夜间均值接近或高于白天），可能存在睡眠问题。\n时间：${new Date().toLocaleString()}`, TREND_PUSH_COOLDOWN);
+    sendSMS('nightTrend', `【监护系统】老人夜间心率未明显下降，疑似睡眠异常，请关注。`, TREND_PUSH_COOLDOWN);
   } else {
     document.getElementById('trendNight').textContent = '正常 ✓';
     document.getElementById('trendNight').className = 'trend-val-ok';
@@ -702,13 +709,15 @@ renderTrend();
 const PUSH_TOKEN = 'dd06ed5b3d754d7b9ad822061c4f918c';
 
 // 各报警类型的冷却时间（ms），防止重复推送
-const PUSH_COOLDOWN = 5 * 60 * 1000;  // 5分钟
-const pushLastSent = { sos: 0, fall: 0, gas: 0, hr: 0, spo2: 0 };
+const PUSH_COOLDOWN = 5 * 60 * 1000;  // 5分钟（实时报警）
+const TREND_PUSH_COOLDOWN = 30 * 60 * 1000;  // 30分钟（趋势预警）
+const pushLastSent = { sos: 0, fall: 0, gas: 0, hr: 0, spo2: 0, trend: 0, nightTrend: 0 };
 
-function sendPush(key, title, content) {
+function sendPush(key, title, content, cooldown) {
   if (!PUSH_TOKEN) return;  // token 未填，静默跳过
+  const cd = cooldown !== undefined ? cooldown : PUSH_COOLDOWN;
   const now = Date.now();
-  if (now - pushLastSent[key] < PUSH_COOLDOWN) return;  // 冷却中
+  if (now - pushLastSent[key] < cd) return;  // 冷却中
   pushLastSent[key] = now;
 
   const url = 'https://www.pushplus.plus/send';
@@ -742,12 +751,13 @@ const SMS_PASSWORD = '3f6e350d0482efbff9f088772554f3dc';
 const SMS_MOBILE   = '17703162690';  // 接收手机号
 // 短信冷却：SOS/跌倒 10分钟一条，其余 15分钟一条（节省条数）
 const SMS_COOLDOWN = 10 * 60 * 1000;
-const smsLastSent  = { sos: 0, fall: 0, gas: 0, hr: 0, spo2: 0 };
+const smsLastSent  = { sos: 0, fall: 0, gas: 0, hr: 0, spo2: 0, trend: 0, nightTrend: 0 };
 
-function sendSMS(key, content) {
+function sendSMS(key, content, cooldown) {
   if (!SMS_ACCOUNT || !SMS_PASSWORD) return;
+  const cd = cooldown !== undefined ? cooldown : SMS_COOLDOWN;
   const now = Date.now();
-  if (now - smsLastSent[key] < SMS_COOLDOWN) return;
+  if (now - smsLastSent[key] < cd) return;
   smsLastSent[key] = now;
 
   // 用 GET + 图片标签绕过 CORS（无法获取响应，但短信能发出）
@@ -797,6 +807,58 @@ function toggleLog() {
   document.getElementById('logBody').className = 'log-body' + (logOpen ? ' open' : '');
   document.getElementById('logToggleBtn').textContent = logOpen ? '收起 ▲' : '展开 ▼';
   if (logOpen) renderLog();
+}
+
+// ===================== 消警按钮三连击触发趋势通知 =====================
+let clearClickTimes = [];
+let clearHintTimer  = null;
+
+function onClearClick() {
+  // 正常消警
+  sendCmd('01');
+
+  // 记录点击时间，只保留 2s 内的
+  const now = Date.now();
+  clearClickTimes.push(now);
+  clearClickTimes = clearClickTimes.filter(t => now - t <= 2000);
+
+  // 更新提示文字
+  const hint = document.getElementById('clearHint');
+  clearTimeout(clearHintTimer);
+
+  if (clearClickTimes.length >= 3) {
+    // 三连击达成 → 强制发送趋势通知（绕过冷却）
+    clearClickTimes = [];
+    const r = calcTrend();
+    if (r.baseline === 0) {
+      hint.textContent = '数据不足，趋势通知未发送（需≥30条）';
+    } else {
+      // 重置冷却，强制发送
+      pushLastSent.trend = 0;
+      pushLastSent.nightTrend = 0;
+      smsLastSent.trend = 0;
+      smsLastSent.nightTrend = 0;
+
+      let sent = false;
+      if (r.statusWarn) {
+        sendPush('trend', '📈 健康趋势预警（手动）', `老人静息心率持续偏高（基线 ${r.baseline} bpm），请关注。\n时间：${new Date().toLocaleString()}`, 0);
+        sendSMS('trend', `【监护系统】老人静息心率持续偏高（基线${r.baseline}bpm），请关注健康状态。`, 0);
+        sent = true;
+      }
+      if (r.nightWarn) {
+        sendPush('nightTrend', '🌙 夜间睡眠异常（手动）', `老人夜间心率未明显下降，可能存在睡眠问题。\n时间：${new Date().toLocaleString()}`, 0);
+        sendSMS('nightTrend', `【监护系统】老人夜间心率未明显下降，疑似睡眠异常，请关注。`, 0);
+        sent = true;
+      }
+      hint.textContent = sent ? '✓ 趋势通知已发送' : '当前趋势正常，无需发送';
+    }
+    clearHintTimer = setTimeout(() => { hint.textContent = ''; }, 3000);
+  } else if (clearClickTimes.length === 2) {
+    hint.textContent = '再点一次可发送趋势通知';
+    clearHintTimer = setTimeout(() => { hint.textContent = ''; clearClickTimes = []; }, 2000);
+  } else {
+    clearHintTimer = setTimeout(() => { hint.textContent = ''; clearClickTimes = []; }, 2000);
+  }
 }
 </script>
 </body>
