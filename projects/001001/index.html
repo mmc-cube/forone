@@ -396,6 +396,10 @@ let logOpen = false;
 let logData = [];
 let lastData = {};
 
+// 阈值本地锁定：发送指令后 5s 内忽略上行包里的旧阈值，防止闪回
+// key: 'hr' | 'spo2' | 'gas'，value: { val, expireAt }
+const thrLock = { hr: null, spo2: null, gas: null };
+
 // ===================== 健康趋势 =====================
 const TREND_KEY = 'dulao_trend_v1';
 const TREND_MAX = 500;   // 最多保存条数
@@ -492,10 +496,14 @@ function updateUI(d) {
   // GPS
   updateGPS(d.latitude, d.longitude);
 
-  // 阈值显示
-  document.getElementById('curHRThr').textContent = '当前 ' + d.hr_threshold + ' bpm';
-  document.getElementById('curSpO2Thr').textContent = '当前 ' + d.spo2_threshold + '%';
-  document.getElementById('curGasThr').textContent = '当前 ' + d.gas_threshold + ' PPM';
+  // 阈值显示（被锁定时用本地值，防止下位机旧数据闪回）
+  const now = Date.now();
+  const hrVal  = (thrLock.hr   && now < thrLock.hr.expireAt)   ? thrLock.hr.val   : d.hr_threshold;
+  const spo2Val= (thrLock.spo2 && now < thrLock.spo2.expireAt) ? thrLock.spo2.val : d.spo2_threshold;
+  const gasVal = (thrLock.gas  && now < thrLock.gas.expireAt)  ? thrLock.gas.val  : d.gas_threshold;
+  document.getElementById('curHRThr').textContent  = '当前 ' + hrVal   + ' bpm';
+  document.getElementById('curSpO2Thr').textContent= '当前 ' + spo2Val + '%';
+  document.getElementById('curGasThr').textContent = '当前 ' + gasVal  + ' PPM';
 }
 
 function setDataValue(id, val, unit, isAlarm) {
@@ -592,7 +600,12 @@ function sendThreshold(code, inputId, btnId, curId, unit) {
   if (!raw || isNaN(num) || num <= 0) { alert('请输入有效正整数'); return; }
   const cmd = code + ',' + num;
   sendCmd(cmd);
-  // 乐观更新
+
+  // 锁定对应阈值 5s，防止下位机旧数据闪回
+  const lockKey = code === '02' ? 'hr' : code === '03' ? 'spo2' : 'gas';
+  thrLock[lockKey] = { val: num, expireAt: Date.now() + 5000 };
+
+  // 立即更新显示
   document.getElementById(curId).textContent = '当前 ' + num + ' ' + unit;
   document.getElementById(inputId).value = '';
   // 按钮反馈
