@@ -853,9 +853,6 @@ function onClearClick() {
       hint.textContent = sent ? '✓ 趋势通知已发送' : '当前趋势正常，无需发送';
     }
     clearHintTimer = setTimeout(() => { hint.textContent = ''; }, 3000);
-  } else if (clearClickTimes.length === 2) {
-    hint.textContent = '再点一次可发送趋势通知';
-    clearHintTimer = setTimeout(() => { hint.textContent = ''; clearClickTimes = []; }, 2000);
   } else {
     clearHintTimer = setTimeout(() => { hint.textContent = ''; clearClickTimes = []; }, 2000);
   }
