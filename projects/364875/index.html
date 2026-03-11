@@ -191,9 +191,13 @@
   const HUM_MAX = 100;
   const STORAGE_KEY = "esp32s3_panel_v1";
 
+  // 首次收到数据后自动下发的默认阈值（null = 不下发该字段）
+  const AUTO_TH = { flame_th: 3.2, mq7_th: null, temp_th: null, hum_th: null };
+
   let client = null;
   let latest = { mq7_v:null, flame_v:null, temp_v:null, hum_v:null, mq7_th:null, flame_th:null, temp_th:null, hum_th:null };
   let connected = false;
+  let autoThSent = false; // 首次数据自动下发阈值标志
 
   const $ = (id) => document.getElementById(id);
   const connBadge = $("connBadge");
@@ -394,6 +398,17 @@
 
         updateUI();
         lastTs.textContent = "last: " + new Date().toLocaleTimeString();
+
+        // 首次收到数据，自动下发默认阈值
+        if (!autoThSent) {
+          autoThSent = true;
+          const cmd = { cmd: "set_th" };
+          if (AUTO_TH.mq7_th   != null) cmd.mq7_th   = clampV(AUTO_TH.mq7_th);
+          if (AUTO_TH.flame_th != null) cmd.flame_th = clampV(AUTO_TH.flame_th);
+          if (AUTO_TH.temp_th  != null) cmd.temp_th  = clampTemp(AUTO_TH.temp_th);
+          if (AUTO_TH.hum_th   != null) cmd.hum_th   = clampHum(AUTO_TH.hum_th);
+          publish(cmd);
+        }
       }catch(_){}
     });
   }
