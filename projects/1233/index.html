@@ -354,9 +354,9 @@
         const MQTT_USER = '1233';
         const MQTT_PASS = '123456789';
 
-        // Topic 硬编码
-        const UPLOAD_TOPIC = '1233/xujinshehuan/upload';
-        const CMD_TOPIC = '1233/xujinshehuan/cmd';
+        // Topic 配置（与 DTU 固件保持一致）
+        const UPLOAD_TOPIC = '1234';  // DTU 发布数据的 Topic
+        const CMD_TOPIC = '123';      // DTU 订阅指令的 Topic
 
         // 数据状态
         let data = {
