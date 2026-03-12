@@ -395,6 +395,15 @@
             client.on('connect', function() {
                 console.log('MQTT Connected');
                 updateStatus(true);
+                // 订阅数据 Topic（DTU 发布到 1234）
+                client.subscribe(UPLOAD_TOPIC, function(err) {
+                    if (err) {
+                        console.error('Subscribe error:', err);
+                    } else {
+                        console.log('Subscribed to:', UPLOAD_TOPIC);
+                    }
+                });
+                // 订阅指令 Topic（用于接收消警确认等）
                 client.subscribe(CMD_TOPIC, function(err) {
                     if (err) {
                         console.error('Subscribe error:', err);
