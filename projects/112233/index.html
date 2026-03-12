@@ -509,19 +509,18 @@
       日程管理
     </div>
     <div class="card-body">
-      <!-- 下节课信息 -->
+      <!-- 下节课信息（仅展示，不再单独下发） -->
       <div id="nextCourseArea" style="display:none;margin-bottom:10px;">
         <div class="next-course-badge">
           📚 下节课：<strong id="nextCourseName">--</strong>
           <span id="nextCourseTime" style="margin-left:6px;"></span>
-          <button class="btn-sm" onclick="sendNextCourse()" style="margin-left:8px;height:28px;font-size:12px;">下发到ESP32</button>
         </div>
       </div>
 
-      <!-- 今日课程一键下发 -->
+      <!-- 同步今日日程 -->
       <div style="margin-bottom:10px;">
         <button class="btn btn-primary" style="height:38px;font-size:13px;" onclick="sendTodaySchedule()">
-          📡 下发今日日程到 ESP32
+          🔄 同步今日日程到 ESP32
         </button>
       </div>
 
@@ -887,19 +886,7 @@ async function translateName(name, fallbackId) {
   }
 }
 
-// 手动刷新 Next（仅更新页面1第4行）
-async function sendNextCourse() {
-  if (!window._nextCourse) return;
-  const { name, start } = window._nextCourse;
-  showToast('⏳ 翻译中…');
-  const enName = await translateName(name, 'Course');
-  sendCmd('05,' + enName + ',' + start);
-  showToast('📤 Next 已更新：' + enName + ' ' + start);
-}
-
-// 一键下发今日日程到 ESP32
-// 1. 批量发 07,N,名称,时间 → 填充页面2课程表
-// 2. 自动找当前最近一节课，发 05,名称,时间 → 更新页面1 Next
+// 同步今日日程到 ESP32（全量覆盖5个槽位，有课写内容，无课写空）
 async function sendTodaySchedule() {
   if (!mqttClient || !mqttClient.connected) {
     showToast('⚠ 未连接 MQTT');
@@ -907,37 +894,27 @@ async function sendTodaySchedule() {
   }
   const today = (new Date().getDay() + 6) % 7;
   const courses = (schedule[today] || []).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 5);
-  if (courses.length === 0) {
-    showToast('⚠ 今日无日程');
-    return;
-  }
-  showToast('⏳ 翻译并下发今日日程…');
 
-  // 先逐条翻译，收集英文名（避免后续发送时逐条等待翻译拖慢）
+  showToast('⏳ 翻译并同步日程…');
+
+  // 逐条翻译有课的槽位
   const enNames = [];
   for (let i = 0; i < courses.length; i++) {
     enNames.push(await translateName(courses[i].name, 'Item' + (i + 1)));
   }
 
-  // 清空5个槽位
+  // 全量覆盖5个槽位：有课写内容，空槽写 07,N,,
   for (let i = 0; i < 5; i++) {
-    mqttClient.publish(cmdTopic, '07,' + i);
-    await new Promise(r => setTimeout(r, 100));
-  }
-
-  // 下发今日课程表（页面2）
-  for (let i = 0; i < courses.length; i++) {
-    mqttClient.publish(cmdTopic, '07,' + i + ',' + enNames[i] + ',' + courses[i].start);
+    if (i < courses.length) {
+      mqttClient.publish(cmdTopic, '07,' + i + ',' + enNames[i] + ',' + courses[i].start);
+    } else {
+      mqttClient.publish(cmdTopic, '07,' + i + ',,');
+    }
     await new Promise(r => setTimeout(r, 150));
   }
 
-  // 自动计算 Next：当前时间之后最近一节课，没有则取第一节
-  const now = new Date().toTimeString().slice(0, 5);
-  let nextIdx = courses.findIndex(c => c.start > now);
-  if (nextIdx === -1) nextIdx = 0;
-  mqttClient.publish(cmdTopic, '05,' + enNames[nextIdx] + ',' + courses[nextIdx].start);
-
-  showToast('✅ 日程已下发（' + courses.length + '条），Next：' + enNames[nextIdx]);
+  const count = courses.length;
+  showToast(count > 0 ? '✅ 同步完成（' + count + '条）' : '✅ 已清空今日日程');
 }
 
 // ─────────────────────────────────────────────
@@ -1143,9 +1120,11 @@ function startTimeSyncTimer() {
 function sendTimeNow() {
   if (!mqttClient || !mqttClient.connected) return;
   const now = new Date();
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const day = days[now.getDay()];
   const hh = String(now.getHours()).padStart(2, '0');
   const mm = String(now.getMinutes()).padStart(2, '0');
-  mqttClient.publish(cmdTopic, '06,' + hh + ':' + mm);
+  mqttClient.publish(cmdTopic, '06,' + day + ',' + hh + ':' + mm);
 }
 
 // ─────────────────────────────────────────────
