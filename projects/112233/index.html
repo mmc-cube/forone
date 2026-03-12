@@ -872,42 +872,34 @@ function updateNextCourse() {
   }
 }
 
-async function sendNextCourse() {
-  if (!window._nextCourse) return;
-  const name  = window._nextCourse.name;
-  const start = window._nextCourse.start;
-
-  // 判断是否含非ASCII字符（中文等），有则调用 MyMemory 免费翻译成英文
-  const hasNonAscii = /[^\x00-\x7F]/.test(name);
-  if (!hasNonAscii) {
-    sendCmd('05,' + name + ',' + start);
-    return;
-  }
-
-  showToast('⏳ 翻译课程名中…');
+// 将课程名翻译为英文（含中文则调API，否则直接返回）
+async function translateName(name, fallbackId) {
+  if (!/[^\x00-\x7F]/.test(name)) return name;
   try {
     const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(name) + '&langpair=zh-CN|en';
-    const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
     const json = await resp.json();
-    let enName = (json.responseData && json.responseData.translatedText) || name;
-    // 只保留 ASCII 字符，去掉空格用驼峰连接
-    enName = enName.replace(/[^\x20-\x7E]/g, '').trim().replace(/\s+/g, '');
-    if (!enName) enName = 'Course';
-    sendCmd('05,' + enName + ',' + start);
-    showToast('📤 已发送：' + enName + ' ' + start);
+    let en = (json.responseData && json.responseData.translatedText) || '';
+    en = en.replace(/[^\x20-\x7E]/g, '').trim().replace(/\s+/g, '');
+    return en || fallbackId;
   } catch(e) {
-    // 翻译失败则去掉中文直接发
-    const fallback = name.replace(/[^\x20-\x7E]/g, '').trim() || 'Course';
-    sendCmd('05,' + fallback + ',' + start);
-    showToast('⚠ 翻译失败，已发送：' + fallback);
+    return name.replace(/[^\x20-\x7E]/g, '').trim() || fallbackId;
   }
 }
 
-// 初始化课程表
-renderCourseList();
-updateNextCourse();
+// 手动刷新 Next（仅更新页面1第4行）
+async function sendNextCourse() {
+  if (!window._nextCourse) return;
+  const { name, start } = window._nextCourse;
+  showToast('⏳ 翻译中…');
+  const enName = await translateName(name, 'Course');
+  sendCmd('05,' + enName + ',' + start);
+  showToast('📤 Next 已更新：' + enName + ' ' + start);
+}
 
-// 一键下发今日日程到 ESP32（07,N,英文名,时间，不足5条用空位清除）
+// 一键下发今日日程到 ESP32
+// 1. 批量发 07,N,名称,时间 → 填充页面2课程表
+// 2. 自动找当前最近一节课，发 05,名称,时间 → 更新页面1 Next
 async function sendTodaySchedule() {
   if (!mqttClient || !mqttClient.connected) {
     showToast('⚠ 未连接 MQTT');
@@ -919,34 +911,33 @@ async function sendTodaySchedule() {
     showToast('⚠ 今日无日程');
     return;
   }
-  showToast('⏳ 准备下发今日日程…');
+  showToast('⏳ 翻译并下发今日日程…');
 
-  // 先清空5个槽位
+  // 先逐条翻译，收集英文名（避免后续发送时逐条等待翻译拖慢）
+  const enNames = [];
+  for (let i = 0; i < courses.length; i++) {
+    enNames.push(await translateName(courses[i].name, 'Item' + (i + 1)));
+  }
+
+  // 清空5个槽位
   for (let i = 0; i < 5; i++) {
     mqttClient.publish(cmdTopic, '07,' + i);
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  // 下发今日课程表（页面2）
+  for (let i = 0; i < courses.length; i++) {
+    mqttClient.publish(cmdTopic, '07,' + i + ',' + enNames[i] + ',' + courses[i].start);
     await new Promise(r => setTimeout(r, 150));
   }
 
-  // 逐条翻译并下发
-  for (let i = 0; i < courses.length; i++) {
-    const c = courses[i];
-    let enName = c.name;
-    if (/[^\x00-\x7F]/.test(c.name)) {
-      try {
-        const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(c.name) + '&langpair=zh-CN|en';
-        const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
-        const json = await resp.json();
-        enName = (json.responseData && json.responseData.translatedText) || c.name;
-        enName = enName.replace(/[^\x20-\x7E]/g, '').trim().replace(/\s+/g, '');
-        if (!enName) enName = 'Item' + (i + 1);
-      } catch(e) {
-        enName = c.name.replace(/[^\x20-\x7E]/g, '').trim() || ('Item' + (i + 1));
-      }
-    }
-    mqttClient.publish(cmdTopic, '07,' + i + ',' + enName + ',' + c.start);
-    await new Promise(r => setTimeout(r, 200));
-  }
-  showToast('✅ 今日日程已下发（' + courses.length + '条）');
+  // 自动计算 Next：当前时间之后最近一节课，没有则取第一节
+  const now = new Date().toTimeString().slice(0, 5);
+  let nextIdx = courses.findIndex(c => c.start > now);
+  if (nextIdx === -1) nextIdx = 0;
+  mqttClient.publish(cmdTopic, '05,' + enNames[nextIdx] + ',' + courses[nextIdx].start);
+
+  showToast('✅ 日程已下发（' + courses.length + '条），Next：' + enNames[nextIdx]);
 }
 
 // ─────────────────────────────────────────────
