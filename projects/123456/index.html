@@ -90,19 +90,27 @@
 
         .data-label {
             font-size: 13px;
-            color: var(--sub);
+            color: var(--sub) !important;
+            font-weight: 500;
         }
 
         .data-value {
             font-size: 28px;
             font-weight: bold;
-            color: var(--text);
+            color: var(--text) !important;
         }
 
         .data-unit {
             font-size: 13px;
-            color: var(--sub);
+            color: var(--sub) !important;
             margin-left: 4px;
+            font-weight: 500;
+        }
+
+        .data-row {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
         }
 
         .data-value.alarm {
@@ -376,19 +384,19 @@
         <div class="data-grid">
             <div class="data-item">
                 <span class="data-label">温度</span>
-                <span><span class="data-value" id="tempValue">--</span><span class="data-unit">℃</span></span>
+                <div class="data-row"><span class="data-value" id="tempValue">--</span><span class="data-unit">℃</span></div>
             </div>
             <div class="data-item">
                 <span class="data-label">湿度</span>
-                <span><span class="data-value" id="humiValue">--</span><span class="data-unit">%</span></span>
+                <div class="data-row"><span class="data-value" id="humiValue">--</span><span class="data-unit">%</span></div>
             </div>
             <div class="data-item">
                 <span class="data-label">光敏</span>
-                <span><span class="data-value" id="ldrValue">--</span></span>
+                <div class="data-row"><span class="data-value" id="ldrValue">--</span></div>
             </div>
             <div class="data-item">
                 <span class="data-label">锁状态</span>
-                <span><span class="data-value" id="lockValue">--</span></span>
+                <div class="data-row"><span class="data-value" id="lockValue">--</span></div>
             </div>
         </div>
     </div>
@@ -420,11 +428,11 @@
         <div class="data-grid">
             <div class="data-item">
                 <span class="data-label">降温</span>
-                <span class="data-value" id="coolValue">关</span>
+                <div class="data-row"><span class="data-value" id="coolValue">关</span></div>
             </div>
             <div class="data-item">
                 <span class="data-label">除湿</span>
-                <span class="data-value" id="dryValue">关</span>
+                <div class="data-row"><span class="data-value" id="dryValue">关</span></div>
             </div>
         </div>
     </div>
