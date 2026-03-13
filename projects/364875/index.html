@@ -459,8 +459,8 @@
     publish(cmd);
   };
 
-  btnPumpOn.onclick = () => publish({ cmd:"pump", state:1 });
-  btnPumpOff.onclick = () => publish({ cmd:"pump", state:0 });
+  btnPumpOn.onclick = () => publish({ cmd:"pump", state:0 });
+  btnPumpOff.onclick = () => publish({ cmd:"pump", state:1 });
   btnPumpToggle.onclick = () => publish({ cmd:"pump", toggle:1 });
 
   // 页面显示/恢复时，确保连接存在（WebView 切后台再回来常见）
