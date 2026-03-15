@@ -1,819 +1,1196 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智能药箱管理系统</title>
-    <style>
-        :root {
-            --bg: #F5F5F5;
-            --card: #FFFFFF;
-            --primary: #2196F3;
-            --alarm: #F44336;
-            --ok: #4CAF50;
-            --text: #212121;
-            --sub: #757575;
-            --shadow: 0 2px 8px rgba(0,0,0,0.08);
-            --radius: 12px;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>智能药箱管理系统</title>
+<script src="mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #F0F4F8;
+    --card: #FFFFFF;
+    --primary: #2979FF;
+    --primary-light: #E8F0FE;
+    --alarm: #E53935;
+    --alarm-light: #FFEBEE;
+    --warn: #F57C00;
+    --warn-light: #FFF3E0;
+    --ok: #43A047;
+    --ok-light: #E8F5E9;
+    --text: #212121;
+    --sub: #757575;
+    --border: #E0E0E0;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 14px;
+    --tab-h: 56px;
+    --header-h: 52px;
+  }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.5;
-            max-width: 420px;
-            margin: 0 auto;
-            padding: 12px;
-        }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    margin: 0 auto;
+  }
 
-        .card {
-            background: var(--card);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            padding: 16px;
-            margin-bottom: 12px;
-        }
+  /* ===== Header ===== */
+  .header {
+    height: var(--header-h);
+    background: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 6px rgba(41,121,255,0.3);
+  }
+  .header-title {
+    color: #fff;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .conn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ccc;
+    transition: background 0.3s;
+    flex-shrink: 0;
+  }
+  .conn-dot.connected { background: #69F0AE; }
+  .conn-dot.error { background: #FF5252; animation: blink 1s infinite; }
 
-        .card-title {
-            font-size: 14px;
-            color: var(--sub);
-            margin-bottom: 12px;
-            font-weight: 500;
-        }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-        /* 状态栏 */
-        .status-bar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+  /* ===== 微信胶囊按钮 ===== */
+  .capsule {
+    display: flex;
+    align-items: center;
+    width: 87px;
+    height: 32px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.5);
+    overflow: hidden;
+    background: rgba(255,255,255,0.18);
+    flex-shrink: 0;
+  }
+  .capsule-btn {
+    flex: 1;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #fff;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .capsule-btn:active { background: rgba(255,255,255,0.2); }
+  .capsule-divider {
+    width: 1px;
+    height: 16px;
+    background: rgba(255,255,255,0.45);
+    flex-shrink: 0;
+  }
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--sub);
-        }
+  /* ===== 更多菜单弹层 ===== */
+  .more-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+  }
+  .more-overlay.show { display: block; }
+  .more-mask {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+  }
+  .more-panel {
+    position: absolute;
+    top: 60px;
+    right: 12px;
+    width: 200px;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+    overflow: hidden;
+    animation: popIn 0.18s ease;
+  }
+  @keyframes popIn {
+    from { opacity:0; transform: scale(0.88) translateY(-8px); }
+    to   { opacity:1; transform: scale(1)    translateY(0); }
+  }
+  .more-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    font-size: 15px;
+    color: var(--text);
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    transition: background 0.1s;
+  }
+  .more-item:active { background: #f5f5f5; }
+  .more-item + .more-item { border-top: 1px solid #f0f0f0; }
+  .more-item-icon { font-size: 18px; }
+  .more-conn-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid #f0f0f0;
+    font-size: 13px;
+    color: var(--sub);
+  }
 
-        .status-dot.connected {
-            background: var(--ok);
-        }
+  /* ===== Content ===== */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: calc(var(--tab-h) + 8px);
+  }
 
-        .status-dot.disconnected {
-            background: var(--alarm);
-        }
+  .page { display: none; padding: 12px; }
+  .page.active { display: block; }
 
-        .status-text {
-            font-size: 13px;
-            color: var(--sub);
-        }
+  /* ===== Cards ===== */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 12px;
+    color: var(--sub);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
 
-        /* 实时数据 */
-        .data-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
+  /* ===== Alarm Banner ===== */
+  .alarm-banner {
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s;
+  }
+  .alarm-banner.ok   { background: var(--ok-light); color: var(--ok); }
+  .alarm-banner.warn { background: var(--warn-light); color: var(--warn); animation: pulse 2s infinite; }
+  .alarm-banner.alarm { background: var(--alarm-light); color: var(--alarm); animation: pulse 0.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+  .alarm-icon { font-size: 20px; }
 
-        .data-item {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
+  /* ===== Sensor Row ===== */
+  .sensor-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .sensor-item {
+    flex: 1;
+    text-align: center;
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 10px 4px;
+  }
+  .sensor-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--primary);
+    line-height: 1.2;
+  }
+  .sensor-unit { font-size: 11px; color: var(--sub); }
+  .sensor-label { font-size: 12px; color: var(--sub); margin-top: 2px; }
 
-        .data-label {
-            font-size: 13px;
-            color: var(--sub);
-        }
+  /* ===== Med Pills ===== */
+  .med-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  .med-pill {
+    flex: 1;
+    border-radius: 10px;
+    padding: 10px 4px;
+    text-align: center;
+    background: #F5F5F5;
+    border: 2px solid #E0E0E0;
+    transition: all 0.3s;
+  }
+  .med-pill.done { background: var(--ok-light); border-color: var(--ok); }
+  .med-pill .med-icon { font-size: 20px; }
+  .med-pill .med-label { font-size: 11px; color: var(--sub); margin-top: 2px; }
+  .med-pill.done .med-label { color: var(--ok); font-weight: 500; }
 
-        .data-value {
-            font-size: 28px;
-            font-weight: bold;
-            color: var(--text);
-        }
+  /* ===== Status Grid ===== */
+  .status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .status-item {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .status-icon { font-size: 20px; }
+  .status-info { flex: 1; min-width: 0; }
+  .status-name { font-size: 11px; color: var(--sub); }
+  .status-val  { font-size: 13px; font-weight: 600; margin-top: 1px; }
+  .status-val.on  { color: var(--ok); }
+  .status-val.off { color: var(--sub); }
+  .status-val.locked   { color: var(--alarm); }
+  .status-val.unlocked { color: var(--ok); }
 
-        .data-unit {
-            font-size: 13px;
-            color: var(--sub);
-            margin-left: 4px;
-        }
+  /* ===== Time Display ===== */
+  .time-display {
+    text-align: center;
+    padding: 4px 0;
+  }
+  .time-big { font-size: 36px; font-weight: 700; color: var(--primary); letter-spacing: 2px; }
+  .time-date { font-size: 13px; color: var(--sub); margin-top: 2px; }
 
-        .data-value.alarm {
-            color: var(--alarm);
-        }
+  /* ===== Control Buttons ===== */
+  .ctrl-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .ctrl-btn {
+    min-height: 56px;
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all 0.15s;
+  }
+  .ctrl-btn:active { transform: scale(0.96); }
+  .ctrl-btn .btn-icon { font-size: 22px; }
 
-        /* 吃药状态 */
-        .medicine-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-        }
+  .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 3px 10px rgba(41,121,255,0.3); }
+  .btn-primary:active { background: #1a5ec8; }
+  .btn-danger  { background: var(--alarm); color: #fff; box-shadow: 0 3px 10px rgba(229,57,53,0.3); }
+  .btn-danger:active { background: #b71c1c; }
+  .btn-success { background: var(--ok); color: #fff; box-shadow: 0 3px 10px rgba(67,160,71,0.3); }
+  .btn-success:active { background: #2e7d32; }
+  .btn-warn    { background: var(--warn); color: #fff; box-shadow: 0 3px 10px rgba(245,124,0,0.3); }
+  .btn-warn:active { background: #e65100; }
+  .btn-gray    { background: #9E9E9E; color: #fff; }
+  .btn-gray:active { background: #616161; }
 
-        .medicine-row:last-child {
-            border-bottom: none;
-        }
+  .ctrl-btn-full {
+    width: 100%;
+    min-height: 52px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.15s;
+    margin-bottom: 10px;
+  }
+  .ctrl-btn-full:active { transform: scale(0.98); }
 
-        .medicine-name {
-            font-size: 14px;
-            color: var(--text);
-        }
+  /* ===== Relay Row ===== */
+  .relay-row {
+    display: flex;
+    gap: 10px;
+  }
+  .relay-row .ctrl-btn { flex: 1; }
 
-        .medicine-status {
-            font-size: 14px;
-            font-weight: 500;
-        }
+  /* ===== Mode Toggle ===== */
+  .mode-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .mode-label { font-size: 13px; color: var(--sub); flex: 1; }
+  .mode-switch-wrap { display: flex; align-items: center; gap: 7px; }
+  .mode-switch-text { font-size: 12px; font-weight: 600; }
+  .mode-switch-text.auto   { color: var(--ok); }
+  .mode-switch-text.manual { color: var(--warn); }
+  /* iOS-style toggle */
+  .ios-toggle { position: relative; width: 44px; height: 24px; cursor: pointer; }
+  .ios-toggle input { opacity: 0; width: 0; height: 0; }
+  .ios-slider {
+    position: absolute; inset: 0;
+    background: var(--ok);
+    border-radius: 24px;
+    transition: background 0.25s;
+  }
+  .ios-slider::before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 3px; top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.25s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .ios-toggle input:checked + .ios-slider { background: var(--warn); }
+  .ios-toggle input:checked + .ios-slider::before { transform: translateX(20px); }
+  .relay-ctrl-wrap.disabled .ctrl-btn {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+  .mode-hint {
+    font-size: 11px;
+    color: var(--ok);
+    margin-top: 6px;
+    display: none;
+  }
+  .mode-hint.visible { display: block; }
 
-        .medicine-status.taken {
-            color: var(--ok);
-        }
+  /* ===== Settings ===== */
+  .setting-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .setting-row label { font-size: 13px; color: var(--text); min-width: 44px; }
+  .setting-row input[type="time"],
+  .setting-row input[type="number"] {
+    flex: 1;
+    height: 38px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 0 10px;
+    font-size: 14px;
+    color: var(--text);
+    background: #fff;
+    outline: none;
+  }
+  .setting-row input[type="range"] {
+    flex: 1;
+    height: 28px;
+    accent-color: var(--primary);
+  }
+  .setting-row input:focus { border-color: var(--primary); }
+  .send-btn {
+    height: 38px;
+    padding: 0 14px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .send-btn:active { background: #1a5ec8; }
+  .sent-tip {
+    font-size: 12px;
+    color: var(--ok);
+    min-width: 16px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .sent-tip.show { opacity: 1; }
+  .range-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+    min-width: 38px;
+    text-align: right;
+  }
 
-        .medicine-status.not-taken {
-            color: var(--sub);
-        }
+  /* ===== Tab Bar ===== */
+  .tabbar {
+    height: var(--tab-h);
+    background: #fff;
+    border-top: 1px solid var(--border);
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    z-index: 100;
+  }
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    cursor: pointer;
+    color: var(--sub);
+    font-size: 10px;
+    transition: color 0.2s;
+    border: none;
+    background: none;
+  }
+  .tab-item.active { color: var(--primary); }
+  .tab-icon { font-size: 22px; }
 
-        /* 报警状态 */
-        .alarm-box {
-            padding: 12px;
-            border-radius: 8px;
-            margin-top: 8px;
-        }
-
-        .alarm-box.normal {
-            background: #E8F5E9;
-            color: var(--ok);
-        }
-
-        .alarm-box.warning {
-            background: #FFF3E0;
-            color: #FF9800;
-        }
-
-        .alarm-box.danger {
-            background: #FFEBEE;
-            color: var(--alarm);
-        }
-
-        .alarm-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 8px;
-        }
-
-        .alarm-item:first-child {
-            margin-top: 0;
-        }
-
-        /* 控制按钮 */
-        .btn-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .btn {
-            height: 48px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-
-        .btn:active {
-            transform: scale(0.98);
-        }
-
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-        }
-
-        .btn-danger {
-            background: var(--alarm);
-            color: white;
-        }
-
-        .btn-ok {
-            background: var(--ok);
-            color: white;
-        }
-
-        .btn-full {
-            grid-column: span 2;
-        }
-
-        /* 阈值设置 */
-        .threshold-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .threshold-row:last-child {
-            border-bottom: none;
-        }
-
-        .threshold-label {
-            font-size: 14px;
-            color: var(--text);
-        }
-
-        .threshold-input {
-            width: 80px;
-            height: 36px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 0 8px;
-            font-size: 14px;
-            text-align: center;
-        }
-
-        .threshold-btn {
-            width: 60px;
-            height: 36px;
-            border: none;
-            border-radius: 6px;
-            background: var(--primary);
-            color: white;
-            font-size: 13px;
-            cursor: pointer;
-        }
-
-        /* 日志 */
-        .log-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-        }
-
-        .log-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s;
-        }
-
-        .log-content.expanded {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .log-item {
-            font-size: 12px;
-            color: var(--sub);
-            padding: 4px 0;
-            border-bottom: 1px solid #eee;
-            font-family: monospace;
-        }
-
-        /* 弹窗 */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-
-        .modal-overlay.active {
-            display: flex;
-        }
-
-        .modal {
-            background: var(--card);
-            border-radius: var(--radius);
-            padding: 24px;
-            max-width: 320px;
-            width: 90%;
-            text-align: center;
-        }
-
-        .modal-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 16px;
-            color: var(--alarm);
-        }
-
-        .modal-message {
-            font-size: 14px;
-            color: var(--text);
-            margin-bottom: 24px;
-        }
-
-        .modal-btn {
-            height: 44px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            width: 100%;
-        }
-
-        .modal-btn-primary {
-            background: var(--primary);
-            color: white;
-        }
-
-        /* 时间显示 */
-        .time-display {
-            font-size: 36px;
-            font-weight: bold;
-            text-align: center;
-            padding: 16px 0;
-        }
-
-        .date-display {
-            font-size: 14px;
-            color: var(--sub);
-            text-align: center;
-            margin-top: -8px;
-            margin-bottom: 16px;
-        }
-    </style>
+  /* ===== Modal ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 20px;
+    padding: 28px 24px;
+    margin: 20px;
+    width: 100%;
+    max-width: 340px;
+    text-align: center;
+    animation: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes pop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal-icon { font-size: 56px; margin-bottom: 12px; }
+  .modal-title { font-size: 22px; font-weight: 700; color: var(--alarm); margin-bottom: 8px; }
+  .modal-body { font-size: 15px; color: var(--sub); margin-bottom: 16px; line-height: 1.6; }
+  .modal-countdown {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--primary);
+    margin-bottom: 20px;
+  }
+  .modal-btn {
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(41,121,255,0.35);
+  }
+  .modal-btn:active { transform: scale(0.98); }
+</style>
 </head>
 <body>
-    <!-- 状态栏 -->
-    <div class="card">
-        <div class="status-bar">
-            <div class="status-dot" id="statusDot"></div>
-            <span class="status-text" id="statusText">未连接</span>
-        </div>
+
+<!-- Header -->
+<div class="header">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="conn-dot" id="connDot"></div>
+    <div class="header-title">💊 智能药箱管理系统</div>
+  </div>
+  <!-- 微信胶囊按钮（纯装饰） -->
+  <div class="capsule">
+    <button class="capsule-btn">
+      <!-- 三个点：两侧小、中间大 -->
+      <svg width="26" height="8" viewBox="0 0 26 8" fill="white">
+        <circle cx="2.5"  cy="4" r="1.8"/>
+        <circle cx="13"   cy="4" r="3"/>
+        <circle cx="23.5" cy="4" r="1.8"/>
+      </svg>
+    </button>
+    <div class="capsule-divider"></div>
+    <button class="capsule-btn">
+      <!-- 圆圈套实心圆点（微信主页键样式） -->
+      <svg width="18" height="18" viewBox="0 0 18 18">
+        <circle cx="9" cy="9" r="7.5" fill="none" stroke="white" stroke-width="1.6"/>
+        <circle cx="9" cy="9" r="3"   fill="white"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Content -->
+<div class="content">
+
+  <!-- ===== 页面1：主界面 ===== -->
+  <div class="page active" id="page0">
+
+    <!-- 报警横幅 -->
+    <div class="alarm-banner ok" id="alarmBanner">
+      <span class="alarm-icon" id="alarmIcon">✅</span>
+      <span id="alarmText">运行正常</span>
     </div>
 
-    <!-- 时间卡片 -->
+    <!-- 时间 -->
     <div class="card">
-        <div class="time-display" id="timeDisplay">--:--:--</div>
-        <div class="date-display" id="dateDisplay">----</div>
+      <div class="time-display">
+        <div class="time-big" id="timeDisplay">--:--:--</div>
+        <div class="time-date" id="dateDisplay">--</div>
+      </div>
     </div>
 
-    <!-- 实时数据 -->
+    <!-- 传感器数据 -->
     <div class="card">
-        <div class="card-title">📊 实时数据</div>
-        <div class="data-grid">
-            <div class="data-item">
-                <span class="data-label">温度</span>
-                <span><span class="data-value" id="tempValue">--</span><span class="data-unit">℃</span></span>
-            </div>
-            <div class="data-item">
-                <span class="data-label">湿度</span>
-                <span><span class="data-value" id="humiValue">--</span><span class="data-unit">%</span></span>
-            </div>
-            <div class="data-item">
-                <span class="data-label">光敏</span>
-                <span><span class="data-value" id="ldrValue">--</span></span>
-            </div>
-            <div class="data-item">
-                <span class="data-label">锁状态</span>
-                <span><span class="data-value" id="lockValue">--</span></span>
-            </div>
+      <div class="card-title">传感器数据</div>
+      <div class="sensor-row">
+        <div class="sensor-item">
+          <div class="sensor-val" id="tempVal">--</div>
+          <div class="sensor-unit">℃</div>
+          <div class="sensor-label">温度</div>
         </div>
+        <div class="sensor-item">
+          <div class="sensor-val" id="humiVal">--</div>
+          <div class="sensor-unit">%</div>
+          <div class="sensor-label">湿度</div>
+        </div>
+        <div class="sensor-item">
+          <div class="sensor-val" id="lightVal">--</div>
+          <div class="sensor-unit">%</div>
+          <div class="sensor-label">光强</div>
+        </div>
+      </div>
     </div>
 
     <!-- 吃药状态 -->
     <div class="card">
-        <div class="card-title">💊 吃药状态</div>
-        <div class="medicine-row">
-            <span class="medicine-name">组 1 (08:00)</span>
-            <span class="medicine-status not-taken" id="med1Status">未吃</span>
+      <div class="card-title">今日吃药状态</div>
+      <div class="med-row">
+        <div class="med-pill" id="med0">
+          <div class="med-icon">💊</div>
+          <div class="med-label">组1</div>
         </div>
-        <div class="medicine-row">
-            <span class="medicine-name">组 2 (12:00)</span>
-            <span class="medicine-status not-taken" id="med2Status">未吃</span>
+        <div class="med-pill" id="med1">
+          <div class="med-icon">💊</div>
+          <div class="med-label">组2</div>
         </div>
-        <div class="medicine-row">
-            <span class="medicine-name">组 3 (18:00)</span>
-            <span class="medicine-status not-taken" id="med3Status">未吃</span>
+        <div class="med-pill" id="med2">
+          <div class="med-icon">💊</div>
+          <div class="med-label">组3</div>
         </div>
-        <div class="medicine-row">
-            <span class="medicine-name">组 4 (20:00)</span>
-            <span class="medicine-status not-taken" id="med4Status">未吃</span>
+        <div class="med-pill" id="med3">
+          <div class="med-icon">💊</div>
+          <div class="med-label">组4</div>
         </div>
+      </div>
     </div>
 
-    <!-- 继电器状态 -->
+    <!-- 设备状态 -->
     <div class="card">
-        <div class="card-title">🔧 设备状态</div>
-        <div class="data-grid">
-            <div class="data-item">
-                <span class="data-label">降温</span>
-                <span class="data-value" id="coolValue">关</span>
-            </div>
-            <div class="data-item">
-                <span class="data-label">除湿</span>
-                <span class="data-value" id="dryValue">关</span>
-            </div>
+      <div class="card-title">设备状态</div>
+      <div class="status-grid">
+        <div class="status-item">
+          <span class="status-icon">🔒</span>
+          <div class="status-info">
+            <div class="status-name">药箱锁</div>
+            <div class="status-val locked" id="lockStatus">--</div>
+          </div>
         </div>
+        <div class="status-item">
+          <span class="status-icon">🔔</span>
+          <div class="status-info">
+            <div class="status-name">报警</div>
+            <div class="status-val off" id="alarmStatus">--</div>
+          </div>
+        </div>
+        <div class="status-item">
+          <span class="status-icon">🪟</span>
+          <div class="status-info">
+            <div class="status-name">遮光帘</div>
+            <div class="status-val off" id="relay1Status">--</div>
+          </div>
+        </div>
+        <div class="status-item">
+          <span class="status-icon">💧</span>
+          <div class="status-info">
+            <div class="status-name">除湿器</div>
+            <div class="status-val off" id="relay2Status">--</div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- 报警状态 -->
+  </div>
+
+  <!-- ===== 页面2：控制面板 ===== -->
+  <div class="page" id="page1">
+
+    <!-- 报警消警 -->
     <div class="card">
-        <div class="card-title">⚠️ 报警状态</div>
-        <div class="alarm-box normal" id="alarmBox">
-            ✓ 运行正常
-        </div>
+      <div class="card-title">报警控制</div>
+      <div class="ctrl-grid">
+        <button class="ctrl-btn" style="background:var(--ok-light);color:var(--ok);border:1.5px solid var(--ok);" onclick="sendCmd('01')">
+          <span class="btn-icon">💊</span>
+          <span>我已吃药</span>
+        </button>
+        <button class="ctrl-btn" style="background:var(--alarm-light);color:var(--alarm);border:1.5px solid var(--alarm);" onclick="sendCmd('01')">
+          <span class="btn-icon">🔕</span>
+          <span>消警</span>
+        </button>
+      </div>
     </div>
 
-    <!-- 控制面板 -->
+    <!-- 遮光帘 -->
     <div class="card">
-        <div class="card-title">🎮 远程控制</div>
-        <div class="btn-grid">
-            <button class="btn btn-danger" onclick="sendCmd('01')">🔔 消警</button>
-            <button class="btn btn-primary" onclick="toggleLock()" id="lockBtn">🔓 解锁</button>
-            <button class="btn btn-primary" onclick="sendCmd('13,1')">💨 风机开</button>
-            <button class="btn btn-primary" onclick="sendCmd('13,0')">💨 风机关</button>
-            <button class="btn btn-primary" onclick="sendCmd('14,1')">🌡️ 加热开</button>
-            <button class="btn btn-primary" onclick="sendCmd('14,0')">🌡️ 加热关</button>
+      <div class="card-title">遮光帘（继电器1）</div>
+      <div class="mode-row">
+        <span class="mode-label">控制模式</span>
+        <div class="mode-switch-wrap">
+          <span class="mode-switch-text auto" id="relay1ModeText">自动</span>
+          <label class="ios-toggle">
+            <input type="checkbox" id="relay1ModeChk" onchange="setRelayMode(1,this.checked)">
+            <span class="ios-slider"></span>
+          </label>
+          <span style="font-size:12px;color:var(--sub);">手动</span>
         </div>
+      </div>
+      <div class="relay-ctrl-wrap disabled" id="relay1CtrlWrap">
+        <div class="relay-row">
+          <button class="ctrl-btn btn-warn" onclick="sendCmd('13,1')">
+            <span class="btn-icon">🪟</span>
+            <span>展开遮帘</span>
+          </button>
+          <button class="ctrl-btn btn-gray" onclick="sendCmd('13,0')">
+            <span class="btn-icon">🪟</span>
+            <span>收起遮帘</span>
+          </button>
+        </div>
+      </div>
+      <div class="mode-hint visible" id="relay1AutoHint">自动模式：由光强传感器自动控制，手动操作不生效</div>
     </div>
 
-    <!-- 阈值设置 -->
+    <!-- 除湿器 -->
     <div class="card">
-        <div class="card-title">⚙️ 阈值设置</div>
-        <div class="threshold-row">
-            <span class="threshold-label">温度上限 (℃)</span>
-            <div>
-                <input type="number" class="threshold-input" id="tempMaxInput" value="28">
-                <button class="threshold-btn" onclick="sendThreshold('06', 'tempMaxInput')">发送</button>
-            </div>
+      <div class="card-title">除湿器（继电器2）</div>
+      <div class="mode-row">
+        <span class="mode-label">控制模式</span>
+        <div class="mode-switch-wrap">
+          <span class="mode-switch-text auto" id="relay2ModeText">自动</span>
+          <label class="ios-toggle">
+            <input type="checkbox" id="relay2ModeChk" onchange="setRelayMode(2,this.checked)">
+            <span class="ios-slider"></span>
+          </label>
+          <span style="font-size:12px;color:var(--sub);">手动</span>
         </div>
-        <div class="threshold-row">
-            <span class="threshold-label">温度下限 (℃)</span>
-            <div>
-                <input type="number" class="threshold-input" id="tempMinInput" value="25">
-                <button class="threshold-btn" onclick="sendThreshold('07', 'tempMinInput')">发送</button>
-            </div>
+      </div>
+      <div class="relay-ctrl-wrap disabled" id="relay2CtrlWrap">
+        <div class="relay-row">
+          <button class="ctrl-btn btn-primary" onclick="sendCmd('14,1')">
+            <span class="btn-icon">💧</span>
+            <span>开启除湿</span>
+          </button>
+          <button class="ctrl-btn btn-gray" onclick="sendCmd('14,0')">
+            <span class="btn-icon">💧</span>
+            <span>关闭除湿</span>
+          </button>
         </div>
-        <div class="threshold-row">
-            <span class="threshold-label">湿度上限 (%)</span>
-            <div>
-                <input type="number" class="threshold-input" id="humiMaxInput" value="60">
-                <button class="threshold-btn" onclick="sendThreshold('08', 'humiMaxInput')">发送</button>
-            </div>
-        </div>
-        <div class="threshold-row">
-            <span class="threshold-label">湿度下限 (%)</span>
-            <div>
-                <input type="number" class="threshold-input" id="humiMinInput" value="55">
-                <button class="threshold-btn" onclick="sendThreshold('09', 'humiMinInput')">发送</button>
-            </div>
-        </div>
-        <div class="threshold-row">
-            <span class="threshold-label">光敏阈值</span>
-            <div>
-                <input type="number" class="threshold-input" id="ldrThresholdInput" value="2000">
-                <button class="threshold-btn" onclick="sendThreshold('10', 'ldrThresholdInput')">发送</button>
-            </div>
-        </div>
+      </div>
+      <div class="mode-hint visible" id="relay2AutoHint">自动模式：由湿度传感器自动控制，手动操作不生效</div>
     </div>
 
-    <!-- 日志 -->
+  </div>
+
+  <!-- ===== 页面3：阈值设置 ===== -->
+  <div class="page" id="page2">
+
+    <!-- 吃药时间 -->
     <div class="card">
-        <div class="log-header" onclick="toggleLog()">
-            <span class="card-title" style="margin:0">📋 数据日志</span>
-            <span id="logArrow">▼</span>
-        </div>
-        <div class="log-content" id="logContent">
-            <div id="logList"></div>
-        </div>
+      <div class="card-title">吃药时间设置</div>
+      <div class="setting-row">
+        <label>组 1</label>
+        <input type="time" id="medTime0" value="08:00">
+        <button class="send-btn" onclick="sendMedTime(0)">发送</button>
+        <span class="sent-tip" id="tip_med0">✓</span>
+      </div>
+      <div class="setting-row">
+        <label>组 2</label>
+        <input type="time" id="medTime1" value="12:00">
+        <button class="send-btn" onclick="sendMedTime(1)">发送</button>
+        <span class="sent-tip" id="tip_med1">✓</span>
+      </div>
+      <div class="setting-row">
+        <label>组 3</label>
+        <input type="time" id="medTime2" value="18:00">
+        <button class="send-btn" onclick="sendMedTime(2)">发送</button>
+        <span class="sent-tip" id="tip_med2">✓</span>
+      </div>
+      <div class="setting-row">
+        <label>组 4</label>
+        <input type="time" id="medTime3" value="22:00">
+        <button class="send-btn" onclick="sendMedTime(3)">发送</button>
+        <span class="sent-tip" id="tip_med3">✓</span>
+      </div>
     </div>
 
-    <!-- 吃药提醒弹窗 -->
-    <div class="modal-overlay" id="medicineModal">
-        <div class="modal">
-            <div class="modal-title">⏰ 吃药提醒</div>
-            <div class="modal-message">是时候吃药了！<br>请及时服用药物</div>
-            <button class="modal-btn modal-btn-primary" onclick="confirmMedicine()">确认吃药</button>
-        </div>
+    <!-- 温度范围 -->
+    <div class="card">
+      <div class="card-title">温度范围（℃）</div>
+      <div class="setting-row">
+        <label>上限</label>
+        <input type="number" id="tempMax" value="25" min="15" max="40" step="0.5">
+        <button class="send-btn" onclick="sendNum('06','tempMax')">发送</button>
+        <span class="sent-tip" id="tip_tempMax">✓</span>
+      </div>
+      <div class="setting-row">
+        <label>下限</label>
+        <input type="number" id="tempMin" value="15" min="10" max="35" step="0.5">
+        <button class="send-btn" onclick="sendNum('07','tempMin')">发送</button>
+        <span class="sent-tip" id="tip_tempMin">✓</span>
+      </div>
     </div>
 
-    <script src="mqtt.min.js"></script>
-    <script>
-        // MQTT 配置
-        const UPLOAD_TOPIC = '12345/67891/znyx/upload';
-        const CMD_TOPIC = '12345/67891/znyx/cmd';
+    <!-- 湿度范围 -->
+    <div class="card">
+      <div class="card-title">湿度范围（%）</div>
+      <div class="setting-row">
+        <label>上限</label>
+        <input type="number" id="humiMax" value="60" min="20" max="80">
+        <button class="send-btn" onclick="sendNum('08','humiMax')">发送</button>
+        <span class="sent-tip" id="tip_humiMax">✓</span>
+      </div>
+      <div class="setting-row">
+        <label>下限</label>
+        <input type="number" id="humiMin" value="30" min="20" max="80">
+        <button class="send-btn" onclick="sendNum('09','humiMin')">发送</button>
+        <span class="sent-tip" id="tip_humiMin">✓</span>
+      </div>
+    </div>
 
-        // 全局变量
-        let client = null;
-        let isConnected = false;
-        let lastDataTime = 0;
-        let logData = [];
-        let prevMedicineState = [0, 0, 0, 0];
-        let isLocked = true;
+    <!-- 光强阈值 -->
+    <div class="card">
+      <div class="card-title">光强阈值（%）</div>
+      <div class="setting-row">
+        <label>阈值</label>
+        <input type="range" id="lightThr" value="50" min="0" max="100"
+               oninput="document.getElementById('lightThrVal').textContent=this.value+'%'">
+        <span class="range-val" id="lightThrVal">50%</span>
+      </div>
+      <button class="ctrl-btn-full btn-primary" style="margin:0;" onclick="sendNum('10','lightThr')">
+        发送光强阈值
+        <span class="sent-tip" id="tip_lightThr" style="color:#fff">✓</span>
+      </button>
+    </div>
 
-        // 阈值（乐观更新）
-        let tempMax = 28, tempMin = 25;
-        let humiMax = 60, humiMin = 55;
-        let ldrThreshold = 2000;
+    <div style="text-align:center;font-size:12px;color:var(--sub);padding:8px 0;">
+      设置发送后立即生效，下位机不回复确认
+    </div>
 
-        // 连接 MQTT
-        function connectMQTT() {
-            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-                clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
-                reconnectPeriod: 3000,
-                connectTimeout: 10000
-            });
+  </div>
 
-            client.on('connect', () => {
-                console.log('MQTT 已连接');
-                client.subscribe(UPLOAD_TOPIC, (err) => {
-                    if (!err) {
-                        console.log('订阅成功：' + UPLOAD_TOPIC);
-                    }
-                });
-                updateStatus(true);
-            });
+</div>
 
-            client.on('disconnect', () => {
-                console.log('MQTT 已断开');
-                updateStatus(false);
-            });
+<!-- Tab Bar -->
+<div class="tabbar">
+  <button class="tab-item active" id="tab0" onclick="switchTab(0)">
+    <span class="tab-icon">🏠</span>
+    <span>主页</span>
+  </button>
+  <button class="tab-item" id="tab1" onclick="switchTab(1)">
+    <span class="tab-icon">🎛️</span>
+    <span>控制</span>
+  </button>
+  <button class="tab-item" id="tab2" onclick="switchTab(2)">
+    <span class="tab-icon">⚙️</span>
+    <span>设置</span>
+  </button>
+</div>
 
-            client.on('message', (topic, message) => {
-                if (topic === UPLOAD_TOPIC) {
-                    handleUploadMessage(message.toString());
-                }
-            });
+<!-- 报警弹窗 -->
+<div class="modal-overlay" id="alarmModal">
+  <div class="modal">
+    <div class="modal-icon" id="modalIcon">💊</div>
+    <div class="modal-title" id="modalTitle">提醒</div>
+    <div class="modal-body" id="modalBody">请及时处理。</div>
+    <div class="modal-countdown" id="modalCountdown">30</div>
+    <button class="modal-btn" id="modalBtn" onclick="confirmAlarm()">✅ 确认</button>
+  </div>
+</div>
 
-            client.on('error', (err) => {
-                console.error('MQTT 错误：', err);
-            });
-        }
+<script>
+// ============================================================
+// MQTT 配置（固定，来自 PRD）
+// ============================================================
+const UPLOAD_TOPIC = '12345/67890/znyx/upload';
+const CMD_TOPIC    = '12345/67890/znyx/cmd';
+const CLIENT_ID    = 'znyx_' + Math.random().toString(36).substr(2, 6);
 
-        // 处理上行数据
-        function handleUploadMessage(payload) {
-            const parts = payload.split(',');
-            if (parts.length < 12) return;
+let client = null;
+let lastMsgTime = 0;
+let prevAlarm = -1;
+let modalTimer = null;
+let countdownVal = 30;
+let isConnected = false;
 
-            lastDataTime = Date.now();
+// 继电器模式：'auto' 或 'manual'（本地状态，不上报）
+let relay1Mode = 'auto';
+let relay2Mode = 'auto';
 
-            const data = {
-                temp: parseFloat(parts[0]),
-                humi: parseFloat(parts[1]),
-                ldr: parseInt(parts[2]),
-                lock: parseInt(parts[3]),
-                med1: parseInt(parts[4]),
-                med2: parseInt(parts[5]),
-                med3: parseInt(parts[6]),
-                med4: parseInt(parts[7]),
-                cool: parseInt(parts[8]),
-                dry: parseInt(parts[9]),
-                relay1: parseInt(parts[10]),
-                relay2: parseInt(parts[11])
-            };
+// ============================================================
+// MQTT 初始化
+// ============================================================
+function initMQTT() {
+  setConnState('connecting');
+  try {
+    client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+      clientId: CLIENT_ID,
+      reconnectPeriod: 3000,
+      connectTimeout: 8000,
+      keepalive: 30,
+    });
 
-            // 更新 UI
-            updateUI(data);
+    client.on('connect', () => {
+      isConnected = true;
+      setConnState('connected');
+      client.subscribe(UPLOAD_TOPIC);
+    });
 
-            // 检查报警
-            checkAlarms(data);
+    client.on('reconnect', () => {
+      isConnected = false;
+      setConnState('connecting');
+    });
 
-            // 检查吃药状态变化
-            checkMedicineChange(data);
+    client.on('error', () => {
+      isConnected = false;
+      setConnState('error');
+    });
 
-            // 添加日志
-            addLog(payload);
-        }
+    client.on('offline', () => {
+      isConnected = false;
+      setConnState('error');
+    });
 
-        // 更新 UI
-        function updateUI(data) {
-            // 温度
-            document.getElementById('tempValue').textContent = data.temp.toFixed(1);
-            if (data.temp > tempMax || data.temp < tempMin) {
-                document.getElementById('tempValue').classList.add('alarm');
-            } else {
-                document.getElementById('tempValue').classList.remove('alarm');
-            }
+    client.on('message', (topic, payload) => {
+      if (topic === UPLOAD_TOPIC) {
+        lastMsgTime = Date.now();
+        handleUpload(payload.toString());
+      }
+    });
+  } catch(e) {
+    setConnState('error');
+  }
+}
 
-            // 湿度
-            document.getElementById('humiValue').textContent = data.humi.toFixed(1);
-            if (data.humi > humiMax || data.humi < humiMin) {
-                document.getElementById('humiValue').classList.add('alarm');
-            } else {
-                document.getElementById('humiValue').classList.remove('alarm');
-            }
+function setConnState(state) {
+  const dot = document.getElementById('connDot');
+  dot.className = 'conn-dot';
+  if (state === 'connected') dot.classList.add('connected');
+  else if (state === 'error') dot.classList.add('error');
+}
 
-            // 光敏
-            document.getElementById('ldrValue').textContent = data.ldr;
+// ============================================================
+// 解析上行数据
+// ============================================================
+function handleUpload(payload) {
+  const parts = payload.split(',');
+  if (parts.length < 11) return;
 
-            // 锁状态
-            document.getElementById('lockValue').textContent = data.lock === 0 ? '已上锁' : '已解锁';
-            isLocked = (data.lock === 0);
-            updateLockBtn();
+  const data = {
+    temp:   parseFloat(parts[0]),   // 字段0: 温度
+    humi:   parseFloat(parts[1]),   // 字段1: 湿度
+    light:  parseInt(parts[2]),     // 字段2: 光强%
+    lock:   parseInt(parts[3]),     // 字段3: 锁状
+    med1:   parseInt(parts[4]),     // 字段4: 吃药组1
+    med2:   parseInt(parts[5]),     // 字段5: 吃药组2
+    med3:   parseInt(parts[6]),     // 字段6: 吃药组3
+    med4:   parseInt(parts[7]),     // 字段7: 吃药组4
+    relay1: parseInt(parts[8]),     // 字段8: 遮帘状
+    relay2: parseInt(parts[9]),     // 字段9: 除湿状
+    alarm:  parseInt(parts[10]),    // 字段10: 报警状
+  };
 
-            // 吃药状态
-            updateMedicineStatus('med1Status', data.med1);
-            updateMedicineStatus('med2Status', data.med2);
-            updateMedicineStatus('med3Status', data.med3);
-            updateMedicineStatus('med4Status', data.med4);
+  updateUI(data);
 
-            // 继电器状态
-            document.getElementById('coolValue').textContent = data.cool === 1 ? '开' : '关';
-            document.getElementById('dryValue').textContent = data.dry === 1 ? '开' : '关';
-        }
+  // 报警弹窗：字段10 从0变为1时触发，传入数据用于判断原因
+  if (prevAlarm === 0 && data.alarm === 1) {
+    showAlarmModal(data);
+  }
+  prevAlarm = data.alarm;
+}
 
-        function updateMedicineStatus(elementId, status) {
-            const el = document.getElementById(elementId);
-            if (status === 1) {
-                el.textContent = '已吃 ✓';
-                el.className = 'medicine-status taken';
-            } else {
-                el.textContent = '未吃';
-                el.className = 'medicine-status not-taken';
-            }
-        }
+// ============================================================
+// 更新 UI
+// ============================================================
+function updateUI(d) {
+  // 传感器
+  setText('tempVal',  isNaN(d.temp)  ? '--' : d.temp.toFixed(1));
+  setText('humiVal',  isNaN(d.humi)  ? '--' : d.humi.toFixed(1));
+  setText('lightVal', isNaN(d.light) ? '--' : d.light);
 
-        // 检查报警
-        function checkAlarms(data) {
-            const alarmBox = document.getElementById('alarmBox');
-            const alarms = [];
+  // 吃药状态
+  [d.med1, d.med2, d.med3, d.med4].forEach((v, i) => {
+    const el = document.getElementById('med' + i);
+    if (!el) return;
+    if (v === 1) {
+      el.classList.add('done');
+      el.querySelector('.med-icon').textContent = '✅';
+      el.querySelector('.med-label').textContent = '已吃';
+    } else {
+      el.classList.remove('done');
+      el.querySelector('.med-icon').textContent = '💊';
+      el.querySelector('.med-label').textContent = '组' + (i + 1);
+    }
+  });
 
-            // 检查离线
-            if (Date.now() - lastDataTime > 10000) {
-                alarmBox.className = 'alarm-box warning';
-                alarmBox.innerHTML = '⚠️ 硬件离线';
-                return;
-            }
+  // 锁状态
+  const lockEl = document.getElementById('lockStatus');
+  if (d.lock === 1) { lockEl.textContent = '已解锁'; lockEl.className = 'status-val unlocked'; }
+  else              { lockEl.textContent = '已上锁'; lockEl.className = 'status-val locked'; }
 
-            // 检查温度
-            if (data.temp > tempMax || data.temp < tempMin) {
-                alarms.push('🌡️ 温度超出范围 (' + data.temp.toFixed(1) + '℃)');
-            }
+  // 报警状态
+  const alarmEl = document.getElementById('alarmStatus');
+  if (d.alarm === 1) { alarmEl.textContent = '报警中'; alarmEl.className = 'status-val'; alarmEl.style.color = 'var(--alarm)'; }
+  else               { alarmEl.textContent = '正常';   alarmEl.className = 'status-val on'; alarmEl.style.color = ''; }
 
-            // 检查湿度
-            if (data.humi > humiMax || data.humi < humiMin) {
-                alarms.push('💧 湿度超出范围 (' + data.humi.toFixed(1) + '%)');
-            }
+  // 继电器（主页始终同步，控制页手动模式下跳过更新）
+  setRelay('relay1Status', d.relay1, '遮帘展开', '遮帘收起');
+  setRelay('relay2Status', d.relay2, '除湿运行', '除湿关闭');
 
-            if (alarms.length === 0) {
-                alarmBox.className = 'alarm-box normal';
-                alarmBox.innerHTML = '✓ 运行正常';
-            } else {
-                alarmBox.className = 'alarm-box danger';
-                alarmBox.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
-            }
-        }
 
-        // 检查吃药状态变化（弹窗提醒）
-        function checkMedicineChange(data) {
-            const currentMedState = [data.med1, data.med2, data.med3, data.med4];
+  // 报警横幅（根据传感器数据判断原因，而非依赖 alarm 字段语义）
+  const banner = document.getElementById('alarmBanner');
+  const icon   = document.getElementById('alarmIcon');
+  const text   = document.getElementById('alarmText');
+  if (d.alarm === 1) {
+    const reason = getAlarmReason(d);
+    banner.className = 'alarm-banner alarm';
+    icon.textContent = reason.icon;
+    text.textContent = reason.text;
+  } else {
+    banner.className = 'alarm-banner ok';
+    icon.textContent = '✅';
+    text.textContent = '运行正常';
+  }
+}
 
-            for (let i = 0; i < 4; i++) {
-                // 从未吃变为已吃（硬件触发报警）
-                if (prevMedicineState[i] === 0 && currentMedState[i] === 1) {
-                    showMedicineModal();
-                    break;
-                }
-            }
+function setRelay(id, val, onText, offText) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = val === 1 ? onText : offText;
+  el.className = 'status-val ' + (val === 1 ? 'on' : 'off');
+}
 
-            prevMedicineState = currentMedState;
-        }
+// isManual: true=手动，false=自动（由 checkbox onchange 传入 this.checked）
+function setRelayMode(relayNum, isManual) {
+  const prefix = 'relay' + relayNum;
 
-        // 显示吃药弹窗
-        function showMedicineModal() {
-            document.getElementById('medicineModal').classList.add('active');
-        }
+  if (relayNum === 1) relay1Mode = isManual ? 'manual' : 'auto';
+  else                relay2Mode = isManual ? 'manual' : 'auto';
 
-        // 确认吃药
-        function confirmMedicine() {
-            document.getElementById('medicineModal').classList.remove('active');
-            sendCmd('01'); // 消警
-        }
+  // 发送指令给 STM32：15=继电器1模式，16=继电器2模式；1=手动，0=自动
+  sendCmd((relayNum === 1 ? '15' : '16') + ',' + (isManual ? '1' : '0'));
 
-        // 切换锁状态
-        function toggleLock() {
-            if (isLocked) {
-                sendCmd('11'); // 解锁
-            } else {
-                sendCmd('12'); // 上锁
-            }
-        }
+  // 文字标签
+  const textEl = document.getElementById(prefix + 'ModeText');
+  if (textEl) {
+    textEl.textContent = isManual ? '手动' : '自动';
+    textEl.className   = 'mode-switch-text ' + (isManual ? 'manual' : 'auto');
+  }
 
-        function updateLockBtn() {
-            const btn = document.getElementById('lockBtn');
-            if (isLocked) {
-                btn.textContent = '🔓 解锁';
-            } else {
-                btn.textContent = '🔒 上锁';
-            }
-        }
+  // 控制按钮可用/禁用
+  const wrap = document.getElementById(prefix + 'CtrlWrap');
+  if (wrap) wrap.className = 'relay-ctrl-wrap' + (isManual ? '' : ' disabled');
 
-        // 发送指令
-        function sendCmd(cmd) {
-            if (client && isConnected) {
-                client.publish(CMD_TOPIC, cmd);
-                console.log('发送指令：' + cmd);
-            } else {
-                alert('MQTT 未连接');
-            }
-        }
+  // 提示文字
+  const hint = document.getElementById(prefix + 'AutoHint');
+  if (hint) hint.className = 'mode-hint' + (isManual ? '' : ' visible');
 
-        // 发送阈值
-        function sendThreshold(cmd, inputId) {
-            const value = document.getElementById(inputId).value;
-            if (value) {
-                sendCmd(cmd + ',' + value);
-                // 乐观更新
-                if (inputId === 'tempMaxInput') tempMax = parseInt(value);
-                if (inputId === 'tempMinInput') tempMin = parseInt(value);
-                if (inputId === 'humiMaxInput') humiMax = parseInt(value);
-                if (inputId === 'humiMinInput') humiMin = parseInt(value);
-                if (inputId === 'ldrThresholdInput') ldrThreshold = parseInt(value);
-            }
-        }
+}
 
-        // 更新状态
-        function updateStatus(connected) {
-            isConnected = connected;
-            const dot = document.getElementById('statusDot');
-            const text = document.getElementById('statusText');
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
 
-            if (connected) {
-                dot.className = 'status-dot connected';
-                text.textContent = '已连接';
-            } else {
-                dot.className = 'status-dot disconnected';
-                text.textContent = '未连接';
-            }
-        }
+// ============================================================
+// 判断报警原因（纯 APP 端逻辑，看传感器数据）
+// 返回 { icon, text, type }
+// type: 'temp' | 'medicine' | 'unknown'
+// ============================================================
+function getAlarmReason(d) {
+  const tMax = parseFloat(document.getElementById('tempMax').value) || 25;
+  const tMin = parseFloat(document.getElementById('tempMin').value) || 15;
 
-        // 添加日志
-        function addLog(payload) {
-            logData.unshift({
-                time: new Date().toLocaleTimeString(),
-                data: payload
-            });
+  if (d.temp > 0.1 && (d.temp > tMax || d.temp < tMin)) {
+    const dir = d.temp > tMax ? '偏高' : '偏低';
+    return {
+      type: 'temp',
+      icon: '🌡️',
+      text: `温度${dir}（${d.temp.toFixed(1)}℃），请检查储药环境`
+    };
+  }
 
-            if (logData.length > 20) {
-                logData.pop();
-            }
+  // 检查是否有未吃的药组（med1~med4 任一为0）
+  const hasPending = [d.med1, d.med2, d.med3, d.med4].some(v => v === 0);
+  if (hasPending) {
+    return {
+      type: 'medicine',
+      icon: '💊',
+      text: '到吃药时间了，请按时服药'
+    };
+  }
 
-            updateLogDisplay();
-        }
+  return {
+    type: 'unknown',
+    icon: '🔔',
+    text: '设备报警，请检查药箱状态'
+  };
+}
 
-        // 更新日志显示
-        function updateLogDisplay() {
-            const logList = document.getElementById('logList');
-            logList.innerHTML = logData.map(item =>
-                '<div class="log-item">[' + item.time + '] ' + item.data + '</div>'
-            ).join('');
-        }
+// ============================================================
+// 报警弹窗
+// ============================================================
+function showAlarmModal(d) {
+  const reason = d ? getAlarmReason(d) : { type: 'unknown', icon: '🔔', text: '设备报警，请及时处理' };
+  currentAlarmType = reason.type;  // 记录类型供 confirmAlarm 使用
 
-        // 切换日志展开/收起
-        function toggleLog() {
-            const content = document.getElementById('logContent');
-            const arrow = document.getElementById('logArrow');
+  // 根据类型设置弹窗内容
+  document.getElementById('modalIcon').textContent  = reason.icon;
+  if (reason.type === 'temp') {
+    document.getElementById('modalTitle').textContent = '环境异常提醒';
+    document.getElementById('modalBody').textContent  = reason.text;
+    document.getElementById('modalBtn').textContent   = '✅ 我知道了';
+  } else if (reason.type === 'medicine') {
+    document.getElementById('modalTitle').textContent = '吃药提醒！';
+    document.getElementById('modalBody').innerHTML    = '是时候吃药了！<br>请按时服用您的药物。';
+    document.getElementById('modalBtn').textContent   = '✅ 确认已吃药';
+  } else {
+    document.getElementById('modalTitle').textContent = '设备报警';
+    document.getElementById('modalBody').textContent  = reason.text;
+    document.getElementById('modalBtn').textContent   = '✅ 确认';
+  }
 
-            if (content.classList.contains('expanded')) {
-                content.classList.remove('expanded');
-                arrow.textContent = '▼';
-            } else {
-                content.classList.add('expanded');
-                arrow.textContent = '▲';
-            }
-        }
+  document.getElementById('alarmModal').classList.add('show');
+  countdownVal = 30;
+  setText('modalCountdown', countdownVal);
 
-        // 更新时间显示
-        function updateTime() {
-            const now = new Date();
-            document.getElementById('timeDisplay').textContent = now.toLocaleTimeString('zh-CN', { hour12: false });
-            document.getElementById('dateDisplay').textContent = now.toLocaleDateString('zh-CN', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long'
-            });
-        }
+  if (modalTimer) clearInterval(modalTimer);
+  modalTimer = setInterval(() => {
+    countdownVal--;
+    setText('modalCountdown', countdownVal);
+    if (countdownVal <= 0) {
+      clearInterval(modalTimer);
+      document.getElementById('alarmModal').classList.remove('show');
+    }
+  }, 1000);
 
-        // 初始化
-        window.onload = function() {
-            connectMQTT();
-            updateTime();
-            setInterval(updateTime, 1000);
-        };
-    </script>
+  // Android WebView 原生通知
+  if (window.Android) {
+    try {
+      window.Android.onAlarm(JSON.stringify({ type: reason.type, msg: reason.text }));
+    } catch(e) {}
+  }
+}
+
+let currentAlarmType = 'unknown';  // 记录当前弹窗的报警类型
+
+function confirmAlarm() {
+  // 吃药提醒才发消警+标记已吃指令；温度报警只关弹窗不发指令
+  if (currentAlarmType === 'medicine') {
+    sendCmd('01');
+  }
+  if (modalTimer) { clearInterval(modalTimer); modalTimer = null; }
+  document.getElementById('alarmModal').classList.remove('show');
+}
+
+// ============================================================
+// 发送指令
+// ============================================================
+function sendCmd(cmd) {
+  if (!client || !isConnected) {
+    alert('MQTT 未连接，请检查网络后重试');
+    return;
+  }
+  client.publish(CMD_TOPIC, cmd);
+}
+
+function sendMedTime(idx) {
+  const val = document.getElementById('medTime' + idx).value;
+  if (!val) return;
+  const [h, m] = val.split(':').map(Number);
+  const minutes = h * 60 + m;
+  const code = String(idx + 2).padStart(2, '0');  // 02/03/04/05
+  sendCmd(code + ',' + minutes);
+  showTip('tip_med' + idx);
+}
+
+function sendNum(code, inputId) {
+  const val = document.getElementById(inputId).value;
+  if (val === '') return;
+  sendCmd(code + ',' + val);
+  showTip('tip_' + inputId);
+}
+
+function showTip(tipId) {
+  const el = document.getElementById(tipId);
+  if (!el) return;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ============================================================
+// Tab 切换
+// ============================================================
+function switchTab(idx) {
+  document.querySelectorAll('.page').forEach((p, i) => p.classList.toggle('active', i === idx));
+  document.querySelectorAll('.tab-item').forEach((t, i) => t.classList.toggle('active', i === idx));
+}
+
+// ============================================================
+// 本地时钟 + 离线检测
+// ============================================================
+function tick() {
+  const now = new Date();
+  setText('timeDisplay', now.toTimeString().slice(0, 8));
+  setText('dateDisplay', now.toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric', weekday:'short' }));
+
+  // 3秒无数据 → 离线警告（仅在已连接且收到过数据后检查）
+  if (isConnected && lastMsgTime > 0 && (Date.now() - lastMsgTime) > 3000) {
+    const banner = document.getElementById('alarmBanner');
+    if (!banner.classList.contains('alarm')) {
+      banner.className = 'alarm-banner warn';
+      document.getElementById('alarmIcon').textContent = '🟡';
+      document.getElementById('alarmText').textContent = '硬件数据超时，请检查设备连接';
+    }
+  }
+}
+
+setInterval(tick, 1000);
+tick();
+initMQTT();
+</script>
+
 </body>
 </html>
