@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多参数智能空气净化系统</title>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 12px;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--sub);
+        }
+
+        .status-dot.connected {
+            background: var(--ok);
+        }
+
+        .status-dot.disconnected {
+            background: var(--alarm);
+        }
+
+        .status-text {
+            font-size: 14px;
+        }
+
+        /* 实时数据 */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+
+        .data-unit {
+            font-size: 13px;
+            color: var(--sub);
+            margin-left: 4px;
+        }
+
+        .data-value.alarm {
+            color: var(--alarm);
+        }
+
+        /* 模式标识 */
+        .mode-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .mode-normal {
+            background: #E3F2FD;
+            color: #1976D2;
+        }
+
+        .mode-pet {
+            background: #FFF3E0;
+            color: #F57C00;
+        }
+
+        /* 报警状态 */
+        .alarm-item {
+            background: var(--alarm);
+            color: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .alarm-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .status-ok {
+            color: var(--ok);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 控制按钮 */
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .btn {
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:active {
+            background: #1976D2;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:active {
+            background: #E3F2FD;
+        }
+
+        .btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* 阈值设置 */
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .threshold-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .threshold-label {
+            font-size: 13px;
+            color: var(--sub);
+            min-width: 100px;
+        }
+
+        .threshold-input {
+            width: 80px;
+            height: 40px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 0 10px;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .threshold-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .btn-send {
+            height: 40px;
+            padding: 0 16px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .btn-send:active {
+            background: #1976D2;
+        }
+
+        /* 日志 */
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .log-title {
+            font-size: 14px;
+            color: var(--sub);
+        }
+
+        .log-toggle {
+            font-size: 12px;
+            color: var(--primary);
+        }
+
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s;
+        }
+
+        .log-content.expanded {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            font-size: 12px;
+            color: var(--sub);
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        /* 空气质量等级 */
+        .air-quality {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .air-excellent {
+            background: #E8F5E9;
+            color: #2E7D32;
+        }
+
+        .air-good {
+            background: #FFF8E1;
+            color: #F57F17;
+        }
+
+        .air-poor {
+            background: #FFEBEE;
+            color: #C62828;
+        }
+    </style>
+</head>
+<body>
+    <!-- 状态栏 -->
+    <div class="card">
+        <div class="status-bar">
+            <div class="status-dot" id="statusDot"></div>
+            <span class="status-text" id="statusText">未连接</span>
+            <span style="margin-left: auto;" class="mode-badge mode-normal" id="modeBadge">普通模式</span>
+            <span style="margin-left: 8px;" class="mode-badge mode-normal" id="autoBadge">自动</span>
+        </div>
+    </div>
+
+    <!-- 实时数据 -->
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-label">PM2.5</span>
+            <div>
+                <span class="data-value" id="pm25Value">--</span>
+                <span class="data-unit">μg/m³</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">有害气体</span>
+            <div>
+                <span class="data-value" id="gasValue">--</span>
+                <span class="data-unit">ppm</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">温度</span>
+            <div>
+                <span class="data-value" id="tempValue">--</span>
+                <span class="data-unit">℃</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">湿度</span>
+            <div>
+                <span class="data-value" id="humiValue">--</span>
+                <span class="data-unit">%RH</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">空气质量</span>
+            <span class="air-quality air-excellent" id="airQuality">优</span>
+        </div>
+    </div>
+
+    <!-- 设备状态 -->
+    <div class="card">
+        <div class="card-title">设备状态</div>
+        <div class="data-row">
+            <span class="data-label">物理吸附风扇</span>
+            <span id="fan1Status">关</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">毛发吸附风扇</span>
+            <span id="fan2Status">关</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">加湿器</span>
+            <span id="humiDevStatus">关</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">紫外线杀菌</span>
+            <span id="uvStatus">关</span>
+        </div>
+    </div>
+
+    <!-- 报警状态 -->
+    <div class="card" id="alarmCard">
+        <div class="card-title">报警状态</div>
+        <div id="alarmContent">
+            <div class="status-ok">✓ 运行正常</div>
+        </div>
+    </div>
+
+    <!-- 当前阈值显示 -->
+    <div class="card">
+        <div class="card-title">当前阈值（<span id="currentModeLabel">普通模式</span>）</div>
+        <div class="data-row">
+            <span class="data-label">普通 PM2.5</span>
+            <span><span id="currentPm25NormalTh" style="font-weight: bold; font-size: 18px;">--</span> μg/m³</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">普通有害气体</span>
+            <span><span id="currentGasNormalTh" style="font-weight: bold; font-size: 18px;">--</span> ppm</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">宠物 PM2.5</span>
+            <span><span id="currentPm25PetTh" style="font-weight: bold; font-size: 18px;">--</span> μg/m³</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">宠物有害气体</span>
+            <span><span id="currentGasPetTh" style="font-weight: bold; font-size: 18px;">--</span> ppm</span>
+        </div>
+    </div>
+
+    <!-- 模式控制 -->
+    <div class="card">
+        <div class="card-title">模式控制</div>
+        <div class="btn-grid">
+            <button class="btn btn-outline active" id="btnNormal" onclick="setMode('normal')">普通模式</button>
+            <button class="btn btn-outline" id="btnPet" onclick="setMode('pet')">宠物模式</button>
+        </div>
+    </div>
+
+    <!-- 手动/自动控制 -->
+    <div class="card">
+        <div class="card-title">手动/自动控制</div>
+        <div class="btn-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <button class="btn btn-outline active" id="btnAuto" onclick="setAutoMode('auto')">自动控制</button>
+            <button class="btn btn-outline" id="btnManual" onclick="setAutoMode('manual')">手动控制</button>
+        </div>
+    </div>
+
+    <!-- 设备控制 -->
+    <div class="card">
+        <div class="card-title">设备控制</div>
+        <div class="btn-grid">
+            <button class="btn btn-primary" onclick="sendCmd('03')">风扇 1 开关</button>
+            <button class="btn btn-primary" onclick="sendCmd('04')">风扇 2 开关</button>
+            <button class="btn btn-primary" onclick="sendCmd('05')">加湿器开关</button>
+            <button class="btn btn-primary" onclick="sendCmd('06')">紫外线开关</button>
+        </div>
+    </div>
+
+    <!-- 阈值设置 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="threshold-row">
+            <span class="threshold-label">普通 PM2.5</span>
+            <input type="number" class="threshold-input" id="thPm25Normal" value="75" onfocus="editingThreshold='thPm25Normal'" onblur="editingThreshold=null">
+            <button class="btn-send" onclick="sendThreshold('11', 'thPm25Normal')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">普通气体</span>
+            <input type="number" class="threshold-input" id="thGasNormal" value="300" onfocus="editingThreshold='thGasNormal'" onblur="editingThreshold=null">
+            <button class="btn-send" onclick="sendThreshold('12', 'thGasNormal')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">宠物 PM2.5</span>
+            <input type="number" class="threshold-input" id="thPm25Pet" value="50" onfocus="editingThreshold='thPm25Pet'" onblur="editingThreshold=null">
+            <button class="btn-send" onclick="sendThreshold('13', 'thPm25Pet')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">宠物气体</span>
+            <input type="number" class="threshold-input" id="thGasPet" value="200" onfocus="editingThreshold='thGasPet'" onblur="editingThreshold=null">
+            <button class="btn-send" onclick="sendThreshold('14', 'thGasPet')">发送</button>
+        </div>
+    </div>
+
+    <!-- 定时控制 -->
+    <div class="card">
+        <div class="card-title">定时控制（风扇 1）</div>
+        <div class="threshold-row">
+            <span class="threshold-label">多少分钟后</span>
+            <input type="number" class="threshold-input" id="timerMinutes" placeholder="输入分钟数" style="width: 120px;">
+            <select class="threshold-input" id="timerCmd" style="width: 80px;">
+                <option value="03">开</option>
+                <option value="09">关</option>
+            </select>
+            <button class="btn-send" onclick="setTimer()">设置定时</button>
+        </div>
+        <div class="data-row" style="flex-direction: column; align-items: flex-start;">
+            <div style="display: flex; justify-content: space-between; width: 100%; padding: 8px 0; border-bottom: 1px solid #eee;">
+                <span class="data-label">当前定时任务</span>
+                <button class="btn-send" onclick="clearTimer()" style="padding: 4px 8px; font-size: 12px;">取消定时</button>
+            </div>
+            <div id="timerList" style="width: 100%;"></div>
+        </div>
+    </div>
+
+    <!-- 日志 -->
+    <div class="card">
+        <div class="log-header" onclick="toggleLog()">
+            <span class="log-title">数据日志（最近 20 条）</span>
+            <span class="log-toggle" id="logToggle">展开</span>
+        </div>
+        <div class="log-content" id="logContent">
+            <div id="logList"></div>
+        </div>
+    </div>
+
+    <script src="mqtt.min.js"></script>
+    <script>
+        // MQTT 配置 - 硬编码自 PRD
+        const PROJECT_ID = '888888';
+        const PROJECT_ID2 = '888889';
+        const UPLOAD_TOPIC = PROJECT_ID + '/' + PROJECT_ID2 + '/kongqijinghua/upload';
+        const CMD_TOPIC = PROJECT_ID + '/' + PROJECT_ID2 + '/kongqijinghua/cmd';
+
+        // 全局状态
+        let client = null;
+        let isConnected = false;
+        let currentMode = 0; // 0=普通，1=宠物
+        let currentAutoMode = 1; // 0=手动，1=自动（默认自动）
+        let thresholds = {
+            th_pm25_normal: 75,
+            th_gas_normal: 300,
+            th_pm25_pet: 50,
+            th_gas_pet: 200
+        };
+        let logData = [];
+        // 标记哪些阈值输入框正在被用户编辑（focus 状态）
+        let editingThreshold = null;
+        // 记录每个阈值的保护截止时间（时间戳），保护期内不因上行数据更新显示
+        let thresholdProtectUntil = {
+            thPm25Normal: 0,
+            thGasNormal: 0,
+            thPm25Pet: 0,
+            thGasPet: 0
+        };
+        const THRESHOLD_PROTECT_MS = 2000; // 保护时间：2 秒
+
+        // 初始化 MQTT
+        function initMQTT() {
+            const clientId = 'web_' + Math.random().toString(36).substr(2, 6);
+            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+                clientId: clientId,
+                reconnectPeriod: 3000,
+                clean: true
+            });
+
+            client.on('connect', function() {
+                console.log('MQTT Connected');
+                isConnected = true;
+                updateStatus(true);
+                client.subscribe(UPLOAD_TOPIC);
+            });
+
+            client.on('disconnect', function() {
+                console.log('MQTT Disconnected');
+                isConnected = false;
+                updateStatus(false);
+            });
+
+            client.on('message', function(topic, payload) {
+                if (topic === UPLOAD_TOPIC) {
+                    const message = payload.toString();
+                    parseData(message);
+                }
+            });
+
+            client.on('error', function(err) {
+                console.error('MQTT Error:', err);
+            });
+        }
+
+        // 解析上行数据
+        function parseData(message) {
+            const parts = message.split(',');
+            if (parts.length < 14) return;  // 14 个字段
+
+            const data = {
+                pm25: parseFloat(parts[0]) || 0,
+                gas: parseFloat(parts[1]) || 0,
+                temp: parseFloat(parts[2]) || 0,
+                humi: parseFloat(parts[3]) || 0,
+                mode: parseInt(parts[4]) || 0,
+                fan1: parseInt(parts[5]) || 0,
+                fan2: parseInt(parts[6]) || 0,
+                humi_dev: parseInt(parts[7]) || 0,
+                uv: parseInt(parts[8]) || 0,
+                th_pm25_normal: parseFloat(parts[9]) || 75,
+                th_gas_normal: parseFloat(parts[10]) || 300,
+                th_pm25_pet: parseFloat(parts[11]) || 50,
+                th_gas_pet: parseFloat(parts[12]) || 200,
+                auto_mode: parts[13] !== undefined ? parseInt(parts[13]) : 1  // 14: auto_mode (0=手动，1=自动)
+            };
+
+            // 更新阈值显示（如果用户正在编辑某个输入框，则不覆盖该输入框的值）
+            thresholds.th_pm25_normal = data.th_pm25_normal;
+            thresholds.th_gas_normal = data.th_gas_normal;
+            thresholds.th_pm25_pet = data.th_pm25_pet;
+            thresholds.th_gas_pet = data.th_gas_pet;
+
+            const now = Date.now();
+
+            // 只更新非编辑状态且不在保护期内的输入框
+            if (editingThreshold !== 'thPm25Normal' && thresholdProtectUntil.thPm25Normal < now) {
+                document.getElementById('thPm25Normal').value = data.th_pm25_normal;
+            }
+            if (editingThreshold !== 'thGasNormal' && thresholdProtectUntil.thGasNormal < now) {
+                document.getElementById('thGasNormal').value = data.th_gas_normal;
+            }
+            if (editingThreshold !== 'thPm25Pet' && thresholdProtectUntil.thPm25Pet < now) {
+                document.getElementById('thPm25Pet').value = data.th_pm25_pet;
+            }
+            if (editingThreshold !== 'thGasPet' && thresholdProtectUntil.thGasPet < now) {
+                document.getElementById('thGasPet').value = data.th_gas_pet;
+            }
+
+            // 更新模式
+            currentMode = data.mode;
+            updateModeUI(data.mode);
+
+            // 更新自动/手动模式
+            currentAutoMode = data.auto_mode;
+            updateAutoModeUI(data.auto_mode);
+
+            // 更新设备状态
+            updateDeviceStatus(data);
+
+            // 更新数据展示
+            updateDataDisplay(data);
+
+            // 检查报警
+            checkAlarms(data);
+
+            // 记录日志
+            addLog(message);
+        }
+
+        // 更新数据展示
+        function updateDataDisplay(data) {
+            document.getElementById('pm25Value').textContent = data.pm25;
+            document.getElementById('gasValue').textContent = data.gas;
+            document.getElementById('tempValue').textContent = data.temp.toFixed(1);
+            document.getElementById('humiValue').textContent = data.humi;
+
+            // 更新报警样式
+            const pm25Threshold = data.mode === 0 ? data.th_pm25_normal : data.th_pm25_pet;
+            const gasThreshold = data.mode === 0 ? data.th_gas_normal : data.th_gas_pet;
+
+            const pm25El = document.getElementById('pm25Value');
+            const gasEl = document.getElementById('gasValue');
+
+            if (data.pm25 > pm25Threshold) {
+                pm25El.classList.add('alarm');
+            } else {
+                pm25El.classList.remove('alarm');
+            }
+
+            if (data.gas > gasThreshold) {
+                gasEl.classList.add('alarm');
+            } else {
+                gasEl.classList.remove('alarm');
+            }
+
+            // 更新空气质量等级
+            updateAirQuality(data);
+        }
+
+        // 更新空气质量等级
+        function updateAirQuality(data) {
+            const pm25Threshold = data.mode === 0 ? data.th_pm25_normal : data.th_pm25_pet;
+            const gasThreshold = data.mode === 0 ? data.th_gas_normal : data.th_gas_pet;
+
+            const pm25Ratio = data.pm25 / pm25Threshold;
+            const gasRatio = data.gas / gasThreshold;
+
+            const qualityEl = document.getElementById('airQuality');
+
+            if (pm25Ratio < 0.5 && gasRatio < 0.5) {
+                qualityEl.textContent = '优';
+                qualityEl.className = 'air-quality air-excellent';
+            } else if (pm25Ratio < 1 && gasRatio < 1) {
+                qualityEl.textContent = '良';
+                qualityEl.className = 'air-quality air-good';
+            } else {
+                qualityEl.textContent = '差';
+                qualityEl.className = 'air-quality air-poor';
+            }
+        }
+
+        // 更新设备状态
+        function updateDeviceStatus(data) {
+            document.getElementById('fan1Status').textContent = data.fan1 ? '开' : '关';
+            document.getElementById('fan2Status').textContent = data.fan2 ? '开' : '关';
+            document.getElementById('humiDevStatus').textContent = data.humi_dev ? '开' : '关';
+            document.getElementById('uvStatus').textContent = data.uv ? '开' : '关';
+        }
+
+        // 更新模式 UI
+        function updateModeUI(mode) {
+            const normalBtn = document.getElementById('btnNormal');
+            const petBtn = document.getElementById('btnPet');
+            const badge = document.getElementById('modeBadge');
+            const modeLabel = document.getElementById('currentModeLabel');
+
+            if (mode === 0) {
+                normalBtn.classList.add('active');
+                petBtn.classList.remove('active');
+                badge.textContent = '普通模式';
+                badge.className = 'mode-badge mode-normal';
+                if (modeLabel) modeLabel.textContent = '普通模式';
+            } else {
+                normalBtn.classList.remove('active');
+                petBtn.classList.add('active');
+                badge.textContent = '宠物模式';
+                badge.className = 'mode-badge mode-pet';
+                if (modeLabel) modeLabel.textContent = '宠物模式';
+            }
+
+            // 更新当前阈值显示
+            updateCurrentThresholdDisplay(mode);
+        }
+
+        // 更新手动/自动模式 UI
+        function updateAutoModeUI(autoMode) {
+            const autoBtn = document.getElementById('btnAuto');
+            const manualBtn = document.getElementById('btnManual');
+            const autoBadge = document.getElementById('autoBadge');
+
+            if (autoMode === 1) {
+                autoBtn.classList.add('active');
+                manualBtn.classList.remove('active');
+                autoBadge.textContent = '自动';
+                autoBadge.className = 'mode-badge mode-normal';
+            } else {
+                autoBtn.classList.remove('active');
+                manualBtn.classList.add('active');
+                autoBadge.textContent = '手动';
+                autoBadge.className = 'mode-badge mode-pet';
+            }
+        }
+
+        // 更新当前阈值显示
+        function updateCurrentThresholdDisplay(mode) {
+            // 显示全部 4 个阈值
+            document.getElementById('currentPm25NormalTh').textContent = thresholds.th_pm25_normal;
+            document.getElementById('currentGasNormalTh').textContent = thresholds.th_gas_normal;
+            document.getElementById('currentPm25PetTh').textContent = thresholds.th_pm25_pet;
+            document.getElementById('currentGasPetTh').textContent = thresholds.th_gas_pet;
+        }
+
+        // 检查报警
+        function checkAlarms(data) {
+            const alarms = [];
+            const pm25Threshold = data.mode === 0 ? data.th_pm25_normal : data.th_pm25_pet;
+            const gasThreshold = data.mode === 0 ? data.th_gas_normal : data.th_gas_pet;
+
+            if (data.pm25 > pm25Threshold) {
+                alarms.push(`PM2.5 超标！当前 ${data.pm25} μg/m³`);
+            }
+            if (data.gas > gasThreshold) {
+                alarms.push(`有害气体超标！当前 ${data.gas} ppm`);
+            }
+
+            const alarmContent = document.getElementById('alarmContent');
+            if (alarms.length > 0) {
+                alarmContent.innerHTML = alarms.map(msg => `<div class="alarm-item">${msg}</div>`).join('');
+            } else {
+                alarmContent.innerHTML = '<div class="status-ok">✓ 运行正常</div>';
+            }
+        }
+
+        // 更新连接状态
+        function updateStatus(connected) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+
+            if (connected) {
+                dot.className = 'status-dot connected';
+                text.textContent = '已连接';
+            } else {
+                dot.className = 'status-dot disconnected';
+                text.textContent = '未连接';
+            }
+        }
+
+        // 发送指令
+        function sendCmd(cmd) {
+            if (!isConnected) {
+                alert('MQTT 未连接，请等待连接成功后再试');
+                return;
+            }
+            client.publish(CMD_TOPIC, cmd);
+            console.log('Send cmd:', cmd);
+        }
+
+        // 设置模式
+        function setMode(mode) {
+            if (!isConnected) {
+                alert('MQTT 未连接，请等待连接成功后再试');
+                return;
+            }
+            // 下位机指令：01=普通模式，02=宠物模式
+            const cmd = (mode === 'normal') ? '01' : '02';
+            client.publish(CMD_TOPIC, cmd);
+            console.log('Set mode:', mode, '-> cmd:', cmd);
+        }
+
+        // 设置手动/自动模式
+        function setAutoMode(mode) {
+            if (!isConnected) {
+                alert('MQTT 未连接，请等待连接成功后再试');
+                return;
+            }
+            // 下位机指令：通过发送风扇 1 开关指令来切换到手动模式
+            // 或者直接发送自定义指令（需要下位机支持）
+            // 这里使用一个简单的方法：发送一个查询指令或者切换指令
+            // 实际上可以通过发送任意风扇控制指令来切换到手动模式
+            // 但更好的方式是添加专门的指令，比如 99=切换手动/自动
+            // 暂时使用 KEY2 的逻辑：发送一个特殊指令
+            const cmd = (mode === 'auto') ? '98' : '97';  // 98=自动，97=手动
+            client.publish(CMD_TOPIC, cmd);
+            console.log('Set auto mode:', mode, '-> cmd:', cmd);
+        }
+
+        // 发送阈值
+        function sendThreshold(cmd, inputId) {
+            if (!isConnected) {
+                alert('MQTT 未连接，请等待连接成功后再试');
+                return;
+            }
+            const value = parseInt(document.getElementById(inputId).value);
+            const cmdStr = cmd + ',' + value;
+            client.publish(CMD_TOPIC, cmdStr);
+            console.log('Send threshold:', cmdStr);
+
+            // 立即更新内部 thresholds 变量，保持本地状态同步
+            // 下位机接收到指令后会修改对应阈值，并在下次上报时回传新值
+            switch (cmd) {
+                case '11':
+                    thresholds.th_pm25_normal = value;
+                    break;
+                case '12':
+                    thresholds.th_gas_normal = value;
+                    break;
+                case '13':
+                    thresholds.th_pm25_pet = value;
+                    break;
+                case '14':
+                    thresholds.th_gas_pet = value;
+                    break;
+            }
+
+            // 立即更新输入框显示（强制同步，不受保护期影响）
+            document.getElementById(inputId).value = value;
+
+            // 设置保护期：从当前时刻起 2 秒内不因上行数据更新此输入框
+            thresholdProtectUntil[inputId] = Date.now() + THRESHOLD_PROTECT_MS;
+
+            // 发送成功后，移除该输入框的编辑状态，允许后续更新
+            editingThreshold = null;
+        }
+
+        // ==================== 定时器功能 ====================
+
+        // 当前定时任务
+        let currentTimer = null;
+        let timerInterval = null;
+
+        // 设置定时器（多少分钟后开/关风扇 1）
+        function setTimer() {
+            if (!isConnected) {
+                alert('MQTT 未连接，请等待连接成功后再试');
+                return;
+            }
+            const minutes = parseInt(document.getElementById('timerMinutes').value);
+            const cmd = document.getElementById('timerCmd').value;
+            if (!minutes || minutes <= 0) {
+                alert('请输入有效的分钟数');
+                return;
+            }
+
+            // 清除之前的定时器
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+
+            // 创建定时任务
+            const executeTime = new Date(Date.now() + minutes * 60 * 1000);
+            currentTimer = {
+                minutes: minutes,
+                cmd: cmd,
+                executeTime: executeTime.getTime()
+            };
+
+            // 保存定时器
+            localStorage.setItem('airPurifierTimer', JSON.stringify(currentTimer));
+
+            // 显示倒计时
+            renderTimerList();
+
+            // 启动倒计时检查
+            timerInterval = setInterval(() => {
+                const now = Date.now();
+                if (now >= currentTimer.executeTime) {
+                    // 时间到，执行命令
+                    sendCmd(currentTimer.cmd);
+                    const cmdName = currentTimer.cmd === '03' ? '开' : '关';
+                    console.log('定时时间到，执行风扇 1' + cmdName);
+                    clearInterval(timerInterval);
+                    currentTimer = null;
+                    localStorage.removeItem('airPurifierTimer');
+                    renderTimerList();
+                    alert('定时时间到，已执行操作！');
+                }
+            }, 1000);
+
+            renderTimerList();
+        }
+
+        // 取消定时器
+        function clearTimer() {
+            if (!currentTimer) {
+                alert('没有定时任务可取消');
+                return;
+            }
+            if (confirm('确定要取消当前定时任务吗？')) {
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                currentTimer = null;
+                localStorage.removeItem('airPurifierTimer');
+                renderTimerList();
+            }
+        }
+
+        // 渲染定时器列表（显示倒计时）
+        function renderTimerList() {
+            const list = document.getElementById('timerList');
+            if (!currentTimer) {
+                list.innerHTML = '<div style="color: #999; padding: 10px 0;">暂无定时任务</div>';
+                return;
+            }
+
+            const cmdName = currentTimer.cmd === '03' ? '开' : '关';
+            list.innerHTML = `
+                <div style="padding: 10px 0;">
+                    <div style="font-size: 14px; color: #333;">
+                        ${currentTimer.minutes}分钟后执行风扇 1${cmdName}
+                    </div>
+                    <div style="font-size: 12px; color: #999; margin-top: 5px;">
+                        预计执行时间：${new Date(currentTimer.executeTime).toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'})}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 加载定时器（页面加载时恢复）
+        function loadTimers() {
+            const saved = localStorage.getItem('airPurifierTimer');
+            if (saved) {
+                try {
+                    currentTimer = JSON.parse(saved);
+                    // 检查是否已过期
+                    const now = Date.now();
+                    if (currentTimer.executeTime > now) {
+                        // 未过期，启动倒计时
+                        timerInterval = setInterval(() => {
+                            if (now >= currentTimer.executeTime) {
+                                const cmd = currentTimer.cmd;
+                                sendCmd(cmd);
+                                const cmdName = cmd === '03' ? '开' : '关';
+                                console.log('定时时间到，执行风扇 1' + cmdName);
+                                clearInterval(timerInterval);
+                                currentTimer = null;
+                                localStorage.removeItem('airPurifierTimer');
+                                renderTimerList();
+                                alert('定时时间到，已执行操作！');
+                            }
+                        }, 1000);
+                        renderTimerList();
+                    } else {
+                        // 已过期，清除
+                        currentTimer = null;
+                        localStorage.removeItem('airPurifierTimer');
+                    }
+                } catch (e) {
+                    currentTimer = null;
+                }
+            }
+        }
+
+        // 切换日志
+        function toggleLog() {
+            const content = document.getElementById('logContent');
+            const toggle = document.getElementById('logToggle');
+
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                toggle.textContent = '展开';
+            } else {
+                content.classList.add('expanded');
+                toggle.textContent = '收起';
+            }
+        }
+
+        // 添加日志
+        function addLog(message) {
+            logData.unshift({
+                time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+                message: message
+            });
+
+            if (logData.length > 20) {
+                logData.pop();
+            }
+
+            const logList = document.getElementById('logList');
+            logList.innerHTML = logData.map(item =>
+                `<div class="log-item">${item.time} - ${item.message}</div>`
+            ).join('');
+        }
+
+        // 页面加载完成后初始化
+        window.onload = function() {
+            initMQTT();
+            loadTimers();
+        };
+    </script>
+</body>
+</html>
