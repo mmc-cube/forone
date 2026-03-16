@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>婴幼儿智能监护系统</title>
+<script src="mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --alarm: #F44336;
+    --ok: #4CAF50;
+    --warn: #FF9800;
+    --text: #212121;
+    --sub: #757575;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  /* ===== 顶栏 ===== */
+  .topbar {
+    padding: 44px 16px 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .topbar-title { font-size: 17px; font-weight: 600; }
+  .mqtt-status { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+  .dot.connected { background: #A5D6A7; }
+  .dot.disconnected { background: #EF9A9A; }
+
+  /* ===== Tab 栏 ===== */
+  .tabs {
+    display: flex;
+    background: #fff;
+    border-bottom: 1px solid #E0E0E0;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px 4px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--sub);
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+  }
+
+  /* ===== 页面容器 ===== */
+  .page {
+    display: none;
+    flex-direction: column;
+    height: calc(100vh - 108px);
+    overflow-y: auto;
+    padding: 12px;
+    gap: 10px;
+  }
+  .page.active { display: flex; }
+
+  /* ===== 卡片 ===== */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+  }
+  .card-title {
+    font-size: 12px;
+    color: var(--sub);
+    margin-bottom: 8px;
+    font-weight: 500;
+    letter-spacing: .5px;
+  }
+
+  /* ===== 数据网格 ===== */
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .data-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px;
+    background: var(--bg);
+    border-radius: 8px;
+  }
+  .data-label { font-size: 11px; color: var(--sub); margin-bottom: 4px; }
+  .data-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
+  .data-value.alarm { color: var(--alarm); }
+  .data-unit { font-size: 11px; color: var(--sub); margin-top: 2px; }
+
+  /* ===== 状态徽章 ===== */
+  .status-row { display: flex; gap: 8px; }
+  .badge {
+    flex: 1;
+    text-align: center;
+    padding: 7px 4px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    background: #E8F5E9;
+    color: var(--ok);
+  }
+  .badge.off { background: #FAFAFA; color: #BDBDBD; }
+
+  /* ===== 报警区 ===== */
+  .alarm-box {
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    background: #E8F5E9;
+    color: var(--ok);
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .alarm-box.has-alarm { background: #FFEBEE; color: var(--alarm); }
+  .alarm-tag {
+    background: var(--alarm);
+    color: #fff;
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 12px;
+  }
+
+  /* ===== 控制按钮 ===== */
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    flex: 1;
+    min-width: 80px;
+    padding: 11px 8px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--primary);
+    color: #fff;
+    transition: opacity .15s;
+  }
+  .btn:active { opacity: .75; }
+  .btn.danger   { background: var(--alarm); }
+  .btn.ok       { background: var(--ok); }
+  .btn.secondary{ background: #90A4AE; }
+
+  /* ===== 阈值显示卡（只读）===== */
+  .thr-display-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .thr-display-item { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+  .thr-display-label { font-size: 11px; color: var(--sub); }
+  .thr-display-val { font-size: 18px; font-weight: 700; color: var(--primary); }
+  .thr-display-unit { font-size: 11px; color: var(--sub); }
+
+  /* ===== 阈值设置卡（可写）===== */
+  .thr-set-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .thr-set-row:last-child { margin-bottom: 0; }
+  .thr-set-label { font-size: 12px; color: var(--sub); width: 86px; flex-shrink: 0; }
+  .thr-input {
+    flex: 1;
+    height: 34px;
+    border: 1px solid #E0E0E0;
+    border-radius: 6px;
+    padding: 0 8px;
+    font-size: 14px;
+    outline: none;
+    background: var(--bg);
+    -webkit-appearance: none;
+  }
+  .thr-input:focus { border-color: var(--primary); }
+  .send-btn {
+    height: 34px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .send-btn:active { opacity: .75; }
+
+  /* ===== 哭闹历史 ===== */
+  .cry-big { text-align: center; padding: 6px 0; }
+  .cry-num { font-size: 52px; font-weight: 800; color: var(--primary); line-height: 1; }
+  .cry-sub { font-size: 12px; color: var(--sub); margin-top: 4px; }
+
+  .history-list { max-height: 200px; overflow-y: auto; }
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #F0F0F0;
+    font-size: 13px;
+  }
+  .history-item:last-child { border-bottom: none; }
+  .history-time { color: var(--sub); font-size: 12px; }
+  .history-empty { text-align: center; color: var(--sub); font-size: 13px; padding: 20px 0; }
+
+  /* ===== 滚动条 ===== */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #BDBDBD; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <div class="topbar-title">婴幼儿智能监护</div>
+  <div class="mqtt-status">
+    <div class="dot disconnected" id="mqttDot"></div>
+    <span id="mqttText">连接中...</span>
+  </div>
+</div>
+
+<!-- Tab 栏 -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab(0)">监测</button>
+  <button class="tab-btn" onclick="switchTab(1)">控制</button>
+  <button class="tab-btn" onclick="switchTab(2)">阈值</button>
+  <button class="tab-btn" onclick="switchTab(3)">历史</button>
+</div>
+
+<!-- ===== 页面0：监测 ===== -->
+<div class="page active" id="page0">
+
+  <!-- 报警状态 -->
+  <div class="card">
+    <div class="card-title">报警状态</div>
+    <div class="alarm-box" id="alarmBox">运行正常</div>
+  </div>
+
+  <!-- 环境数据 -->
+  <div class="card">
+    <div class="card-title">实时环境数据</div>
+    <div class="data-grid">
+      <div class="data-item">
+        <div class="data-label">温度</div>
+        <div class="data-value" id="val_temp">--</div>
+        <div class="data-unit">℃</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">湿度</div>
+        <div class="data-value" id="val_humi">--</div>
+        <div class="data-unit">%RH</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">分贝值</div>
+        <div class="data-value" id="val_db">--</div>
+        <div class="data-unit">dB</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">哭闹次数</div>
+        <div class="data-value" id="val_cry">0</div>
+        <div class="data-unit">次（累计）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 执行器状态 -->
+  <div class="card">
+    <div class="card-title">执行器状态</div>
+    <div class="status-row">
+      <div class="badge off" id="badge_motor">摇床 停止</div>
+      <div class="badge off" id="badge_music">音乐 停止</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== 页面1：控制 ===== -->
+<div class="page" id="page1">
+
+  <!-- 消警 -->
+  <div class="card">
+    <div class="card-title">报警控制</div>
+    <div class="btn-row">
+      <button class="btn danger" onclick="sendCmd('01')">消警 / 清除报警</button>
+    </div>
+  </div>
+
+  <!-- 联动控制 -->
+  <div class="card">
+    <div class="card-title">联动控制（摇床 + 音乐）</div>
+    <div class="btn-row">
+      <button class="btn ok"        onclick="sendCmd('02')">启动联动</button>
+      <button class="btn secondary" onclick="sendCmd('03')">停止联动</button>
+    </div>
+  </div>
+
+  <!-- 当前执行器状态（控制页同步） -->
+  <div class="card">
+    <div class="card-title">当前执行器状态</div>
+    <div class="status-row">
+      <div class="badge off" id="badge_motor2">摇床 停止</div>
+      <div class="badge off" id="badge_music2">音乐 停止</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== 页面2：阈值 ===== -->
+<div class="page" id="page2">
+
+  <!-- 阈值显示卡（只读，来自设备上报）-->
+  <div class="card">
+    <div class="card-title">当前阈值（设备上报，只读）</div>
+    <div class="thr-display-grid">
+      <div class="thr-display-item">
+        <div class="thr-display-label">温度下限</div>
+        <div class="thr-display-val" id="disp_thr_temp_lo">--</div>
+        <div class="thr-display-unit">℃</div>
+      </div>
+      <div class="thr-display-item">
+        <div class="thr-display-label">温度上限</div>
+        <div class="thr-display-val" id="disp_thr_temp_hi">--</div>
+        <div class="thr-display-unit">℃</div>
+      </div>
+      <div class="thr-display-item">
+        <div class="thr-display-label">湿度阈值</div>
+        <div class="thr-display-val" id="disp_thr_humi">--</div>
+        <div class="thr-display-unit">%RH</div>
+      </div>
+      <div class="thr-display-item">
+        <div class="thr-display-label">分贝阈值</div>
+        <div class="thr-display-val" id="disp_thr_db">--</div>
+        <div class="thr-display-unit">dB</div>
+      </div>
+      <div class="thr-display-item">
+        <div class="thr-display-label">持续时间阈值</div>
+        <div class="thr-display-val" id="disp_thr_time">--</div>
+        <div class="thr-display-unit">秒</div>
+      </div>
+      <div class="thr-display-item">
+        <div class="thr-display-label">联动持续时长</div>
+        <div class="thr-display-val" id="disp_thr_duration">--</div>
+        <div class="thr-display-unit">秒</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 阈值设置卡（可写，独立输入框）-->
+  <div class="card">
+    <div class="card-title">修改阈值（输入后点发送）</div>
+
+    <div class="thr-set-row">
+      <div class="thr-set-label">温度下限 ℃</div>
+      <input class="thr-input" type="number" id="in_temp_lo" placeholder="如 18">
+      <button class="send-btn" onclick="setThr('04','in_temp_lo','disp_thr_temp_lo','thr_temp_lo')">发送</button>
+    </div>
+    <div class="thr-set-row">
+      <div class="thr-set-label">温度上限 ℃</div>
+      <input class="thr-input" type="number" id="in_temp_hi" placeholder="如 30">
+      <button class="send-btn" onclick="setThr('05','in_temp_hi','disp_thr_temp_hi','thr_temp_hi')">发送</button>
+    </div>
+    <div class="thr-set-row">
+      <div class="thr-set-label">湿度阈值 %</div>
+      <input class="thr-input" type="number" id="in_humi" placeholder="如 70">
+      <button class="send-btn" onclick="setThr('06','in_humi','disp_thr_humi','thr_humi')">发送</button>
+    </div>
+    <div class="thr-set-row">
+      <div class="thr-set-label">分贝阈值 dB</div>
+      <input class="thr-input" type="number" id="in_db" placeholder="如 70">
+      <button class="send-btn" onclick="setThr('07','in_db','disp_thr_db','thr_db')">发送</button>
+    </div>
+    <div class="thr-set-row">
+      <div class="thr-set-label">持续时间 秒</div>
+      <input class="thr-input" type="number" id="in_time" placeholder="如 3">
+      <button class="send-btn" onclick="setThr('08','in_time','disp_thr_time','thr_time')">发送</button>
+    </div>
+    <div class="thr-set-row">
+      <div class="thr-set-label">联动时长 秒</div>
+      <input class="thr-input" type="number" id="in_duration" placeholder="如 300">
+      <button class="send-btn" onclick="setThr('09','in_duration','disp_thr_duration','thr_duration')">发送</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== 页面3：历史 ===== -->
+<div class="page" id="page3">
+
+  <!-- 哭闹汇总 -->
+  <div class="card">
+    <div class="card-title">累计哭闹次数</div>
+    <div class="cry-big">
+      <div class="cry-num" id="cry_total">0</div>
+      <div class="cry-sub">次（本次运行）</div>
+    </div>
+  </div>
+
+  <!-- 历史列表 -->
+  <div class="card">
+    <div class="card-title">哭闹事件记录</div>
+    <div class="history-list" id="historyList">
+      <div class="history-empty">暂无哭闹记录</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">操作</div>
+    <div class="btn-row">
+      <button class="btn secondary" onclick="clearHistory()">清除历史记录</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== JavaScript ===== -->
+<script>
+// ─── MQTT Topic（来自 PRD，固定值）───
+const UPLOAD_TOPIC = '857321/469812/yingyouerjiankong/upload';
+const CMD_TOPIC    = '857321/469812/yingyouerjiankong/cmd';
+
+// ─── 防抖：阈值设置后 500ms 内忽略设备回传 ───
+const lastUserSetTime = {
+  thr_temp_lo: 0, thr_temp_hi: 0,
+  thr_humi: 0,    thr_db: 0,
+  thr_time: 0,    thr_duration: 0
+};
+const DEBOUNCE_MS = 500;
+
+// ─── 哭闹判断（APP 端持续计时）───
+let cryStartTime  = 0;   // 分贝首次超阈的时间戳
+let cryTriggered  = false;
+let lastCryCnt    = -1;
+let curThrTime    = 3;   // 默认3秒，随上行数据更新
+
+// ─── 哭闹历史 ───
+let cryHistory = JSON.parse(localStorage.getItem('cryHistory') || '[]');
+
+// ─── MQTT 客户端 ───
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+  clientId: 'baby_' + Math.random().toString(36).substr(2, 8),
+  reconnectPeriod: 3000,
+  connectTimeout: 10000
+});
+
+client.on('connect', () => {
+  setMqttStatus(true);
+  client.subscribe(UPLOAD_TOPIC);
+});
+client.on('close',       () => setMqttStatus(false));
+client.on('offline',     () => setMqttStatus(false));
+client.on('error',       () => setMqttStatus(false));
+client.on('reconnect',   () => { document.getElementById('mqttText').textContent = '重连中...'; });
+
+client.on('message', (topic, payload) => {
+  if (topic !== UPLOAD_TOPIC) return;
+  const parts = payload.toString().trim().split(',');
+  if (parts.length < 12) return;
+
+  const d = {
+    temp:         parseFloat(parts[0]),
+    humi:         parseFloat(parts[1]),
+    db:           parseFloat(parts[2]),
+    cry_cnt:      parseInt(parts[3]),
+    motor_state:  parseInt(parts[4]),
+    music_state:  parseInt(parts[5]),
+    thr_temp_lo:  parseFloat(parts[6]),
+    thr_temp_hi:  parseFloat(parts[7]),
+    thr_humi:     parseFloat(parts[8]),
+    thr_db:       parseFloat(parts[9]),
+    thr_time:     parseFloat(parts[10]),
+    thr_duration: parseFloat(parts[11])
+  };
+
+  curThrTime = d.thr_time;
+  updateUI(d);
+  checkAlarms(d);
+  trackCryHistory(d);
+});
+
+// ─── 更新 UI ───
+function updateUI(d) {
+  const now = Date.now();
+
+  // 实时数值（带报警高亮）
+  setVal('val_temp', d.temp.toFixed(1), d.temp < d.thr_temp_lo || d.temp > d.thr_temp_hi);
+  setVal('val_humi', d.humi.toFixed(1), d.humi > d.thr_humi);
+  setVal('val_db',   d.db.toFixed(1),   d.db > d.thr_db);
+  setVal('val_cry',  d.cry_cnt, false);
+  document.getElementById('cry_total').textContent = d.cry_cnt;
+
+  // 执行器徽章（两个页面同步）
+  setBadge('badge_motor',  d.motor_state, '摇床 运行', '摇床 停止');
+  setBadge('badge_music',  d.music_state, '音乐 播放', '音乐 停止');
+  setBadge('badge_motor2', d.motor_state, '摇床 运行', '摇床 停止');
+  setBadge('badge_music2', d.music_state, '音乐 播放', '音乐 停止');
+
+  // 阈值显示（防抖保护）
+  const thrMap = {
+    thr_temp_lo: 'disp_thr_temp_lo', thr_temp_hi: 'disp_thr_temp_hi',
+    thr_humi:    'disp_thr_humi',    thr_db:      'disp_thr_db',
+    thr_time:    'disp_thr_time',    thr_duration: 'disp_thr_duration'
+  };
+  for (const [key, elId] of Object.entries(thrMap)) {
+    if ((now - lastUserSetTime[key]) < DEBOUNCE_MS) continue;
+    const el = document.getElementById(elId);
+    if (el) el.textContent = d[key];
+  }
+}
+
+function setVal(id, val, isAlarm) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = val;
+  el.className = 'data-value' + (isAlarm ? ' alarm' : '');
+}
+
+function setBadge(id, state, onText, offText) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = state === 1 ? onText : offText;
+  el.className   = state === 1 ? 'badge' : 'badge off';
+}
+
+// ─── 报警判断（APP 端完成）───
+function checkAlarms(d) {
+  const alarms = [];
+
+  if (d.temp < d.thr_temp_lo) alarms.push('环境温度过低');
+  if (d.temp > d.thr_temp_hi) alarms.push('环境温度过高');
+  if (d.humi > d.thr_humi)    alarms.push('检测到尿湿，请及时处理');
+
+  // 分贝持续计时判断哭闹
+  if (d.db > d.thr_db) {
+    if (cryStartTime === 0) cryStartTime = Date.now();
+    const elapsed = (Date.now() - cryStartTime) / 1000;
+    if (elapsed >= d.thr_time) {
+      alarms.push('婴儿正在哭闹');
+      if (!cryTriggered) {
+        cryTriggered = true;
+        sendAlarmToNative({ which: 'cry', db: d.db, thr_db: d.thr_db, temp: d.temp, humi: d.humi });
+      }
+    }
+  } else {
+    cryStartTime = 0;
+    cryTriggered = false;
+  }
+
+  renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+  const box = document.getElementById('alarmBox');
+  if (alarms.length === 0) {
+    box.className = 'alarm-box';
+    box.textContent = '运行正常';
+  } else {
+    box.className = 'alarm-box has-alarm';
+    box.innerHTML = alarms.map(a => `<span class="alarm-tag">${a}</span>`).join('');
+  }
+}
+
+// ─── JS Bridge（Android WebView / 浏览器通知）───
+function sendAlarmToNative(data) {
+  if (window.Android) {
+    window.Android.onAlarm(JSON.stringify(data));
+  } else if (typeof Notification !== 'undefined') {
+    if (Notification.permission === 'granted') {
+      new Notification('婴幼儿监护告警', { body: JSON.stringify(data) });
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+  }
+}
+
+// ─── 哭闹历史追踪 ───
+function trackCryHistory(d) {
+  if (lastCryCnt < 0) { lastCryCnt = d.cry_cnt; return; }
+  if (d.cry_cnt > lastCryCnt) {
+    const diff = d.cry_cnt - lastCryCnt;
+    for (let i = 0; i < diff; i++) {
+      cryHistory.unshift({ time: new Date().toLocaleString('zh-CN'), cnt: d.cry_cnt });
+    }
+    if (cryHistory.length > 100) cryHistory = cryHistory.slice(0, 100);
+    localStorage.setItem('cryHistory', JSON.stringify(cryHistory));
+    renderHistory();
+  }
+  lastCryCnt = d.cry_cnt;
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (cryHistory.length === 0) {
+    list.innerHTML = '<div class="history-empty">暂无哭闹记录</div>';
+    return;
+  }
+  list.innerHTML = cryHistory.map(h =>
+    `<div class="history-item">
+      <span>第 ${h.cnt} 次哭闹</span>
+      <span class="history-time">${h.time}</span>
+    </div>`
+  ).join('');
+}
+
+function clearHistory() {
+  cryHistory = [];
+  localStorage.removeItem('cryHistory');
+  renderHistory();
+}
+
+// ─── 发送指令 ───
+function sendCmd(cmd) {
+  if (!client.connected) { alert('MQTT 未连接，请稍候重试'); return; }
+  client.publish(CMD_TOPIC, cmd);
+}
+
+// ─── 阈值发送（乐观更新 + 防抖保护）───
+function setThr(code, inputId, dispId, thrKey) {
+  const input = document.getElementById(inputId);
+  const val = input.value.trim();
+  if (!val || isNaN(Number(val))) { alert('请输入有效数值'); return; }
+
+  // 防抖：记录设置时间
+  lastUserSetTime[thrKey] = Date.now();
+
+  // 乐观更新显示卡
+  const dispEl = document.getElementById(dispId);
+  if (dispEl) dispEl.textContent = val;
+
+  sendCmd(code + ',' + val);
+  input.value = '';
+}
+
+// ─── Tab 切换 ───
+const tabBtns = document.querySelectorAll('.tab-btn');
+const pages   = document.querySelectorAll('.page');
+function switchTab(idx) {
+  tabBtns.forEach((b, i) => b.classList.toggle('active', i === idx));
+  pages.forEach((p, i)   => p.classList.toggle('active', i === idx));
+}
+
+// ─── MQTT 状态显示 ───
+function setMqttStatus(connected) {
+  document.getElementById('mqttDot').className  = 'dot ' + (connected ? 'connected' : 'disconnected');
+  document.getElementById('mqttText').textContent = connected ? '已连接' : '未连接';
+}
+
+// 初始化
+renderHistory();
+</script>
+</body>
+</html>
