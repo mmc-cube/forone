@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>计算机实验室安全监测</title>
+<script src="mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --alarm: #F44336;
+    --alarm-bg: #FFEBEE;
+    --ok: #4CAF50;
+    --ok-bg: #E8F5E9;
+    --warn: #FF9800;
+    --text: #212121;
+    --sub: #757575;
+    --border: #E0E0E0;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* 顶栏 */
+  .topbar {
+    padding: 44px 16px 10px;
+    background: var(--primary);
+    color: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .topbar h1 { font-size: 17px; font-weight: 600; }
+  .mqtt-status { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #F44336; flex-shrink: 0; }
+  .dot.on { background: #69F0AE; }
+
+  /* Tab 导航 */
+  .tab-bar {
+    display: flex;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 80px;
+    z-index: 99;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 12px 4px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--sub);
+    border: none;
+    background: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+  /* 页面内容 */
+  .page { display: none; padding: 12px; }
+  .page.active { display: block; }
+
+  /* 卡片 */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 12px;
+    color: var(--sub);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .card-title .icon { font-size: 15px; }
+  .card-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .card-value .unit { font-size: 14px; font-weight: 400; color: var(--sub); }
+  .card.alarm { background: var(--alarm-bg); }
+  .card.alarm .card-value { color: var(--alarm); }
+  .card.pir-active { background: #FFF3E0; }
+  .card.pir-active .card-value { color: var(--warn); }
+
+  /* 传感器网格 */
+  .sensor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .sensor-grid .card { margin-bottom: 0; }
+
+  /* 报警状态区 */
+  .alarm-panel {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+  }
+  .alarm-panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text);
+  }
+  .alarm-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .alarm-tag {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--ok-bg);
+    color: var(--ok);
+    border: 1px solid var(--ok);
+    transition: all .3s;
+  }
+  .alarm-tag.triggered {
+    background: var(--alarm-bg);
+    color: var(--alarm);
+    border-color: var(--alarm);
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  /* 控制按钮 */
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: opacity .15s;
+  }
+  .btn:active { opacity: 0.7; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-alarm { background: var(--alarm); color: #fff; }
+  .btn-ok { background: var(--ok); color: #fff; }
+
+  /* 继电器控制行 */
+  .relay-row {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .relay-label { font-size: 14px; font-weight: 500; flex: 1; }
+  .relay-label span { display: block; font-size: 11px; color: var(--sub); }
+  .relay-btns { display: flex; gap: 8px; }
+  .relay-btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+    min-width: 52px;
+  }
+  .relay-btn:active { opacity: 0.7; }
+  .relay-btn.on { background: var(--ok); color: #fff; }
+  .relay-btn.off { background: #ECEFF1; color: var(--sub); border: 1px solid var(--border); }
+
+  /* 阈值设置 */
+  .thr-row {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+  }
+  .thr-label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .thr-current { font-size: 12px; color: var(--sub); margin-bottom: 10px; }
+  .thr-current span { color: var(--primary); font-weight: 600; }
+  .thr-input-row { display: flex; gap: 8px; }
+  .thr-input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .thr-input:focus { border-color: var(--primary); }
+  .thr-send {
+    padding: 10px 18px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .thr-send:active { opacity: 0.75; }
+
+  /* 消警按钮 */
+  .clear-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    background: var(--alarm);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+  }
+  .clear-btn:active { opacity: 0.75; }
+
+  /* 连接状态卡片 */
+  .conn-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+    font-size: 12px;
+    color: var(--sub);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .conn-card .dot { flex-shrink: 0; }
+
+  /* 人体感应大卡 */
+  .pir-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .pir-icon { font-size: 36px; }
+  .pir-info .pir-label { font-size: 12px; color: var(--sub); }
+  .pir-info .pir-value { font-size: 20px; font-weight: 700; }
+  .pir-card.active { background: #FFF3E0; }
+  .pir-card.active .pir-value { color: var(--warn); }
+
+  /* 占位 */
+  .spacer { height: 16px; }
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <h1>🖥️ 计算机实验室安全监测</h1>
+  <div class="mqtt-status">
+    <div class="dot" id="mqttDot"></div>
+    <span id="mqttText">未连接</span>
+  </div>
+</div>
+
+<!-- Tab 导航 -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab(0)">📊 实时数据</button>
+  <button class="tab-btn" onclick="switchTab(1)">🔧 控制</button>
+  <button class="tab-btn" onclick="switchTab(2)">⚙️ 阈值设置</button>
+</div>
+
+<!-- ===== 页面0：实时数据 ===== -->
+<div class="page active" id="page0">
+
+  <div class="conn-card">
+    <div class="dot" id="connDot2"></div>
+    <span id="connText2">正在连接 MQTT...</span>
+  </div>
+
+  <!-- 温度 + 湿度 -->
+  <div class="sensor-grid">
+    <div class="card" id="card-temp">
+      <div class="card-title"><span class="icon">🌡️</span>温度</div>
+      <div class="card-value"><span id="val-temp">--</span><span class="unit">℃</span></div>
+    </div>
+    <div class="card" id="card-humi">
+      <div class="card-title"><span class="icon">💧</span>湿度</div>
+      <div class="card-value"><span id="val-humi">--</span><span class="unit">%RH</span></div>
+    </div>
+  </div>
+
+  <!-- 烟雾 + 电流 -->
+  <div class="sensor-grid">
+    <div class="card" id="card-smoke">
+      <div class="card-title"><span class="icon">🚬</span>烟雾</div>
+      <div class="card-value"><span id="val-smoke">--</span><span class="unit">ADC</span></div>
+    </div>
+    <div class="card" id="card-current">
+      <div class="card-title"><span class="icon">⚡</span>电流</div>
+      <div class="card-value"><span id="val-current">--</span><span class="unit">A</span></div>
+    </div>
+  </div>
+
+  <!-- 人体感应 -->
+  <div class="pir-card" id="pir-card">
+    <div class="pir-icon" id="pir-icon">🔵</div>
+    <div class="pir-info">
+      <div class="pir-label">人体红外感应 HC-SR501</div>
+      <div class="pir-value" id="val-pir">等待数据...</div>
+    </div>
+  </div>
+
+  <!-- 报警状态 -->
+  <div class="alarm-panel">
+    <div class="alarm-panel-title">🚨 报警状态</div>
+    <div class="alarm-tags">
+      <div class="alarm-tag" id="tag-smoke">烟雾正常</div>
+      <div class="alarm-tag" id="tag-temp">温度正常</div>
+      <div class="alarm-tag" id="tag-current">电流正常</div>
+      <div class="alarm-tag" id="tag-pir">无人入侵</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== 页面1：控制 ===== -->
+<div class="page" id="page1">
+
+  <!-- 消警 -->
+  <button class="clear-btn" onclick="sendCmd('01')">🔕 消警（关蜂鸣器 + LED全灭）</button>
+
+  <!-- 继电器1 -->
+  <div class="relay-row">
+    <div class="relay-label">
+      继电器1
+      <span>通风控制</span>
+    </div>
+    <div class="relay-btns">
+      <button class="relay-btn on" onclick="sendCmd('05,1')">吸合</button>
+      <button class="relay-btn off" onclick="sendCmd('05,0')">断开</button>
+    </div>
+  </div>
+
+  <!-- 继电器2 -->
+  <div class="relay-row">
+    <div class="relay-label">
+      继电器2
+      <span>断电控制（过温保护）</span>
+    </div>
+    <div class="relay-btns">
+      <button class="relay-btn on" onclick="sendCmd('06,1')">吸合</button>
+      <button class="relay-btn off" onclick="sendCmd('06,0')">断开</button>
+    </div>
+  </div>
+
+  <!-- 继电器3 -->
+  <div class="relay-row">
+    <div class="relay-label">
+      继电器3
+      <span>断电保护（过流保护）</span>
+    </div>
+    <div class="relay-btns">
+      <button class="relay-btn on" onclick="sendCmd('07,1')">吸合</button>
+      <button class="relay-btn off" onclick="sendCmd('07,0')">断开</button>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+
+</div>
+
+<!-- ===== 页面2：阈值设置 ===== -->
+<div class="page" id="page2">
+
+  <!-- 烟雾阈值 -->
+  <div class="thr-row">
+    <div class="thr-label">🚬 烟雾阈值（ADC，0~4095）</div>
+    <div class="thr-current">当前值：<span id="disp-thr-smoke">--</span></div>
+    <div class="thr-input-row">
+      <input class="thr-input" type="number" id="inp-smoke" placeholder="输入新阈值" min="0" max="4095">
+      <button class="thr-send" onclick="setThr('smoke','02')">发送</button>
+    </div>
+  </div>
+
+  <!-- 温度阈值 -->
+  <div class="thr-row">
+    <div class="thr-label">🌡️ 温度阈值（℃）</div>
+    <div class="thr-current">当前值：<span id="disp-thr-temp">--</span> ℃</div>
+    <div class="thr-input-row">
+      <input class="thr-input" type="number" id="inp-temp" placeholder="输入新阈值" min="0" max="99">
+      <button class="thr-send" onclick="setThr('temp','03')">发送</button>
+    </div>
+  </div>
+
+  <!-- 电流阈值 -->
+  <div class="thr-row">
+    <div class="thr-label">⚡ 电流阈值（A）</div>
+    <div class="thr-current">当前值：<span id="disp-thr-current">--</span> A</div>
+    <div class="thr-input-row">
+      <input class="thr-input" type="number" id="inp-current" placeholder="输入新阈值" min="0" max="30" step="0.1">
+      <button class="thr-send" onclick="setThr('current','04')">发送</button>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+
+</div>
+
+<script>
+// ===== MQTT 配置（固定，与 STM32 一致）=====
+const UPLOAD_TOPIC = '001/001/jisuanjishiyanshi/upload';
+const CMD_TOPIC    = '001/001/jisuanjishiyanshi/cmd';
+const BROKER_URL   = 'wss://broker.emqx.io:8084/mqtt';
+
+// ===== 防抖保护（用户设置阈值后 800ms 内忽略上行更新）=====
+const lastUserSetTime = { thr_smoke: 0, thr_temp: 0, thr_current: 0 };
+const DEBOUNCE_MS = 800;
+
+// ===== 当前数据缓存 =====
+let data = {
+  temp: null, humi: null, smoke: null, current: null,
+  pir: null, thr_smoke: null, thr_temp: null, thr_current: null
+};
+
+// ===== Tab 切换 =====
+const tabBtns = document.querySelectorAll('.tab-btn');
+const pages   = document.querySelectorAll('.page');
+function switchTab(idx) {
+  tabBtns.forEach((b, i) => b.classList.toggle('active', i === idx));
+  pages.forEach((p, i) => p.classList.toggle('active', i === idx));
+}
+
+// ===== MQTT 连接 =====
+const client = mqtt.connect(BROKER_URL, {
+  clientId: 'webview_' + Math.random().toString(36).substr(2, 8),
+  reconnectPeriod: 3000,
+  connectTimeout: 10000
+});
+
+function setConnected(ok) {
+  const dot  = document.getElementById('mqttDot');
+  const text = document.getElementById('mqttText');
+  const dot2 = document.getElementById('connDot2');
+  const text2 = document.getElementById('connText2');
+  dot.className  = 'dot' + (ok ? ' on' : '');
+  dot2.className = 'dot' + (ok ? ' on' : '');
+  text.textContent  = ok ? '已连接' : '未连接';
+  text2.textContent = ok ? 'MQTT 已连接 · broker.emqx.io' : '正在连接 MQTT...';
+}
+
+client.on('connect', () => {
+  setConnected(true);
+  client.subscribe(UPLOAD_TOPIC);
+});
+client.on('reconnect', () => setConnected(false));
+client.on('offline',   () => setConnected(false));
+client.on('error',     () => setConnected(false));
+
+client.on('message', (topic, payload) => {
+  if (topic !== UPLOAD_TOPIC) return;
+  parseUpload(payload.toString());
+});
+
+// ===== 解析上行数据 =====
+function parseUpload(raw) {
+  const parts = raw.split(',');
+  if (parts.length < 8) return;
+
+  const now = Date.now();
+  const newData = {
+    temp:        parseFloat(parts[0]),
+    humi:        parseFloat(parts[1]),
+    smoke:       parseFloat(parts[2]),
+    current:     parseFloat(parts[3]),
+    pir:         parseInt(parts[4]),
+    thr_smoke:   parseFloat(parts[5]),
+    thr_temp:    parseFloat(parts[6]),
+    thr_current: parseFloat(parts[7])
+  };
+
+  // 防抖：用户刚设置的阈值字段，忽略硬件回传的旧值
+  ['thr_smoke', 'thr_temp', 'thr_current'].forEach(k => {
+    if ((now - lastUserSetTime[k]) < DEBOUNCE_MS) {
+      newData[k] = data[k];  // 保留本地值
+    }
+  });
+
+  data = { ...data, ...newData };
+  updateUI();
+}
+
+// ===== 更新 UI =====
+function updateUI() {
+  const d = data;
+
+  // 传感器数值
+  setText('val-temp',    d.temp    !== null ? d.temp    : '--');
+  setText('val-humi',    d.humi    !== null ? d.humi    : '--');
+  setText('val-smoke',   d.smoke   !== null ? Math.round(d.smoke) : '--');
+  setText('val-current', d.current !== null ? d.current.toFixed(2) : '--');
+
+  // 阈值显示（只读，不影响输入框）
+  setText('disp-thr-smoke',   d.thr_smoke   !== null ? Math.round(d.thr_smoke)        : '--');
+  setText('disp-thr-temp',    d.thr_temp    !== null ? Math.round(d.thr_temp)         : '--');
+  setText('disp-thr-current', d.thr_current !== null ? d.thr_current.toFixed(1) : '--');
+
+  // 报警判断（全在 APP 端完成）
+  const alarmSmoke   = d.smoke   !== null && d.thr_smoke   !== null && d.smoke   > d.thr_smoke;
+  const alarmTemp    = d.temp    !== null && d.thr_temp    !== null && d.temp    > d.thr_temp;
+  const alarmCurrent = d.current !== null && d.thr_current !== null && d.current > d.thr_current;
+  const alarmPir     = d.pir === 1;
+
+  // 传感器卡片高亮
+  setAlarm('card-smoke',   alarmSmoke);
+  setAlarm('card-temp',    alarmTemp);
+  setAlarm('card-current', alarmCurrent);
+
+  // 人体感应
+  const pirCard = document.getElementById('pir-card');
+  const pirIcon = document.getElementById('pir-icon');
+  const pirVal  = document.getElementById('val-pir');
+  if (d.pir === null) {
+    pirVal.textContent = '等待数据...';
+    pirCard.classList.remove('active');
+    pirIcon.textContent = '🔵';
+  } else if (alarmPir) {
+    pirVal.textContent = '检测到有人！';
+    pirCard.classList.add('active');
+    pirIcon.textContent = '🔴';
+  } else {
+    pirVal.textContent = '无人';
+    pirCard.classList.remove('active');
+    pirIcon.textContent = '🟢';
+  }
+
+  // 报警标签
+  setTag('tag-smoke',   alarmSmoke,   '🚬 烟雾报警！', '烟雾正常');
+  setTag('tag-temp',    alarmTemp,    '🌡️ 过温报警！',  '温度正常');
+  setTag('tag-current', alarmCurrent, '⚡ 过流报警！',  '电流正常');
+  setTag('tag-pir',     alarmPir,     '🚶 人体入侵！', '无人入侵');
+
+  // Android 原生通知
+  checkAndNotify(alarmSmoke, alarmTemp, alarmCurrent, alarmPir);
+}
+
+// ===== 辅助函数 =====
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function setAlarm(cardId, isAlarm) {
+  const el = document.getElementById(cardId);
+  if (!el) return;
+  el.classList.toggle('alarm', isAlarm);
+}
+
+function setTag(tagId, triggered, alarmText, okText) {
+  const el = document.getElementById(tagId);
+  if (!el) return;
+  el.classList.toggle('triggered', triggered);
+  el.textContent = triggered ? alarmText : okText;
+}
+
+// ===== 下行指令发送 =====
+function sendCmd(cmd) {
+  if (client.connected) {
+    client.publish(CMD_TOPIC, cmd);
+  } else {
+    alert('MQTT 未连接，请稍后重试');
+  }
+}
+
+// ===== 阈值设置（防抖乐观更新）=====
+function setThr(field, cmdCode) {
+  let inputId, displayId, unit;
+  if (field === 'smoke')   { inputId = 'inp-smoke';   displayId = 'disp-thr-smoke';   unit = ''; }
+  if (field === 'temp')    { inputId = 'inp-temp';    displayId = 'disp-thr-temp';    unit = ' ℃'; }
+  if (field === 'current') { inputId = 'inp-current'; displayId = 'disp-thr-current'; unit = ' A'; }
+
+  const inp = document.getElementById(inputId);
+  const val = inp.value.trim();
+  if (val === '' || isNaN(parseFloat(val))) {
+    alert('请输入有效数值');
+    return;
+  }
+
+  // 防抖：记录设置时间，防止硬件回传旧值覆盖
+  const key = 'thr_' + field;
+  lastUserSetTime[key] = Date.now();
+
+  // 乐观更新本地缓存
+  data[key] = parseFloat(val);
+
+  // 更新阈值显示框（立即反映）
+  const disp = document.getElementById(displayId);
+  if (disp) disp.textContent = field === 'current'
+    ? parseFloat(val).toFixed(1)
+    : Math.round(parseFloat(val));
+
+  // 发送指令
+  sendCmd(cmdCode + ',' + val);
+
+  // 清空输入框
+  inp.value = '';
+
+  // 触发一次 UI 更新（刷新报警判断）
+  updateUI();
+}
+
+// ===== Android WebView 通知 =====
+let lastAlarmState = { smoke: false, temp: false, current: false, pir: false };
+function checkAndNotify(smoke, temp, current, pir) {
+  // 仅在状态从 false → true 时触发通知
+  if (smoke && !lastAlarmState.smoke)   notifyAlarm('smoke',   '烟雾报警！', `烟雾ADC ${data.smoke} > 阈值 ${data.thr_smoke}`);
+  if (temp  && !lastAlarmState.temp)    notifyAlarm('temp',    '过温报警！', `温度 ${data.temp}℃ > 阈值 ${data.thr_temp}℃`);
+  if (current && !lastAlarmState.current) notifyAlarm('current','过流报警！', `电流 ${data.current && data.current.toFixed(2)}A > 阈值 ${data.thr_current}A`);
+  if (pir   && !lastAlarmState.pir)    notifyAlarm('pir',     '人体入侵！', '检测到有人进入实验室');
+  lastAlarmState = { smoke, temp, current, pir };
+}
+
+function notifyAlarm(which, title, body) {
+  const payload = {
+    which,
+    smoke_v:   data.smoke,   smoke_th:   data.thr_smoke,
+    temp_v:    data.temp,    temp_th:    data.thr_temp,
+    current_v: data.current, current_th: data.thr_current,
+    pir:       data.pir
+  };
+  if (window.Android) {
+    window.Android.onAlarm(JSON.stringify(payload));
+  } else if (Notification && Notification.permission === 'granted') {
+    new Notification('实验室安全告警：' + title, { body });
+  }
+}
+
+// 请求浏览器通知权限（非 WebView 环境）
+if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+</script>
+
+</body>
+</html>
