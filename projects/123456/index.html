@@ -400,7 +400,6 @@
         let client = null;
         let isConnected = false;
         let logData = [];
-        let pirZeroStartTime = null;
 
         // 当前数据
         let currentData = {
@@ -592,15 +591,9 @@
                 tempThr = pendingValues.tempThreshold;
             }
 
-            // 无人报警：PIR=0 持续超过 30 秒
-            if (currentData.pir === 0) {
-                if (pirZeroStartTime === null) {
-                    pirZeroStartTime = Date.now();
-                } else if (Date.now() - pirZeroStartTime >= 30000) {
-                    alarms.push('🔔 无人提醒');
-                }
-            } else {
-                pirZeroStartTime = null;
+            // 温度超限报警
+            if (currentData.temp > tempThr) {
+                alarms.push('🔔 温度超限报警（10 秒）');
             }
 
             // 光照不足有人未开灯
@@ -641,11 +634,6 @@
 
             console.log('[TX]', cmd);
             client.publish(CMD_TOPIC, cmd);
-
-            // 消警指令重置报警计时
-            if (cmd === '01') {
-                pirZeroStartTime = null;
-            }
         }
 
         // ==================== 发送阈值（预测 - 同步机制） ====================
