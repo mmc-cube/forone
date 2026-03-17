@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智能药箱管理系统</title>
+    <title>家居物联网监控系统</title>
+    <script src="mqtt.min.js"></script>
     <style>
         :root {
             --bg: #F5F5F5;
@@ -17,35 +18,32 @@
             --radius: 12px;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg);
-            color: var(--text);
-            line-height: 1.5;
+            padding: 12px;
             max-width: 420px;
             margin: 0 auto;
-            padding: 12px;
         }
 
         .card {
             background: var(--card);
             border-radius: var(--radius);
-            box-shadow: var(--shadow);
             padding: 16px;
             margin-bottom: 12px;
+            box-shadow: var(--shadow);
         }
 
         .card-title {
-            font-size: 14px;
-            color: var(--sub);
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
             margin-bottom: 12px;
-            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         /* 状态栏 */
@@ -53,146 +51,83 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            font-size: 14px;
         }
 
         .status-dot {
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             background: var(--sub);
         }
 
-        .status-dot.connected {
-            background: var(--ok);
-        }
-
-        .status-dot.disconnected {
-            background: var(--alarm);
-        }
-
-        .status-text {
-            font-size: 13px;
-            color: var(--sub);
-        }
+        .status-dot.connected { background: var(--ok); }
+        .status-dot.disconnected { background: var(--alarm); }
 
         /* 实时数据 */
-        .data-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
         }
 
-        .data-item {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
+        .data-row:last-child { border-bottom: none; }
 
         .data-label {
             font-size: 13px;
-            color: var(--sub) !important;
-            font-weight: 500;
+            color: var(--sub);
         }
 
         .data-value {
             font-size: 28px;
             font-weight: bold;
-            color: var(--text) !important;
+            color: var(--text);
         }
 
         .data-unit {
             font-size: 13px;
-            color: var(--sub) !important;
+            color: var(--sub);
             margin-left: 4px;
-            font-weight: 500;
-        }
-
-        .data-row {
-            display: flex;
-            align-items: baseline;
-            gap: 4px;
         }
 
         .data-value.alarm {
             color: var(--alarm);
         }
 
-        /* 吃药状态 */
-        .medicine-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .medicine-row:last-child {
-            border-bottom: none;
-        }
-
-        .medicine-name {
-            font-size: 14px;
-            color: var(--text);
-        }
-
-        .medicine-status {
+        /* 报警状态 */
+        .alarm-item {
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+            color: var(--alarm);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
             font-size: 14px;
             font-weight: 500;
         }
 
-        .medicine-status.taken {
+        .alarm-item:last-child { margin-bottom: 0; }
+
+        .status-ok {
             color: var(--ok);
-        }
-
-        .medicine-status.not-taken {
-            color: var(--sub);
-        }
-
-        /* 报警状态 */
-        .alarm-box {
+            font-size: 14px;
             padding: 12px;
-            border-radius: 8px;
-            margin-top: 8px;
-        }
-
-        .alarm-box.normal {
-            background: #E8F5E9;
-            color: var(--ok);
-        }
-
-        .alarm-box.warning {
-            background: #FFF3E0;
-            color: #FF9800;
-        }
-
-        .alarm-box.danger {
-            background: #FFEBEE;
-            color: var(--alarm);
-        }
-
-        .alarm-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 8px;
-        }
-
-        .alarm-item:first-child {
-            margin-top: 0;
+            text-align: center;
         }
 
         /* 控制按钮 */
         .btn-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
         }
 
         .btn {
             height: 48px;
             border: none;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
@@ -202,9 +137,7 @@
             gap: 6px;
         }
 
-        .btn:active {
-            transform: scale(0.98);
-        }
+        .btn:active { transform: scale(0.98); }
 
         .btn-primary {
             background: var(--primary);
@@ -216,60 +149,74 @@
             color: white;
         }
 
-        .btn-ok {
-            background: var(--ok);
-            color: white;
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
         }
 
-        .btn-full {
-            grid-column: span 2;
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
         }
+
+        .btn-group .btn { flex: 1; }
 
         /* 阈值设置 */
         .threshold-row {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid #eee;
+            gap: 12px;
+            margin-bottom: 12px;
         }
 
-        .threshold-row:last-child {
-            border-bottom: none;
-        }
+        .threshold-row:last-child { margin-bottom: 0; }
 
         .threshold-label {
             font-size: 14px;
             color: var(--text);
+            min-width: 80px;
         }
 
         .threshold-input {
-            width: 80px;
-            height: 36px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 0 8px;
-            font-size: 14px;
+            flex: 1;
+            height: 44px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 0 12px;
+            font-size: 16px;
             text-align: center;
         }
 
+        .threshold-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
         .threshold-btn {
-            width: 60px;
-            height: 36px;
+            width: 70px;
+            height: 44px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             background: var(--primary);
             color: white;
-            font-size: 13px;
+            font-size: 14px;
+            font-weight: 500;
             cursor: pointer;
         }
 
+        .threshold-btn:active { transform: scale(0.95); }
+
         /* 日志 */
+        .log-card {
+            cursor: pointer;
+        }
+
         .log-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            cursor: pointer;
         }
 
         .log-content {
@@ -284,544 +231,443 @@
         }
 
         .log-item {
+            font-family: monospace;
             font-size: 12px;
             color: var(--sub);
             padding: 4px 0;
-            border-bottom: 1px solid #eee;
-            font-family: monospace;
+            border-bottom: 1px solid #f0f0f0;
         }
 
-        /* 弹窗 */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
+        .log-item:first-child { color: var(--text); }
+
+        .fold-icon {
+            transition: transform 0.3s;
         }
 
-        .modal-overlay.active {
-            display: flex;
-        }
-
-        .modal {
-            background: var(--card);
-            border-radius: var(--radius);
-            padding: 24px;
-            max-width: 320px;
-            width: 90%;
-            text-align: center;
-        }
-
-        .modal-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 16px;
-            color: var(--alarm);
-        }
-
-        .modal-message {
-            font-size: 14px;
-            color: var(--text);
-            margin-bottom: 24px;
-        }
-
-        .modal-btn {
-            height: 44px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            width: 100%;
-        }
-
-        .modal-btn-primary {
-            background: var(--primary);
-            color: white;
-        }
-
-        /* 时间显示 */
-        .time-display {
-            font-size: 36px;
-            font-weight: bold;
-            text-align: center;
-            padding: 16px 0;
-        }
-
-        .date-display {
-            font-size: 14px;
-            color: var(--sub);
-            text-align: center;
-            margin-top: -8px;
-            margin-bottom: 16px;
+        .fold-icon.expanded {
+            transform: rotate(180deg);
         }
     </style>
 </head>
 <body>
-    <!-- 状态栏 -->
+    <!-- 1. 状态栏 -->
     <div class="card">
         <div class="status-bar">
             <div class="status-dot" id="statusDot"></div>
-            <span class="status-text" id="statusText">未连接</span>
+            <span id="statusText">未连接</span>
         </div>
     </div>
 
-    <!-- 时间卡片 -->
-    <div class="card">
-        <div class="time-display" id="timeDisplay">--:--:--</div>
-        <div class="date-display" id="dateDisplay">----</div>
-    </div>
-
-    <!-- 实时数据 -->
+    <!-- 2. 实时数据卡 -->
     <div class="card">
         <div class="card-title">📊 实时数据</div>
-        <div class="data-grid">
-            <div class="data-item">
-                <span class="data-label">温度</span>
-                <div class="data-row"><span class="data-value" id="tempValue">--</span><span class="data-unit">℃</span></div>
-            </div>
-            <div class="data-item">
-                <span class="data-label">湿度</span>
-                <div class="data-row"><span class="data-value" id="humiValue">--</span><span class="data-unit">%</span></div>
-            </div>
-            <div class="data-item">
-                <span class="data-label">光敏</span>
-                <div class="data-row"><span class="data-value" id="ldrValue">--</span></div>
-            </div>
-            <div class="data-item">
-                <span class="data-label">锁状态</span>
-                <div class="data-row"><span class="data-value" id="lockValue">--</span></div>
+        <div class="data-row">
+            <span class="data-label">温度</span>
+            <div>
+                <span class="data-value" id="tempValue">--</span>
+                <span class="data-unit">℃</span>
             </div>
         </div>
-    </div>
-
-    <!-- 吃药状态 -->
-    <div class="card">
-        <div class="card-title">💊 吃药状态</div>
-        <div class="medicine-row">
-            <span class="medicine-name">组 1 (08:00)</span>
-            <span class="medicine-status not-taken" id="med1Status">未吃</span>
-        </div>
-        <div class="medicine-row">
-            <span class="medicine-name">组 2 (12:00)</span>
-            <span class="medicine-status not-taken" id="med2Status">未吃</span>
-        </div>
-        <div class="medicine-row">
-            <span class="medicine-name">组 3 (18:00)</span>
-            <span class="medicine-status not-taken" id="med3Status">未吃</span>
-        </div>
-        <div class="medicine-row">
-            <span class="medicine-name">组 4 (20:00)</span>
-            <span class="medicine-status not-taken" id="med4Status">未吃</span>
-        </div>
-    </div>
-
-    <!-- 继电器状态 -->
-    <div class="card">
-        <div class="card-title">🔧 设备状态</div>
-        <div class="data-grid">
-            <div class="data-item">
-                <span class="data-label">降温</span>
-                <div class="data-row"><span class="data-value" id="coolValue">关</span></div>
+        <div class="data-row">
+            <span class="data-label">湿度</span>
+            <div>
+                <span class="data-value" id="humiValue">--</span>
+                <span class="data-unit">%RH</span>
             </div>
-            <div class="data-item">
-                <span class="data-label">除湿</span>
-                <div class="data-row"><span class="data-value" id="dryValue">关</span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">光照值</span>
+            <div>
+                <span class="data-value" id="lightValue">--</span>
+                <span class="data-unit"></span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">人体感应</span>
+            <div>
+                <span class="data-value" id="pirValue">--</span>
+                <span class="data-unit"></span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">灯状态</span>
+            <div>
+                <span class="data-value" id="lightState">--</span>
+                <span class="data-unit"></span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">空调状态</span>
+            <div>
+                <span class="data-value" id="acState">--</span>
+                <span class="data-unit"></span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">窗帘状态</span>
+            <div>
+                <span class="data-value" id="curtainState">--</span>
+                <span class="data-unit"></span>
             </div>
         </div>
     </div>
 
-    <!-- 报警状态 -->
-    <div class="card">
+    <!-- 3. 报警状态卡 -->
+    <div class="card" id="alarmCard">
         <div class="card-title">⚠️ 报警状态</div>
-        <div class="alarm-box normal" id="alarmBox">
-            ✓ 运行正常
+        <div id="alarmContent">
+            <div class="status-ok">运行正常 ✓</div>
         </div>
     </div>
 
-    <!-- 控制面板 -->
+    <!-- 4. 控制卡 -->
     <div class="card">
-        <div class="card-title">🎮 远程控制</div>
-        <div class="btn-grid">
-            <button class="btn btn-danger" onclick="sendCmd('01')">🔔 消警</button>
-            <button class="btn btn-primary" onclick="toggleLock()" id="lockBtn">🔓 解锁</button>
-            <button class="btn btn-primary" onclick="sendCmd('13,1')">💨 风机开</button>
-            <button class="btn btn-primary" onclick="sendCmd('13,0')">💨 风机关</button>
-            <button class="btn btn-primary" onclick="sendCmd('14,1')">🌡️ 加热开</button>
-            <button class="btn btn-primary" onclick="sendCmd('14,0')">🌡️ 加热关</button>
+        <div class="card-title">🎮 控制面板</div>
+
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="sendCmd('02')">开灯</button>
+            <button class="btn btn-outline" onclick="sendCmd('03')">关灯</button>
         </div>
+
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="sendCmd('04')">开空调</button>
+            <button class="btn btn-outline" onclick="sendCmd('05')">关空调</button>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="sendCmd('06')">开窗帘</button>
+            <button class="btn btn-outline" onclick="sendCmd('07')">关窗帘</button>
+        </div>
+
+        <button class="btn btn-danger" style="width: 100%;" onclick="sendCmd('01')">🔕 消警</button>
     </div>
 
-    <!-- 阈值设置 -->
+    <!-- 5. 阈值设置卡 -->
     <div class="card">
         <div class="card-title">⚙️ 阈值设置</div>
+
         <div class="threshold-row">
-            <span class="threshold-label">温度上限 (℃)</span>
-            <div>
-                <input type="number" class="threshold-input" id="tempMaxInput" value="28">
-                <button class="threshold-btn" onclick="sendThreshold('06', 'tempMaxInput')">发送</button>
-            </div>
+            <span class="threshold-label">光照阈值</span>
+            <input type="number" class="threshold-input" id="lightThrInput" min="0" max="4095" placeholder="0-4095">
+            <button class="threshold-btn" onclick="sendThreshold('08', 'lightThrInput', 0, 4095)">发送</button>
         </div>
+
         <div class="threshold-row">
-            <span class="threshold-label">温度下限 (℃)</span>
-            <div>
-                <input type="number" class="threshold-input" id="tempMinInput" value="25">
-                <button class="threshold-btn" onclick="sendThreshold('07', 'tempMinInput')">发送</button>
-            </div>
-        </div>
-        <div class="threshold-row">
-            <span class="threshold-label">湿度上限 (%)</span>
-            <div>
-                <input type="number" class="threshold-input" id="humiMaxInput" value="60">
-                <button class="threshold-btn" onclick="sendThreshold('08', 'humiMaxInput')">发送</button>
-            </div>
-        </div>
-        <div class="threshold-row">
-            <span class="threshold-label">湿度下限 (%)</span>
-            <div>
-                <input type="number" class="threshold-input" id="humiMinInput" value="55">
-                <button class="threshold-btn" onclick="sendThreshold('09', 'humiMinInput')">发送</button>
-            </div>
-        </div>
-        <div class="threshold-row">
-            <span class="threshold-label">光敏阈值</span>
-            <div>
-                <input type="number" class="threshold-input" id="ldrThresholdInput" value="2000">
-                <button class="threshold-btn" onclick="sendThreshold('10', 'ldrThresholdInput')">发送</button>
-            </div>
+            <span class="threshold-label">温度阈值</span>
+            <input type="number" class="threshold-input" id="tempThrInput" min="0" max="50" placeholder="0-50">
+            <button class="threshold-btn" onclick="sendThreshold('09', 'tempThrInput', 0, 50)">发送</button>
         </div>
     </div>
 
-    <!-- 日志 -->
-    <div class="card">
-        <div class="log-header" onclick="toggleLog()">
-            <span class="card-title" style="margin:0">📋 数据日志</span>
-            <span id="logArrow">▼</span>
-        </div>
-        <div class="log-content" id="logContent">
-            <div id="logList"></div>
+    <!-- 6. 日志卡 -->
+    <div class="card log-card" onclick="toggleLog()">
+        <div class="log-header">
+            <div class="card-title" style="margin: 0;">📋 数据日志</div>
+            <span class="fold-icon" id="foldIcon">▼</span>
         </div>
     </div>
-
-    <!-- 吃药提醒弹窗 -->
-    <div class="modal-overlay" id="medicineModal">
-        <div class="modal">
-            <div class="modal-title">⏰ 吃药提醒</div>
-            <div class="modal-message">是时候吃药了！<br>请及时服用药物</div>
-            <button class="modal-btn modal-btn-primary" onclick="confirmMedicine()">确认吃药</button>
-        </div>
+    <div class="card log-content" id="logContent">
+        <div id="logList"></div>
     </div>
 
-    <script src="mqtt.min.js"></script>
     <script>
-        // MQTT 配置
-        const UPLOAD_TOPIC = '12345/67890/znyx/upload';
-        const CMD_TOPIC = '12345/67890/znyx/cmd';
+        // ==================== MQTT 配置 ====================
+        const MQTT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+        const UPLOAD_TOPIC = '123456/654321/jiajuwulian/upload';
+        const CMD_TOPIC = '123456/654321/jiajuwulian/cmd';
 
-        // 全局变量
+        // ==================== 全局状态 ====================
         let client = null;
         let isConnected = false;
-        let lastDataTime = 0;
         let logData = [];
-        let prevMedicineState = [0, 0, 0, 0];
-        let isLocked = true;
+        let pirZeroStartTime = null;
 
-        // 阈值（乐观更新）
-        let tempMax = 28, tempMin = 25;
-        let humiMax = 60, humiMin = 55;
-        let ldrThreshold = 2000;
+        // 当前数据
+        let currentData = {
+            temp: 0,
+            humi: 0,
+            light: 0,
+            pir: 0,
+            lightState: 0,
+            acState: 0,
+            curtainState: 0,
+            lightThreshold: 2000,
+            tempThreshold: 30
+        };
 
-        // 连接 MQTT
+        // 等待同步标志（预测 - 同步 - 接管机制）
+        let waitingSync = { lightThreshold: false, tempThreshold: false };
+
+        // ==================== 初始化 ====================
+        window.addEventListener('DOMContentLoaded', () => {
+            connectMQTT();
+        });
+
+        // ==================== MQTT 连接 ====================
         function connectMQTT() {
-            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-                clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+            updateStatus('connecting');
+
+            client = mqtt.connect(MQTT_BROKER, {
+                clientId: 'web_' + Math.random().toString(36).substr(2, 8),
                 reconnectPeriod: 3000,
                 connectTimeout: 10000
             });
 
             client.on('connect', () => {
-                console.log('MQTT 已连接');
-                client.subscribe(UPLOAD_TOPIC, (err) => {
-                    if (!err) {
-                        console.log('订阅成功：' + UPLOAD_TOPIC);
-                    }
+                console.log('[MQTT] Connected');
+                isConnected = true;
+                updateStatus('connected');
+                client.subscribe(UPLOAD_TOPIC, { qos: 0 }, (err) => {
+                    if (err) console.error('[MQTT] Subscribe error:', err);
+                    else console.log('[MQTT] Subscribed to', UPLOAD_TOPIC);
                 });
-                updateStatus(true);
-            });
-
-            client.on('disconnect', () => {
-                console.log('MQTT 已断开');
-                updateStatus(false);
-            });
-
-            client.on('message', (topic, message) => {
-                if (topic === UPLOAD_TOPIC) {
-                    handleUploadMessage(message.toString());
-                }
             });
 
             client.on('error', (err) => {
-                console.error('MQTT 错误：', err);
+                console.error('[MQTT] Error:', err);
+                updateStatus('disconnected');
+            });
+
+            client.on('close', () => {
+                console.log('[MQTT] Connection closed');
+                isConnected = false;
+                updateStatus('disconnected');
+            });
+
+            client.on('message', (topic, payload) => {
+                const message = payload.toString();
+                parseAndUpdate(message);
             });
         }
 
-        // 处理上行数据
-        function handleUploadMessage(payload) {
-            const parts = payload.split(',');
-            if (parts.length < 12) return;
+        // ==================== 数据解析与更新 ====================
+        function parseAndUpdate(message) {
+            const parts = message.split(',');
+            if (parts.length < 9) return;
 
-            lastDataTime = Date.now();
+            // 记录日志
+            addLog(message);
 
-            const data = {
-                temp: parseFloat(parts[0]),
-                humi: parseFloat(parts[1]),
-                ldr: parseInt(parts[2]),
-                lock: parseInt(parts[3]),
-                med1: parseInt(parts[4]),
-                med2: parseInt(parts[5]),
-                med3: parseInt(parts[6]),
-                med4: parseInt(parts[7]),
-                cool: parseInt(parts[8]),
-                dry: parseInt(parts[9]),
-                relay1: parseInt(parts[10]),
-                relay2: parseInt(parts[11])
+            // 解析上行数据（按 PRD 字段顺序，0-based）
+            const newData = {
+                temp: parseFloat(parts[0]) || 0,
+                humi: parseFloat(parts[1]) || 0,
+                light: parseInt(parts[2]) || 0,
+                pir: parseInt(parts[3]) || 0,
+                lightState: parseInt(parts[4]) || 0,
+                acState: parseInt(parts[5]) || 0,
+                curtainState: parseInt(parts[6]) || 0,
+                lightThreshold: parseInt(parts[7]) || 2000,
+                tempThreshold: parseInt(parts[8]) || 30
             };
 
+            // 传感器值始终更新
+            currentData.temp = newData.temp;
+            currentData.humi = newData.humi;
+            currentData.light = newData.light;
+            currentData.pir = newData.pir;
+
+            // 设备状态更新
+            currentData.lightState = newData.lightState;
+            currentData.acState = newData.acState;
+            currentData.curtainState = newData.curtainState;
+
+            // 阈值：等待同步期间保持预测值，否则更新
+            if (!waitingSync.lightThreshold) {
+                currentData.lightThreshold = newData.lightThreshold;
+            }
+            if (!waitingSync.tempThreshold) {
+                currentData.tempThreshold = newData.tempThreshold;
+            }
+
             // 更新 UI
-            updateUI(data);
+            updateUI();
 
-            // 检查报警
-            checkAlarms(data);
-
-            // 检查吃药状态变化
-            checkMedicineChange(data);
-
-            // 添加日志
-            addLog(payload);
-        }
-
-        // 更新 UI
-        function updateUI(data) {
-            // 温度
-            document.getElementById('tempValue').textContent = data.temp.toFixed(1);
-            if (data.temp > tempMax || data.temp < tempMin) {
-                document.getElementById('tempValue').classList.add('alarm');
-            } else {
-                document.getElementById('tempValue').classList.remove('alarm');
+            // 检查同步完成
+            if (waitingSync.lightThreshold && Math.abs(newData.lightThreshold - currentData.lightThreshold) < 1) {
+                waitingSync.lightThreshold = false;
+            }
+            if (waitingSync.tempThreshold && Math.abs(newData.tempThreshold - currentData.tempThreshold) < 1) {
+                waitingSync.tempThreshold = false;
             }
 
-            // 湿度
-            document.getElementById('humiValue').textContent = data.humi.toFixed(1);
-            if (data.humi > humiMax || data.humi < humiMin) {
-                document.getElementById('humiValue').classList.add('alarm');
-            } else {
-                document.getElementById('humiValue').classList.remove('alarm');
-            }
-
-            // 光敏
-            document.getElementById('ldrValue').textContent = data.ldr;
-
-            // 锁状态
-            document.getElementById('lockValue').textContent = data.lock === 0 ? '已上锁' : '已解锁';
-            isLocked = (data.lock === 0);
-            updateLockBtn();
-
-            // 吃药状态
-            updateMedicineStatus('med1Status', data.med1);
-            updateMedicineStatus('med2Status', data.med2);
-            updateMedicineStatus('med3Status', data.med3);
-            updateMedicineStatus('med4Status', data.med4);
-
-            // 继电器状态
-            document.getElementById('coolValue').textContent = data.cool === 1 ? '开' : '关';
-            document.getElementById('dryValue').textContent = data.dry === 1 ? '开' : '关';
-        }
-
-        function updateMedicineStatus(elementId, status) {
-            const el = document.getElementById(elementId);
-            if (status === 1) {
-                el.textContent = '已吃 ✓';
-                el.className = 'medicine-status taken';
-            } else {
-                el.textContent = '未吃';
-                el.className = 'medicine-status not-taken';
+            // 等待期间不调用 checkAlarms，保持预测状态
+            if (!waitingSync.lightThreshold && !waitingSync.tempThreshold) {
+                checkAlarms();
             }
         }
 
-        // 检查报警
-        function checkAlarms(data) {
-            const alarmBox = document.getElementById('alarmBox');
+        // ==================== UI 更新 ====================
+        function updateUI() {
+            // 实时数据
+            document.getElementById('tempValue').textContent = currentData.temp.toFixed(1);
+            document.getElementById('humiValue').textContent = currentData.humi.toFixed(0);
+            document.getElementById('lightValue').textContent = currentData.light;
+            document.getElementById('pirValue').textContent = currentData.pir === 1 ? '有人' : '无人';
+            document.getElementById('lightState').textContent = currentData.lightState === 1 ? '开' : '关';
+            document.getElementById('acState').textContent = currentData.acState === 1 ? '开' : '关';
+            document.getElementById('curtainState').textContent = currentData.curtainState === 1 ? '开' : '关';
+
+            // 阈值输入框（仅在非等待同步时更新）
+            if (!waitingSync.lightThreshold) {
+                document.getElementById('lightThrInput').value = currentData.lightThreshold;
+            }
+            if (!waitingSync.tempThreshold) {
+                document.getElementById('tempThrInput').value = currentData.tempThreshold;
+            }
+
+            // 报警值标红
+            const tempEl = document.getElementById('tempValue');
+            if (currentData.temp > currentData.tempThreshold) {
+                tempEl.classList.add('alarm');
+            } else {
+                tempEl.classList.remove('alarm');
+            }
+        }
+
+        // ==================== 报警判断（APP 端） ====================
+        function checkAlarms() {
             const alarms = [];
 
-            // 检查离线
-            if (Date.now() - lastDataTime > 10000) {
-                alarmBox.className = 'alarm-box warning';
-                alarmBox.innerHTML = '⚠️ 硬件离线';
+            // 无人报警：PIR=0 持续超过 30 秒
+            if (currentData.pir === 0) {
+                if (pirZeroStartTime === null) {
+                    pirZeroStartTime = Date.now();
+                } else if (Date.now() - pirZeroStartTime >= 30000) {
+                    alarms.push('🔔 无人提醒');
+                }
+            } else {
+                pirZeroStartTime = null;
+            }
+
+            // 光照不足有人未开灯
+            // 字段 3（光照值）> 字段 8（光照阈值）且 字段 4=1 且 字段 5=0
+            if (currentData.light > currentData.lightThreshold &&
+                currentData.pir === 1 &&
+                currentData.lightState === 0) {
+                alarms.push('💡 光照不足，灯未开');
+            }
+
+            // 温度过高未开空调
+            // 字段 1（温度）> 字段 9（温度阈值）且 字段 6=0
+            if (currentData.temp > currentData.tempThreshold &&
+                currentData.acState === 0) {
+                alarms.push('🌡️ 温度过高，空调未开');
+            }
+
+            renderAlarms(alarms);
+        }
+
+        // ==================== 渲染报警 ====================
+        function renderAlarms(alarms) {
+            const container = document.getElementById('alarmContent');
+
+            if (alarms.length === 0) {
+                container.innerHTML = '<div class="status-ok">运行正常 ✓</div>';
+            } else {
+                container.innerHTML = alarms.map(alarm =>
+                    `<div class="alarm-item">${alarm}</div>`
+                ).join('');
+            }
+        }
+
+        // ==================== 发送指令 ====================
+        function sendCmd(cmd) {
+            if (!isConnected) {
+                alert('MQTT 未连接，请检查网络');
                 return;
             }
 
-            // 检查温度
-            if (data.temp > tempMax || data.temp < tempMin) {
-                alarms.push('🌡️ 温度超出范围 (' + data.temp.toFixed(1) + '℃)');
-            }
+            console.log('[TX]', cmd);
+            client.publish(CMD_TOPIC, cmd);
 
-            // 检查湿度
-            if (data.humi > humiMax || data.humi < humiMin) {
-                alarms.push('💧 湿度超出范围 (' + data.humi.toFixed(1) + '%)');
-            }
-
-            if (alarms.length === 0) {
-                alarmBox.className = 'alarm-box normal';
-                alarmBox.innerHTML = '✓ 运行正常';
-            } else {
-                alarmBox.className = 'alarm-box danger';
-                alarmBox.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+            // 消警指令重置报警计时
+            if (cmd === '01') {
+                pirZeroStartTime = null;
             }
         }
 
-        // 检查吃药状态变化（弹窗提醒）
-        function checkMedicineChange(data) {
-            const currentMedState = [data.med1, data.med2, data.med3, data.med4];
-
-            for (let i = 0; i < 4; i++) {
-                // 从未吃变为已吃（硬件触发报警）
-                if (prevMedicineState[i] === 0 && currentMedState[i] === 1) {
-                    showMedicineModal();
-                    break;
-                }
+        // ==================== 发送阈值（预测 - 同步机制） ====================
+        function sendThreshold(code, inputId, min, max) {
+            if (!isConnected) {
+                alert('MQTT 未连接，请检查网络');
+                return;
             }
 
-            prevMedicineState = currentMedState;
-        }
+            const input = document.getElementById(inputId);
+            const value = parseInt(input.value);
 
-        // 显示吃药弹窗
-        function showMedicineModal() {
-            document.getElementById('medicineModal').classList.add('active');
-        }
-
-        // 确认吃药
-        function confirmMedicine() {
-            document.getElementById('medicineModal').classList.remove('active');
-            sendCmd('01'); // 消警
-        }
-
-        // 切换锁状态
-        function toggleLock() {
-            if (isLocked) {
-                sendCmd('11'); // 解锁
-            } else {
-                sendCmd('12'); // 上锁
+            if (isNaN(value) || value < min || value > max) {
+                alert(`请输入 ${min}-${max} 之间的值`);
+                return;
             }
-        }
 
-        function updateLockBtn() {
-            const btn = document.getElementById('lockBtn');
-            if (isLocked) {
-                btn.textContent = '🔓 解锁';
-            } else {
-                btn.textContent = '🔒 上锁';
+            const cmd = `${code},${value}`;
+            console.log('[TX]', cmd);
+            client.publish(CMD_TOPIC, cmd);
+
+            // 立即预测更新（乐观更新）
+            if (code === '08') {
+                currentData.lightThreshold = value;
+                waitingSync.lightThreshold = true;
+            } else if (code === '09') {
+                currentData.tempThreshold = value;
+                waitingSync.tempThreshold = true;
             }
+
+            // 立即刷新 UI
+            updateUI();
+
+            // 立即检查报警（即时反馈）
+            checkAlarms();
         }
 
-        // 发送指令
-        function sendCmd(cmd) {
-            if (client && isConnected) {
-                client.publish(CMD_TOPIC, cmd);
-                console.log('发送指令：' + cmd);
-            } else {
-                alert('MQTT 未连接');
-            }
-        }
-
-        // 发送阈值
-        function sendThreshold(cmd, inputId) {
-            const value = document.getElementById(inputId).value;
-            if (value) {
-                sendCmd(cmd + ',' + value);
-                // 乐观更新
-                if (inputId === 'tempMaxInput') tempMax = parseInt(value);
-                if (inputId === 'tempMinInput') tempMin = parseInt(value);
-                if (inputId === 'humiMaxInput') humiMax = parseInt(value);
-                if (inputId === 'humiMinInput') humiMin = parseInt(value);
-                if (inputId === 'ldrThresholdInput') ldrThreshold = parseInt(value);
-            }
-        }
-
-        // 更新状态
-        function updateStatus(connected) {
-            isConnected = connected;
+        // ==================== 状态更新 ====================
+        function updateStatus(status) {
             const dot = document.getElementById('statusDot');
             const text = document.getElementById('statusText');
 
-            if (connected) {
-                dot.className = 'status-dot connected';
+            if (status === 'connected') {
+                dot.classList.add('connected');
+                dot.classList.remove('disconnected');
                 text.textContent = '已连接';
-            } else {
-                dot.className = 'status-dot disconnected';
+            } else if (status === 'disconnected') {
+                dot.classList.add('disconnected');
+                dot.classList.remove('connected');
                 text.textContent = '未连接';
+            } else if (status === 'connecting') {
+                dot.classList.remove('connected', 'disconnected');
+                text.textContent = '连接中...';
             }
         }
 
-        // 添加日志
-        function addLog(payload) {
-            logData.unshift({
-                time: new Date().toLocaleTimeString(),
-                data: payload
-            });
+        // ==================== 日志管理 ====================
+        function addLog(message) {
+            const timestamp = new Date().toLocaleTimeString('zh-CN');
+            logData.unshift(`[${timestamp}] ${message}`);
 
+            // 保留最近 20 条
             if (logData.length > 20) {
                 logData.pop();
             }
 
-            updateLogDisplay();
+            renderLog();
         }
 
-        // 更新日志显示
-        function updateLogDisplay() {
-            const logList = document.getElementById('logList');
-            logList.innerHTML = logData.map(item =>
-                '<div class="log-item">[' + item.time + '] ' + item.data + '</div>'
+        function renderLog() {
+            const container = document.getElementById('logList');
+            container.innerHTML = logData.map(log =>
+                `<div class="log-item">${log}</div>`
             ).join('');
         }
 
-        // 切换日志展开/收起
         function toggleLog() {
             const content = document.getElementById('logContent');
-            const arrow = document.getElementById('logArrow');
+            const icon = document.getElementById('foldIcon');
 
-            if (content.classList.contains('expanded')) {
-                content.classList.remove('expanded');
-                arrow.textContent = '▼';
-            } else {
-                content.classList.add('expanded');
-                arrow.textContent = '▲';
-            }
+            content.classList.toggle('expanded');
+            icon.classList.toggle('expanded');
         }
-
-        // 更新时间显示
-        function updateTime() {
-            const now = new Date();
-            document.getElementById('timeDisplay').textContent = now.toLocaleTimeString('zh-CN', { hour12: false });
-            document.getElementById('dateDisplay').textContent = now.toLocaleDateString('zh-CN', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long'
-            });
-        }
-
-        // 初始化
-        window.onload = function() {
-            connectMQTT();
-            updateTime();
-            setInterval(updateTime, 1000);
-        };
     </script>
 </body>
 </html>
