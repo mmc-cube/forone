@@ -491,27 +491,27 @@
             currentData.acManual = newData.acManual;
             currentData.curtainManual = newData.curtainManual;
 
-            // 阈值：等待同步期间保持预测值，否则更新
-            if (!waitingSync.lightThreshold) {
-                currentData.lightThreshold = newData.lightThreshold;
-            } else {
-                // 等待同步时，检查下位机是否已确认（预测值与新数据一致）
-                if (pendingValues.lightThreshold !== null &&
-                    Math.abs(newData.lightThreshold - pendingValues.lightThreshold) < 1) {
+            // 阈值处理：预测 - 同步 - 接管机制
+            // 等待同步期间，检查下位机是否已确认（回传值与预测值一致）
+            if (waitingSync.lightThreshold && pendingValues.lightThreshold !== null) {
+                if (Math.abs(newData.lightThreshold - pendingValues.lightThreshold) < 1) {
+                    // 同步完成，接受下位机数据
                     waitingSync.lightThreshold = false;
                     pendingValues.lightThreshold = null;
                 }
+                // 等待期间不更新 currentData，保持预测值显示
+            } else {
+                // 非等待同步状态，正常更新
+                currentData.lightThreshold = newData.lightThreshold;
             }
 
-            if (!waitingSync.tempThreshold) {
-                currentData.tempThreshold = newData.tempThreshold;
-            } else {
-                // 等待同步时，检查下位机是否已确认（预测值与新数据一致）
-                if (pendingValues.tempThreshold !== null &&
-                    Math.abs(newData.tempThreshold - pendingValues.tempThreshold) < 1) {
+            if (waitingSync.tempThreshold && pendingValues.tempThreshold !== null) {
+                if (Math.abs(newData.tempThreshold - pendingValues.tempThreshold) < 1) {
                     waitingSync.tempThreshold = false;
                     pendingValues.tempThreshold = null;
                 }
+            } else {
+                currentData.tempThreshold = newData.tempThreshold;
             }
 
             // 更新 UI
@@ -539,16 +539,13 @@
             document.getElementById('acModeText').textContent = currentData.acManual ? '模式：手动' : '模式：自动';
             document.getElementById('curtainModeText').textContent = currentData.curtainManual ? '模式：手动' : '模式：自动';
 
-            // 阈值输入框：等待同步期间使用预测值，否则使用当前值
-            let lightThrDisplay = currentData.lightThreshold;
-            let tempThrDisplay = currentData.tempThreshold;
-
-            if (waitingSync.lightThreshold && pendingValues.lightThreshold !== null) {
-                lightThrDisplay = pendingValues.lightThreshold;
-            }
-            if (waitingSync.tempThreshold && pendingValues.tempThreshold !== null) {
-                tempThrDisplay = pendingValues.tempThreshold;
-            }
+            // 阈值输入框：等待同步期间使用预测值，同步完成后使用下位机回传值
+            let lightThrDisplay = waitingSync.lightThreshold && pendingValues.lightThreshold !== null
+                ? pendingValues.lightThreshold
+                : currentData.lightThreshold;
+            let tempThrDisplay = waitingSync.tempThreshold && pendingValues.tempThreshold !== null
+                ? pendingValues.tempThreshold
+                : currentData.tempThreshold;
 
             document.getElementById('lightThrInput').value = lightThrDisplay;
             document.getElementById('tempThrInput').value = tempThrDisplay;
