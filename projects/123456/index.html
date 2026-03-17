@@ -395,8 +395,9 @@
             tempThreshold: 30
         };
 
-        // 等待同步标志（预测 - 同步 - 接管机制）
+        // 等待同步标志和预测值存储
         let waitingSync = { lightThreshold: false, tempThreshold: false };
+        let pendingValues = { lightThreshold: null, tempThreshold: null };
 
         // ==================== 初始化 ====================
         window.addEventListener('DOMContentLoaded', () => {
@@ -475,21 +476,28 @@
             // 阈值：等待同步期间保持预测值，否则更新
             if (!waitingSync.lightThreshold) {
                 currentData.lightThreshold = newData.lightThreshold;
+            } else {
+                // 等待同步时，检查下位机是否已确认（预测值与新数据一致）
+                if (pendingValues.lightThreshold !== null &&
+                    Math.abs(newData.lightThreshold - pendingValues.lightThreshold) < 1) {
+                    waitingSync.lightThreshold = false;
+                    pendingValues.lightThreshold = null;
+                }
             }
+
             if (!waitingSync.tempThreshold) {
                 currentData.tempThreshold = newData.tempThreshold;
+            } else {
+                // 等待同步时，检查下位机是否已确认（预测值与新数据一致）
+                if (pendingValues.tempThreshold !== null &&
+                    Math.abs(newData.tempThreshold - pendingValues.tempThreshold) < 1) {
+                    waitingSync.tempThreshold = false;
+                    pendingValues.tempThreshold = null;
+                }
             }
 
             // 更新 UI
             updateUI();
-
-            // 检查同步完成
-            if (waitingSync.lightThreshold && Math.abs(newData.lightThreshold - currentData.lightThreshold) < 1) {
-                waitingSync.lightThreshold = false;
-            }
-            if (waitingSync.tempThreshold && Math.abs(newData.tempThreshold - currentData.tempThreshold) < 1) {
-                waitingSync.tempThreshold = false;
-            }
 
             // 等待期间不调用 checkAlarms，保持预测状态
             if (!waitingSync.lightThreshold && !waitingSync.tempThreshold) {
@@ -508,17 +516,23 @@
             document.getElementById('acState').textContent = currentData.acState === 1 ? '开' : '关';
             document.getElementById('curtainState').textContent = currentData.curtainState === 1 ? '开' : '关';
 
-            // 阈值输入框（仅在非等待同步时更新）
-            if (!waitingSync.lightThreshold) {
-                document.getElementById('lightThrInput').value = currentData.lightThreshold;
+            // 阈值输入框：等待同步期间使用预测值，否则使用当前值
+            let lightThrDisplay = currentData.lightThreshold;
+            let tempThrDisplay = currentData.tempThreshold;
+
+            if (waitingSync.lightThreshold && pendingValues.lightThreshold !== null) {
+                lightThrDisplay = pendingValues.lightThreshold;
             }
-            if (!waitingSync.tempThreshold) {
-                document.getElementById('tempThrInput').value = currentData.tempThreshold;
+            if (waitingSync.tempThreshold && pendingValues.tempThreshold !== null) {
+                tempThrDisplay = pendingValues.tempThreshold;
             }
+
+            document.getElementById('lightThrInput').value = lightThrDisplay;
+            document.getElementById('tempThrInput').value = tempThrDisplay;
 
             // 报警值标红
             const tempEl = document.getElementById('tempValue');
-            if (currentData.temp > currentData.tempThreshold) {
+            if (currentData.temp > tempThrDisplay) {
                 tempEl.classList.add('alarm');
             } else {
                 tempEl.classList.remove('alarm');
@@ -528,6 +542,17 @@
         // ==================== 报警判断（APP 端） ====================
         function checkAlarms() {
             const alarms = [];
+
+            // 获取当前有效的阈值（预测值或实际值）
+            let lightThr = currentData.lightThreshold;
+            let tempThr = currentData.tempThreshold;
+
+            if (waitingSync.lightThreshold && pendingValues.lightThreshold !== null) {
+                lightThr = pendingValues.lightThreshold;
+            }
+            if (waitingSync.tempThreshold && pendingValues.tempThreshold !== null) {
+                tempThr = pendingValues.tempThreshold;
+            }
 
             // 无人报警：PIR=0 持续超过 30 秒
             if (currentData.pir === 0) {
@@ -541,16 +566,14 @@
             }
 
             // 光照不足有人未开灯
-            // 字段 3（光照值）> 字段 8（光照阈值）且 字段 4=1 且 字段 5=0
-            if (currentData.light > currentData.lightThreshold &&
+            if (currentData.light > lightThr &&
                 currentData.pir === 1 &&
                 currentData.lightState === 0) {
                 alarms.push('💡 光照不足，灯未开');
             }
 
             // 温度过高未开空调
-            // 字段 1（温度）> 字段 9（温度阈值）且 字段 6=0
-            if (currentData.temp > currentData.tempThreshold &&
+            if (currentData.temp > tempThr &&
                 currentData.acState === 0) {
                 alarms.push('🌡️ 温度过高，空调未开');
             }
@@ -608,10 +631,10 @@
 
             // 立即预测更新（乐观更新）
             if (code === '08') {
-                currentData.lightThreshold = value;
+                pendingValues.lightThreshold = value;
                 waitingSync.lightThreshold = true;
             } else if (code === '09') {
-                currentData.tempThreshold = value;
+                pendingValues.tempThreshold = value;
                 waitingSync.tempThreshold = true;
             }
 
