@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>智能鸡舍监控</title>
+<script src="mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #F0F4F8;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --primary-dark: #1565C0;
+    --alarm: #F44336;
+    --alarm-light: #FFEBEE;
+    --ok: #4CAF50;
+    --warn: #FF9800;
+    --text: #212121;
+    --sub: #757575;
+    --border: #E0E0E0;
+    --shadow: 0 2px 8px rgba(0,0,0,0.10);
+    --radius: 14px;
+    --tab-h: 56px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── 顶栏 ── */
+  .topbar {
+    padding: 44px 16px 12px;
+    background: var(--primary);
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .topbar-title { color: #fff; font-size: 17px; font-weight: 600; }
+  .mqtt-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,0.9); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+  .status-dot.connected { background: #69F0AE; }
+  .status-dot.disconnected { background: #FF5252; }
+
+  /* ── Tab 栏 ── */
+  .tabs {
+    display: flex;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 90px; z-index: 99;
+  }
+  .tab-btn {
+    flex: 1; height: var(--tab-h);
+    border: none; background: transparent;
+    font-size: 13px; color: var(--sub);
+    cursor: pointer; position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    transition: color 0.2s;
+  }
+  .tab-btn.active { color: var(--primary); }
+  .tab-btn.active::after {
+    content: ''; position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 2px; background: var(--primary); border-radius: 2px;
+  }
+  .tab-icon { font-size: 20px; line-height: 1; }
+
+  /* ── 页面容器 ── */
+  .page { display: none; padding: 12px; padding-bottom: 24px; }
+  .page.active { display: block; }
+
+  /* ── 卡片 ── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 13px; color: var(--sub);
+    margin-bottom: 10px; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* ── 报警横幅 ── */
+  .alarm-banner {
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 600;
+    transition: all 0.3s;
+  }
+  .alarm-banner.ok { background: #E8F5E9; color: #2E7D32; }
+  .alarm-banner.alarm { background: var(--alarm-light); color: var(--alarm); }
+  .alarm-banner.alarm { animation: flash 1s infinite; }
+  @keyframes flash {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  /* ── 传感器网格 ── */
+  .sensor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .sensor-item {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .sensor-label { font-size: 11px; color: var(--sub); margin-bottom: 4px; }
+  .sensor-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .sensor-value.alarm { color: var(--alarm); }
+  .sensor-unit { font-size: 11px; color: var(--sub); margin-top: 2px; }
+
+  /* ── 执行器状态 ── */
+  .actuator-row {
+    display: flex; gap: 8px;
+  }
+  .actuator-item {
+    flex: 1; border-radius: 10px; padding: 10px 6px;
+    text-align: center; background: var(--bg);
+    transition: background 0.3s;
+  }
+  .actuator-item.on { background: #E3F2FD; }
+  .actuator-icon { font-size: 22px; }
+  .actuator-name { font-size: 11px; color: var(--sub); margin-top: 2px; }
+  .actuator-state { font-size: 12px; font-weight: 700; margin-top: 2px; }
+  .actuator-state.on { color: var(--ok); }
+  .actuator-state.off { color: var(--sub); }
+
+  /* ── 阈值显示行 ── */
+  .threshold-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .thr-item {
+    background: var(--bg); border-radius: 10px; padding: 10px 12px;
+  }
+  .thr-label { font-size: 11px; color: var(--sub); }
+  .thr-value { font-size: 16px; font-weight: 600; color: var(--primary); margin-top: 2px; }
+
+  /* ── 控制按钮 ── */
+  .ctrl-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  }
+  .ctrl-btn {
+    height: 50px; border: none; border-radius: 10px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: opacity 0.15s, transform 0.1s;
+    color: #fff;
+  }
+  .ctrl-btn:active { opacity: 0.8; transform: scale(0.97); }
+  .ctrl-btn.blue { background: var(--primary); }
+  .ctrl-btn.green { background: var(--ok); }
+  .ctrl-btn.orange { background: var(--warn); }
+  .ctrl-btn.red { background: var(--alarm); }
+  .ctrl-btn.full { grid-column: 1 / -1; }
+
+  /* ── 执行器控制行 ── */
+  .relay-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .relay-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .relay-info { display: flex; align-items: center; gap: 10px; }
+  .relay-icon { font-size: 24px; }
+  .relay-name { font-size: 14px; font-weight: 500; }
+  .relay-cur { font-size: 12px; color: var(--sub); margin-top: 1px; }
+  .relay-btns { display: flex; gap: 6px; }
+  .rel-btn {
+    min-width: 44px; height: 34px; border: 1.5px solid;
+    border-radius: 8px; font-size: 13px; font-weight: 600;
+    cursor: pointer; background: transparent;
+    transition: all 0.15s;
+  }
+  .rel-btn.on { border-color: var(--ok); color: var(--ok); }
+  .rel-btn.on.active { background: var(--ok); color: #fff; }
+  .rel-btn.off { border-color: var(--sub); color: var(--sub); }
+  .rel-btn.off.active { background: #9E9E9E; color: #fff; }
+
+  /* ── 阈值设置 ── */
+  .thr-set-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .thr-set-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .thr-set-label { flex: 1; font-size: 14px; }
+  .thr-set-label small { display: block; font-size: 11px; color: var(--sub); margin-top: 1px; }
+  .thr-input {
+    width: 90px; height: 38px; border: 1.5px solid var(--border);
+    border-radius: 8px; text-align: center; font-size: 15px;
+    color: var(--text); outline: none;
+    transition: border-color 0.2s;
+  }
+  .thr-input:focus { border-color: var(--primary); }
+  .send-btn {
+    height: 38px; padding: 0 14px; border: none;
+    background: var(--primary); color: #fff;
+    border-radius: 8px; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .send-btn:active { opacity: 0.8; }
+  .send-btn.sent { background: var(--ok); }
+
+  /* ── 当前阈值显示（只读） ── */
+  .thr-cur-card { background: #E3F2FD; }
+  .thr-cur-card .thr-value { color: var(--primary-dark); }
+
+  /* ── 时间显示 ── */
+  .time-row {
+    text-align: center; font-size: 13px; color: var(--sub);
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <div class="topbar-title">🐔 智能鸡舍监控</div>
+  <div class="mqtt-status">
+    <div class="status-dot disconnected" id="statusDot"></div>
+    <span id="statusText">未连接</span>
+  </div>
+</div>
+
+<!-- Tab 栏 -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab(0)">
+    <span class="tab-icon">📊</span>监控
+  </button>
+  <button class="tab-btn" onclick="switchTab(1)">
+    <span class="tab-icon">🎛️</span>控制
+  </button>
+  <button class="tab-btn" onclick="switchTab(2)">
+    <span class="tab-icon">⚙️</span>阈值
+  </button>
+</div>
+
+<!-- ══════════════ 页面1：主监控 ══════════════ -->
+<div class="page active" id="page0">
+  <div class="time-row" id="timeRow">--:--:--</div>
+
+  <!-- 报警横幅 -->
+  <div class="alarm-banner ok" id="alarmBanner">
+    <span id="alarmIcon">✅</span>
+    <span id="alarmText">系统运行正常</span>
+  </div>
+
+  <!-- 传感器数值 -->
+  <div class="card">
+    <div class="card-title">🌡️ 传感器实时数据</div>
+    <div class="sensor-grid">
+      <div class="sensor-item">
+        <div class="sensor-label">温度</div>
+        <div class="sensor-value" id="val-temp">--</div>
+        <div class="sensor-unit">°C</div>
+      </div>
+      <div class="sensor-item">
+        <div class="sensor-label">湿度</div>
+        <div class="sensor-value" id="val-humidity">--</div>
+        <div class="sensor-unit">%</div>
+      </div>
+      <div class="sensor-item">
+        <div class="sensor-label">气体浓度</div>
+        <div class="sensor-value" id="val-gas">--</div>
+        <div class="sensor-unit">ADC</div>
+      </div>
+      <div class="sensor-item">
+        <div class="sensor-label">光照强度</div>
+        <div class="sensor-value" id="val-lux">--</div>
+        <div class="sensor-unit">Lux</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 执行器状态 -->
+  <div class="card">
+    <div class="card-title">⚡ 执行器状态</div>
+    <div class="actuator-row">
+      <div class="actuator-item" id="act-wind">
+        <div class="actuator-icon">🌀</div>
+        <div class="actuator-name">风扇</div>
+        <div class="actuator-state off" id="state-wind">OFF</div>
+      </div>
+      <div class="actuator-item" id="act-light">
+        <div class="actuator-icon">💡</div>
+        <div class="actuator-name">补光灯</div>
+        <div class="actuator-state off" id="state-light">OFF</div>
+      </div>
+      <div class="actuator-item" id="act-feed">
+        <div class="actuator-icon">🌾</div>
+        <div class="actuator-name">投喂机</div>
+        <div class="actuator-state off" id="state-feed">OFF</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 当前阈值（只读显示） -->
+  <div class="card thr-cur-card">
+    <div class="card-title">📌 当前阈值（下位机上报）</div>
+    <div class="threshold-grid">
+      <div class="thr-item">
+        <div class="thr-label">温度阈值</div>
+        <div class="thr-value" id="disp-temp-thr">-- °C</div>
+      </div>
+      <div class="thr-item">
+        <div class="thr-label">气体阈值</div>
+        <div class="thr-value" id="disp-gas-thr">-- ADC</div>
+      </div>
+      <div class="thr-item">
+        <div class="thr-label">光照阈值</div>
+        <div class="thr-value" id="disp-light-thr">-- Lux</div>
+      </div>
+      <div class="thr-item">
+        <div class="thr-label">投喂间隔</div>
+        <div class="thr-value" id="disp-feed-thr">-- min</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 页面2：控制面板 ══════════════ -->
+<div class="page" id="page1">
+
+  <!-- 消警 -->
+  <div class="card">
+    <div class="card-title">🔔 报警控制</div>
+    <button class="ctrl-btn red full" onclick="sendCmd('01')">
+      🔕 消警（关闭蜂鸣器）
+    </button>
+  </div>
+
+  <!-- 执行器远程控制 -->
+  <div class="card">
+    <div class="card-title">🎛️ 远程控制执行器</div>
+
+    <div class="relay-row">
+      <div class="relay-info">
+        <span class="relay-icon">🌀</span>
+        <div>
+          <div class="relay-name">风扇</div>
+          <div class="relay-cur">当前：<span id="ctrl-wind-state">--</span></div>
+        </div>
+      </div>
+      <div class="relay-btns">
+        <button class="rel-btn on" id="btn-wind-on" onclick="sendRelay(1,1)">开</button>
+        <button class="rel-btn off" id="btn-wind-off" onclick="sendRelay(1,0)">关</button>
+      </div>
+    </div>
+
+    <div class="relay-row">
+      <div class="relay-info">
+        <span class="relay-icon">💡</span>
+        <div>
+          <div class="relay-name">补光灯</div>
+          <div class="relay-cur">当前：<span id="ctrl-light-state">--</span></div>
+        </div>
+      </div>
+      <div class="relay-btns">
+        <button class="rel-btn on" id="btn-light-on" onclick="sendRelay(2,1)">开</button>
+        <button class="rel-btn off" id="btn-light-off" onclick="sendRelay(2,0)">关</button>
+      </div>
+    </div>
+
+    <div class="relay-row">
+      <div class="relay-info">
+        <span class="relay-icon">🌾</span>
+        <div>
+          <div class="relay-name">投喂机</div>
+          <div class="relay-cur">当前：<span id="ctrl-feed-state">--</span></div>
+        </div>
+      </div>
+      <div class="relay-btns">
+        <button class="rel-btn on" id="btn-feed-on" onclick="sendRelay(3,1)">开</button>
+        <button class="rel-btn off" id="btn-feed-off" onclick="sendRelay(3,0)">关</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 页面3：阈值设置 ══════════════ -->
+<div class="page" id="page2">
+
+  <!-- 阈值设置（可写） -->
+  <div class="card">
+    <div class="card-title">✏️ 阈值设置（发送后立即生效）</div>
+
+    <div class="thr-set-row">
+      <div class="thr-set-label">
+        温度阈值
+        <small>范围：0~100 °C</small>
+      </div>
+      <input class="thr-input" id="inp-temp" type="number" min="0" max="100" placeholder="°C">
+      <button class="send-btn" id="sbtn-temp" onclick="sendThreshold('02','inp-temp','sbtn-temp','thr_temp')">发送</button>
+    </div>
+
+    <div class="thr-set-row">
+      <div class="thr-set-label">
+        气体阈值
+        <small>范围：0~4095 ADC</small>
+      </div>
+      <input class="thr-input" id="inp-gas" type="number" min="0" max="4095" placeholder="ADC">
+      <button class="send-btn" id="sbtn-gas" onclick="sendThreshold('03','inp-gas','sbtn-gas','thr_gas')">发送</button>
+    </div>
+
+    <div class="thr-set-row">
+      <div class="thr-set-label">
+        光照阈值
+        <small>范围：0~65535 Lux</small>
+      </div>
+      <input class="thr-input" id="inp-light" type="number" min="0" max="65535" placeholder="Lux">
+      <button class="send-btn" id="sbtn-light" onclick="sendThreshold('04','inp-light','sbtn-light','thr_light')">发送</button>
+    </div>
+
+    <div class="thr-set-row">
+      <div class="thr-set-label">
+        投喂间隔
+        <small>范围：1~1440 分钟</small>
+      </div>
+      <input class="thr-input" id="inp-feed" type="number" min="1" max="1440" placeholder="min">
+      <button class="send-btn" id="sbtn-feed" onclick="sendThreshold('05','inp-feed','sbtn-feed','thr_feed')">发送</button>
+    </div>
+  </div>
+
+  <!-- 阈值当前值（只读，与上方分离） -->
+  <div class="card thr-cur-card">
+    <div class="card-title">📌 下位机当前阈值（只读）</div>
+    <div class="threshold-grid">
+      <div class="thr-item">
+        <div class="thr-label">温度阈值</div>
+        <div class="thr-value" id="ro-temp-thr">-- °C</div>
+      </div>
+      <div class="thr-item">
+        <div class="thr-label">气体阈值</div>
+        <div class="thr-value" id="ro-gas-thr">-- ADC</div>
+      </div>
+      <div class="thr-item">
+        <div class="thr-label">光照阈值</div>
+        <div class="thr-value" id="ro-light-thr">-- Lux</div>
+      </div>
+      <div class="thr-item">
+        <div class="thr-label">投喂间隔</div>
+        <div class="thr-value" id="ro-feed-thr">-- min</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── MQTT 配置 ──────────────────────────────
+const UPLOAD_TOPIC = '129488/859426/zhineng_jishe/upload';
+const CMD_TOPIC    = '129488/859426/zhineng_jishe/cmd';
+const CLIENT_ID    = 'webview_' + Math.random().toString(36).substr(2, 8);
+
+// ── 防抖（用户设置后 500ms 内忽略下位机对应字段更新）──
+const lastUserSetTime = { thr_temp: 0, thr_gas: 0, thr_light: 0, thr_feed: 0 };
+const DEBOUNCE_MS = 500;
+
+// ── Tab 切换 ──────────────────────────────
+function switchTab(idx) {
+  document.querySelectorAll('.page').forEach((p, i) => p.classList.toggle('active', i === idx));
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+}
+
+// ── 时钟 ──────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('timeRow').textContent =
+    now.toLocaleDateString('zh-CN') + '  ' +
+    now.toLocaleTimeString('zh-CN', {hour12: false});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── MQTT 连接 ─────────────────────────────
+let mqttClient = null;
+
+function initMQTT() {
+  mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: CLIENT_ID,
+    reconnectPeriod: 3000,
+    connectTimeout: 10000
+  });
+
+  mqttClient.on('connect', () => {
+    setStatus(true);
+    mqttClient.subscribe(UPLOAD_TOPIC);
+  });
+
+  mqttClient.on('disconnect', () => setStatus(false));
+  mqttClient.on('error', () => setStatus(false));
+  mqttClient.on('offline', () => setStatus(false));
+  mqttClient.on('reconnect', () => {
+    document.getElementById('statusText').textContent = '重连中…';
+  });
+
+  mqttClient.on('message', (topic, payload) => {
+    if (topic === UPLOAD_TOPIC) parsePayload(payload.toString());
+  });
+}
+
+function setStatus(connected) {
+  const dot  = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  dot.className  = 'status-dot ' + (connected ? 'connected' : 'disconnected');
+  text.textContent = connected ? '已连接' : '未连接';
+}
+
+// ── 解析上行数据 ───────────────────────────
+function parsePayload(raw) {
+  const p = raw.split(',');
+  if (p.length < 11) return;
+
+  const d = {
+    temp:            parseFloat(p[0]),
+    humidity:        parseFloat(p[1]),
+    gas_adc:         parseInt(p[2]),
+    lux:             parseFloat(p[3]),
+    wind_state:      parseInt(p[4]),
+    light_state:     parseInt(p[5]),
+    feed_state:      parseInt(p[6]),
+    temp_threshold:  parseInt(p[7]),
+    gas_threshold:   parseInt(p[8]),
+    light_threshold: parseInt(p[9]),
+    feed_interval:   parseInt(p[10])
+  };
+
+  updateUI(d);
+  checkAlarms(d);
+}
+
+// ── 更新 UI ────────────────────────────────
+function updateUI(d) {
+  const now = Date.now();
+
+  // 传感器值
+  setText('val-temp',     d.temp.toFixed(1));
+  setText('val-humidity', d.humidity.toFixed(1));
+  setText('val-gas',      d.gas_adc);
+  setText('val-lux',      d.lux.toFixed(0));
+
+  // 执行器
+  setActuator('wind',  d.wind_state);
+  setActuator('light', d.light_state);
+  setActuator('feed',  d.feed_state);
+
+  // 阈值只读显示（两处同步，带防抖保护）
+  if (now - lastUserSetTime.thr_temp  > DEBOUNCE_MS) {
+    setText('disp-temp-thr',  d.temp_threshold  + ' °C');
+    setText('ro-temp-thr',    d.temp_threshold  + ' °C');
+  }
+  if (now - lastUserSetTime.thr_gas   > DEBOUNCE_MS) {
+    setText('disp-gas-thr',   d.gas_threshold   + ' ADC');
+    setText('ro-gas-thr',     d.gas_threshold   + ' ADC');
+  }
+  if (now - lastUserSetTime.thr_light > DEBOUNCE_MS) {
+    setText('disp-light-thr', d.light_threshold + ' Lux');
+    setText('ro-light-thr',   d.light_threshold + ' Lux');
+  }
+  if (now - lastUserSetTime.thr_feed  > DEBOUNCE_MS) {
+    setText('disp-feed-thr',  d.feed_interval   + ' min');
+    setText('ro-feed-thr',    d.feed_interval   + ' min');
+  }
+
+  // 控制页当前状态文字
+  setText('ctrl-wind-state',  d.wind_state  ? '开启' : '关闭');
+  setText('ctrl-light-state', d.light_state ? '开启' : '关闭');
+  setText('ctrl-feed-state',  d.feed_state  ? '开启' : '关闭');
+
+  // 继电器按钮高亮
+  updateRelayBtns('wind',  d.wind_state);
+  updateRelayBtns('light', d.light_state);
+  updateRelayBtns('feed',  d.feed_state);
+}
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function setActuator(name, state) {
+  const item  = document.getElementById('act-'   + name);
+  const label = document.getElementById('state-' + name);
+  if (!item || !label) return;
+  if (state) {
+    item.classList.add('on');
+    label.className = 'actuator-state on';
+    label.textContent = 'ON';
+  } else {
+    item.classList.remove('on');
+    label.className = 'actuator-state off';
+    label.textContent = 'OFF';
+  }
+}
+
+function updateRelayBtns(name, state) {
+  const on  = document.getElementById('btn-' + name + '-on');
+  const off = document.getElementById('btn-' + name + '-off');
+  if (!on || !off) return;
+  on.classList.toggle('active',  state === 1);
+  off.classList.toggle('active', state === 0);
+}
+
+// ── 报警判断 ────────────────────────────────
+function checkAlarms(d) {
+  const banner = document.getElementById('alarmBanner');
+  const icon   = document.getElementById('alarmIcon');
+  const text   = document.getElementById('alarmText');
+  const gasEl  = document.getElementById('val-gas');
+
+  if (d.gas_adc > d.gas_threshold) {
+    banner.className = 'alarm-banner alarm';
+    icon.textContent = '🚨';
+    text.textContent = '有害气体超标！ADC=' + d.gas_adc + '（阈值' + d.gas_threshold + '）';
+    gasEl && gasEl.classList.add('alarm');
+    // Android WebView 原生通知
+    sendAlarmToNative('gas', d.gas_adc, d.gas_threshold);
+  } else {
+    banner.className = 'alarm-banner ok';
+    icon.textContent = '✅';
+    text.textContent = '系统运行正常';
+    gasEl && gasEl.classList.remove('alarm');
+  }
+}
+
+// ── Android WebView 通知 ───────────────────
+function sendAlarmToNative(which, val, threshold) {
+  if (window.Android) {
+    window.Android.onAlarm(JSON.stringify({ which, val, threshold }));
+  } else if (Notification && Notification.permission === 'granted') {
+    new Notification('鸡舍告警：气体超标', {
+      body: '当前 ADC=' + val + '，阈值=' + threshold
+    });
+  }
+}
+
+// ── 发送下行指令 ───────────────────────────
+function sendCmd(cmd) {
+  if (!mqttClient || !mqttClient.connected) {
+    alert('MQTT 未连接，请稍候重试');
+    return;
+  }
+  mqttClient.publish(CMD_TOPIC, cmd);
+}
+
+// ── 执行器控制 06,继电器号,状态 ─────────────
+function sendRelay(relayId, state) {
+  sendCmd('06,' + relayId + ',' + state);
+  // 乐观更新对应执行器状态
+  const nameMap = { 1: 'wind', 2: 'light', 3: 'feed' };
+  const name = nameMap[relayId];
+  setActuator(name, state);
+  updateRelayBtns(name, state);
+  const stateEl = document.getElementById('ctrl-' + name + '-state');
+  if (stateEl) stateEl.textContent = state ? '开启' : '关闭';
+}
+
+// ── 阈值发送 ───────────────────────────────
+function sendThreshold(cmdCode, inputId, btnId, debounceKey) {
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  const val = inp.value.trim();
+  if (val === '' || isNaN(val)) { inp.focus(); return; }
+
+  sendCmd(cmdCode + ',' + val);
+
+  // 防抖保护
+  lastUserSetTime[debounceKey] = Date.now();
+
+  // 乐观更新只读显示
+  const valNum = parseFloat(val);
+  const dispMap = {
+    thr_temp:  ['disp-temp-thr',  'ro-temp-thr',  v => v + ' °C'],
+    thr_gas:   ['disp-gas-thr',   'ro-gas-thr',   v => v + ' ADC'],
+    thr_light: ['disp-light-thr', 'ro-light-thr', v => v + ' Lux'],
+    thr_feed:  ['disp-feed-thr',  'ro-feed-thr',  v => v + ' min'],
+  };
+  if (dispMap[debounceKey]) {
+    const [id1, id2, fmt] = dispMap[debounceKey];
+    setText(id1, fmt(valNum));
+    setText(id2, fmt(valNum));
+  }
+
+  // 按钮反馈
+  btn.textContent = '✓ 已发';
+  btn.classList.add('sent');
+  setTimeout(() => { btn.textContent = '发送'; btn.classList.remove('sent'); }, 1500);
+}
+
+// ── 启动 ──────────────────────────────────
+initMQTT();
+</script>
+</body>
+</html>
