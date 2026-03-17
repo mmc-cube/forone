@@ -327,17 +327,23 @@
         <div class="btn-group">
             <button class="btn btn-primary" onclick="sendCmd('02')">开灯</button>
             <button class="btn btn-outline" onclick="sendCmd('03')">关灯</button>
+            <button class="btn btn-outline" style="font-size:12px;min-width:60px;" onclick="sendCmd('10')" id="lightAutoBtn">自动</button>
         </div>
+        <div style="font-size:12px;color:var(--sub);margin-bottom:12px;" id="lightModeText">模式：自动</div>
 
         <div class="btn-group">
             <button class="btn btn-primary" onclick="sendCmd('04')">开空调</button>
             <button class="btn btn-outline" onclick="sendCmd('05')">关空调</button>
+            <button class="btn btn-outline" style="font-size:12px;min-width:60px;" onclick="sendCmd('11')" id="acAutoBtn">自动</button>
         </div>
+        <div style="font-size:12px;color:var(--sub);margin-bottom:12px;" id="acModeText">模式：自动</div>
 
         <div class="btn-group">
             <button class="btn btn-primary" onclick="sendCmd('06')">开窗帘</button>
             <button class="btn btn-outline" onclick="sendCmd('07')">关窗帘</button>
+            <button class="btn btn-outline" style="font-size:12px;min-width:60px;" onclick="sendCmd('12')" id="curtainAutoBtn">自动</button>
         </div>
+        <div style="font-size:12px;color:var(--sub);margin-bottom:12px;" id="curtainModeText">模式：自动</div>
 
         <button class="btn btn-danger" style="width: 100%;" onclick="sendCmd('01')">🔕 消警</button>
     </div>
@@ -392,7 +398,10 @@
             acState: 0,
             curtainState: 0,
             lightThreshold: 2000,
-            tempThreshold: 30
+            tempThreshold: 30,
+            lightManual: false,
+            acManual: false,
+            curtainManual: false
         };
 
         // 等待同步标志和预测值存储
@@ -450,6 +459,7 @@
             addLog(message);
 
             // 解析上行数据（按 PRD 字段顺序，0-based）
+            // 新增字段 9-11：手动模式标志
             const newData = {
                 temp: parseFloat(parts[0]) || 0,
                 humi: parseFloat(parts[1]) || 0,
@@ -459,7 +469,10 @@
                 acState: parseInt(parts[5]) || 0,
                 curtainState: parseInt(parts[6]) || 0,
                 lightThreshold: parseInt(parts[7]) || 2000,
-                tempThreshold: parseInt(parts[8]) || 30
+                tempThreshold: parseInt(parts[8]) || 30,
+                lightManual: parts[9] === '1',
+                acManual: parts[10] === '1',
+                curtainManual: parts[11] === '1'
             };
 
             // 传感器值始终更新
@@ -472,6 +485,11 @@
             currentData.lightState = newData.lightState;
             currentData.acState = newData.acState;
             currentData.curtainState = newData.curtainState;
+
+            // 手动模式标志更新
+            currentData.lightManual = newData.lightManual;
+            currentData.acManual = newData.acManual;
+            currentData.curtainManual = newData.curtainManual;
 
             // 阈值：等待同步期间保持预测值，否则更新
             if (!waitingSync.lightThreshold) {
@@ -515,6 +533,11 @@
             document.getElementById('lightState').textContent = currentData.lightState === 1 ? '开' : '关';
             document.getElementById('acState').textContent = currentData.acState === 1 ? '开' : '关';
             document.getElementById('curtainState').textContent = currentData.curtainState === 1 ? '开' : '关';
+
+            // 更新模式显示
+            document.getElementById('lightModeText').textContent = currentData.lightManual ? '模式：手动' : '模式：自动';
+            document.getElementById('acModeText').textContent = currentData.acManual ? '模式：手动' : '模式：自动';
+            document.getElementById('curtainModeText').textContent = currentData.curtainManual ? '模式：手动' : '模式：自动';
 
             // 阈值输入框：等待同步期间使用预测值，否则使用当前值
             let lightThrDisplay = currentData.lightThreshold;
