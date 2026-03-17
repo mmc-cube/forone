@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>智能台灯控制系统</title>
+<script src="mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #F0F4F8;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --primary-light: #E3F2FD;
+    --alarm: #F44336;
+    --alarm-light: #FFEBEE;
+    --ok: #4CAF50;
+    --warn: #FF9800;
+    --text: #212121;
+    --sub: #757575;
+    --shadow: 0 2px 10px rgba(0,0,0,0.08);
+    --radius: 14px;
+    --warm: #FF8F00;
+    --cool: #42A5F5;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 顶栏 */
+  .topbar {
+    padding: 44px 16px 10px;
+    background: var(--primary);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(33,150,243,0.3);
+  }
+  .topbar-title { color: #fff; font-size: 17px; font-weight: 600; }
+  .mqtt-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,0.9); }
+  .mqtt-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; transition: background 0.3s; }
+  .mqtt-dot.connected { background: #69F0AE; }
+  .mqtt-dot.disconnected { background: #FF5252; }
+
+  /* Tab栏 */
+  .tabbar {
+    display: flex;
+    background: #fff;
+    border-bottom: 1px solid #E0E0E0;
+    position: sticky;
+    top: 75px;
+    z-index: 99;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 11px 4px;
+    font-size: 13px;
+    color: var(--sub);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+  .tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+
+  /* 页面内容 */
+  .page { display: none; padding: 12px; flex-direction: column; gap: 10px; }
+  .page.active { display: flex; }
+
+  /* 报警横幅 */
+  .alarm-banner {
+    background: var(--alarm-light);
+    border: 1px solid var(--alarm);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--alarm);
+    font-weight: 600;
+    display: none;
+    line-height: 1.5;
+  }
+  .alarm-banner.show { display: block; }
+
+  /* 卡片 */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 12px;
+    color: var(--sub);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .card-title .icon { font-size: 15px; }
+
+  /* 数据网格 */
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .data-item {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .data-item.full { grid-column: 1 / -1; }
+  .data-label { font-size: 11px; color: var(--sub); }
+  .data-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .data-unit { font-size: 12px; color: var(--sub); font-weight: 400; }
+  .data-value.alarm { color: var(--alarm); }
+  .data-value.warn { color: var(--warn); }
+
+  /* 状态标签 */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    gap: 4px;
+  }
+  .badge-on { background: #E8F5E9; color: #2E7D32; }
+  .badge-off { background: #FAFAFA; color: #9E9E9E; border: 1px solid #E0E0E0; }
+  .badge-warm { background: #FFF3E0; color: #E65100; }
+  .badge-cool { background: #E3F2FD; color: #0D47A1; }
+  .badge-auto { background: #F3E5F5; color: #6A1B9A; }
+  .badge-reading { background: #FFF8E1; color: #F57F17; }
+  .badge-rest { background: #E1F5FE; color: #01579B; }
+  .badge-person { background: #E8F5E9; color: #1B5E20; }
+  .badge-empty { background: #F5F5F5; color: #9E9E9E; }
+
+  /* 疲劳进度条 */
+  .fatigue-bar-wrap { margin-top: 6px; }
+  .fatigue-bar-bg {
+    height: 8px;
+    background: #EEE;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .fatigue-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--ok);
+    transition: width 0.4s ease, background 0.4s ease;
+    width: 0%;
+  }
+  .fatigue-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--sub); margin-top: 4px; }
+
+  /* 控制按钮 */
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn-grid.trio { grid-template-columns: 1fr 1fr 1fr; }
+  .ctrl-btn {
+    padding: 12px 8px;
+    border-radius: 10px;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    line-height: 1.2;
+  }
+  .ctrl-btn:active { transform: scale(0.95); opacity: 0.85; }
+  .ctrl-btn .btn-icon { font-size: 20px; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-danger { background: #FFEBEE; color: var(--alarm); }
+  .btn-success { background: #E8F5E9; color: #2E7D32; }
+  .btn-warm { background: #FFF3E0; color: #E65100; }
+  .btn-cool { background: #E3F2FD; color: #0D47A1; }
+  .btn-purple { background: #F3E5F5; color: #6A1B9A; }
+  .btn-orange { background: #FFF8E1; color: #F57F17; }
+  .btn-gray { background: #F5F5F5; color: #757575; }
+
+  /* 阈值卡片 */
+  .thr-display-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #F5F5F5;
+    font-size: 14px;
+  }
+  .thr-display-row:last-child { border-bottom: none; }
+  .thr-display-label { color: var(--sub); font-size: 13px; }
+  .thr-display-val { font-weight: 700; color: var(--text); font-size: 15px; }
+  .thr-display-unit { font-size: 12px; color: var(--sub); margin-left: 2px; }
+
+  .thr-set-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #F5F5F5;
+  }
+  .thr-set-row:last-child { border-bottom: none; }
+  .thr-set-label { font-size: 13px; color: var(--sub); flex: 0 0 64px; }
+  .thr-input {
+    flex: 1;
+    height: 36px;
+    border: 1.5px solid #E0E0E0;
+    border-radius: 8px;
+    padding: 0 10px;
+    font-size: 14px;
+    background: #FAFAFA;
+    color: var(--text);
+    outline: none;
+  }
+  .thr-input:focus { border-color: var(--primary); background: #fff; }
+  .thr-unit { font-size: 12px; color: var(--sub); flex: 0 0 28px; }
+  .thr-send-btn {
+    flex: 0 0 44px;
+    height: 36px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .thr-send-btn:active { opacity: 0.8; }
+
+  /* 日志 */
+  .log-box {
+    background: #F8F9FA;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 11px;
+    color: #546E7A;
+    font-family: monospace;
+    height: 120px;
+    overflow-y: auto;
+    line-height: 1.6;
+    border: 1px solid #ECEFF1;
+  }
+  .log-box p { margin: 0; }
+  .log-box p.recv { color: #1565C0; }
+  .log-box p.send { color: #2E7D32; }
+  .log-box p.sys { color: #7B1FA2; }
+  .log-box p.err { color: var(--alarm); }
+
+  /* 连接状态卡 */
+  .conn-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .conn-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .conn-dot.on { background: var(--ok); }
+  .conn-dot.off { background: var(--alarm); }
+  .conn-text { font-size: 13px; color: var(--sub); }
+
+  .section-sep { height: 1px; background: #F0F0F0; margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <div class="topbar-title">💡 智能台灯控制系统</div>
+  <div class="mqtt-status">
+    <div class="mqtt-dot disconnected" id="mqttDot"></div>
+    <span id="mqttStatusText">未连接</span>
+  </div>
+</div>
+
+<!-- Tab栏 -->
+<div class="tabbar">
+  <button class="tab-btn active" onclick="switchTab('data')">📊 数据</button>
+  <button class="tab-btn" onclick="switchTab('ctrl')">🎛️ 控制</button>
+  <button class="tab-btn" onclick="switchTab('thr')">⚙️ 阈值</button>
+  <button class="tab-btn" onclick="switchTab('log')">📋 日志</button>
+</div>
+
+<!-- ===== 数据页 ===== -->
+<div class="page active" id="page-data">
+
+  <!-- 报警横幅 -->
+  <div class="alarm-banner" id="alarmBanner"></div>
+
+  <!-- 灯状态 & 模式 -->
+  <div class="card">
+    <div class="card-title"><span class="icon">💡</span>台灯状态</div>
+    <div class="data-grid">
+      <div class="data-item">
+        <span class="data-label">灯状态</span>
+        <span id="lampBadge" class="badge badge-off">⚪ 关灯</span>
+      </div>
+      <div class="data-item">
+        <span class="data-label">色温模式</span>
+        <span id="modeBadge" class="badge badge-auto">🔄 自动</span>
+      </div>
+      <div class="data-item">
+        <span class="data-label">光照场景</span>
+        <span id="sceneBadge" class="badge badge-reading">📖 看书</span>
+      </div>
+      <div class="data-item">
+        <span class="data-label">人体感应</span>
+        <span id="pirBadge" class="badge badge-empty">👤 无人</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 传感器数据 -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🌡️</span>传感器数据</div>
+    <div class="data-grid">
+      <div class="data-item">
+        <span class="data-label">光照强度</span>
+        <span class="data-value" id="luxVal">--</span>
+        <span class="data-unit">lux</span>
+      </div>
+      <div class="data-item">
+        <span class="data-label">用户距离</span>
+        <span class="data-value" id="distVal">--</span>
+        <span class="data-unit">cm</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 疲劳提醒 -->
+  <div class="card">
+    <div class="card-title"><span class="icon">⏱️</span>疲劳计时</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+      <span style="font-size:13px;color:var(--sub);">持续用眼时间</span>
+      <span style="font-size:15px;font-weight:700;" id="fatigueText">0 / -- min</span>
+    </div>
+    <div class="fatigue-bar-wrap">
+      <div class="fatigue-bar-bg">
+        <div class="fatigue-bar-fill" id="fatigueBar"></div>
+      </div>
+    </div>
+    <div class="fatigue-info">
+      <span>0 min</span>
+      <span id="fatigueThrLabel">阈值: -- min</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== 控制页 ===== -->
+<div class="page" id="page-ctrl">
+
+  <!-- 开关灯 -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🔌</span>开关控制</div>
+    <div class="btn-grid">
+      <button class="ctrl-btn btn-success" onclick="sendCmd('01')">
+        <span class="btn-icon">💡</span>开灯
+      </button>
+      <button class="ctrl-btn btn-danger" onclick="sendCmd('02')">
+        <span class="btn-icon">🌑</span>关灯
+      </button>
+    </div>
+  </div>
+
+  <!-- 模式切换 -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🎨</span>色温模式</div>
+    <div class="btn-grid trio">
+      <button class="ctrl-btn btn-warm" onclick="sendCmd('03')">
+        <span class="btn-icon">🟡</span>阅读模式
+      </button>
+      <button class="ctrl-btn btn-cool" onclick="sendCmd('04')">
+        <span class="btn-icon">🔵</span>休息模式
+      </button>
+      <button class="ctrl-btn btn-purple" onclick="sendCmd('05')">
+        <span class="btn-icon">🔄</span>自动模式
+      </button>
+    </div>
+  </div>
+
+  <!-- 消警 -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🔕</span>报警控制</div>
+    <button class="ctrl-btn btn-gray" style="width:100%;" onclick="sendCmd('06')">
+      <span class="btn-icon">🔕</span>
+      消警（清除疲劳报警 & 计时清零）
+    </button>
+  </div>
+
+</div>
+
+<!-- ===== 阈值页 ===== -->
+<div class="page" id="page-thr">
+
+  <!-- 阈值显示（只读，来自硬件上报） -->
+  <div class="card">
+    <div class="card-title"><span class="icon">📌</span>当前阈值（硬件上报）</div>
+    <div class="thr-display-row">
+      <span class="thr-display-label">距离阈值</span>
+      <span><span class="thr-display-val" id="disp_thr_dist">--</span><span class="thr-display-unit">cm</span></span>
+    </div>
+    <div class="thr-display-row">
+      <span class="thr-display-label">疲劳时长阈值</span>
+      <span><span class="thr-display-val" id="disp_thr_fatigue">--</span><span class="thr-display-unit">min</span></span>
+    </div>
+    <div class="thr-display-row">
+      <span class="thr-display-label">目标光照阈值</span>
+      <span><span class="thr-display-val" id="disp_thr_lux">--</span><span class="thr-display-unit">lux</span></span>
+    </div>
+  </div>
+
+  <!-- 阈值设置（可写，发送后乐观更新） -->
+  <div class="card">
+    <div class="card-title"><span class="icon">✏️</span>设置阈值</div>
+    <div class="thr-set-row">
+      <span class="thr-set-label">距离阈值</span>
+      <input class="thr-input" type="number" id="inp_thr_dist" placeholder="30" min="10" max="100">
+      <span class="thr-unit">cm</span>
+      <button class="thr-send-btn" onclick="sendThr('11', 'inp_thr_dist', 'disp_thr_dist', 'thr_dist')">发送</button>
+    </div>
+    <div class="thr-set-row">
+      <span class="thr-set-label">疲劳时长</span>
+      <input class="thr-input" type="number" id="inp_thr_fatigue" placeholder="20" min="1" max="120">
+      <span class="thr-unit">min</span>
+      <button class="thr-send-btn" onclick="sendThr('12', 'inp_thr_fatigue', 'disp_thr_fatigue', 'thr_fatigue')">发送</button>
+    </div>
+    <div class="thr-set-row">
+      <span class="thr-set-label">目标光照</span>
+      <input class="thr-input" type="number" id="inp_thr_lux" placeholder="500" min="100" max="1000">
+      <span class="thr-unit">lux</span>
+      <button class="thr-send-btn" onclick="sendThr('13', 'inp_thr_lux', 'disp_thr_lux', 'thr_lux')">发送</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== 日志页 ===== -->
+<div class="page" id="page-log">
+  <div class="card">
+    <div class="card-title"><span class="icon">🔌</span>连接信息</div>
+    <div class="conn-row">
+      <div class="conn-dot off" id="connDot"></div>
+      <span class="conn-text" id="connText">未连接到 broker.emqx.io</span>
+    </div>
+    <div style="font-size:12px;color:var(--sub);line-height:1.8;">
+      <div>上行：<code style="font-size:11px;">596173/1001/zntaideng/upload</code></div>
+      <div>下行：<code style="font-size:11px;">596173/1001/zntaideng/cmd</code></div>
+    </div>
+  </div>
+  <div class="card" style="flex:1;">
+    <div class="card-title" style="justify-content:space-between;">
+      <span><span class="icon">📋</span>通信日志</span>
+      <button onclick="clearLog()" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid #E0E0E0;background:#fff;cursor:pointer;color:var(--sub);">清空</button>
+    </div>
+    <div class="log-box" id="logBox"></div>
+  </div>
+</div>
+
+<script>
+// ===== 配置 =====
+const UPLOAD_TOPIC = '596173/1001/zntaideng/upload';
+const CMD_TOPIC    = '596173/1001/zntaideng/cmd';
+const BROKER_WSS   = 'wss://broker.emqx.io:8084/mqtt';
+const CLIENT_ID    = 'webview_' + Math.random().toString(36).substr(2, 8);
+
+// ===== 防抖保护 =====
+const lastUserSetTime = { thr_dist: 0, thr_fatigue: 0, thr_lux: 0 };
+const DEBOUNCE_MS = 1500;
+
+// ===== 数据状态 =====
+let data = {
+  lux: null, dist: null, pir: null, scene: null,
+  mode: null, lamp: null, fatigue_min: null,
+  thr_dist: 30, thr_fatigue: 20, thr_lux: 500
+};
+
+// ===== MQTT 连接 =====
+const client = mqtt.connect(BROKER_WSS, {
+  clientId: CLIENT_ID,
+  reconnectPeriod: 3000,
+  connectTimeout: 10000,
+  keepalive: 60,
+  clean: true
+});
+
+client.on('connect', () => {
+  setMqttStatus(true);
+  client.subscribe(UPLOAD_TOPIC, { qos: 0 });
+  addLog(`已连接 broker.emqx.io，clientId: ${CLIENT_ID}`, 'sys');
+  addLog(`已订阅: ${UPLOAD_TOPIC}`, 'sys');
+});
+
+client.on('disconnect', () => { setMqttStatus(false); addLog('MQTT 断开', 'err'); });
+client.on('close', () => { setMqttStatus(false); });
+client.on('reconnect', () => addLog('正在重连...', 'sys'));
+client.on('error', (e) => { addLog('连接错误: ' + e.message, 'err'); setMqttStatus(false); });
+
+client.on('message', (topic, payload) => {
+  const raw = payload.toString().trim();
+  addLog('↓ ' + raw, 'recv');
+  parseAndUpdate(raw);
+});
+
+// ===== 解析上行数据 =====
+function parseAndUpdate(raw) {
+  const parts = raw.split(',');
+  if (parts.length < 10) return;
+  const now = Date.now();
+
+  const newData = {
+    lux:         parseFloat(parts[0]),
+    dist:        parseFloat(parts[1]),
+    pir:         parseInt(parts[2]),
+    scene:       parseInt(parts[3]),
+    mode:        parseInt(parts[4]),
+    lamp:        parseInt(parts[5]),
+    fatigue_min: parseFloat(parts[6]),
+    thr_dist:    parseFloat(parts[7]),
+    thr_fatigue: parseFloat(parts[8]),
+    thr_lux:     parseFloat(parts[9])
+  };
+
+  // 应用防抖：阈值字段在设置后 DEBOUNCE_MS 内不被硬件数据覆盖
+  for (const key of ['thr_dist', 'thr_fatigue', 'thr_lux']) {
+    if ((now - lastUserSetTime[key]) < DEBOUNCE_MS) {
+      newData[key] = data[key]; // 保留本地设置值
+    }
+  }
+
+  Object.assign(data, newData);
+  renderAll();
+}
+
+// ===== 渲染全部 UI =====
+function renderAll() {
+  const d = data;
+
+  // 光照
+  const luxEl = document.getElementById('luxVal');
+  luxEl.textContent = d.lux !== null ? Math.round(d.lux) : '--';
+  luxEl.className = 'data-value';
+
+  // 距离
+  const distEl = document.getElementById('distVal');
+  if (d.dist !== null) {
+    distEl.textContent = d.dist.toFixed(1);
+    distEl.className = 'data-value' + (d.lamp === 1 && d.dist < d.thr_dist ? ' warn' : '');
+  } else {
+    distEl.textContent = '--';
+    distEl.className = 'data-value';
+  }
+
+  // 灯状态
+  const lampBadge = document.getElementById('lampBadge');
+  if (d.lamp === 1) {
+    lampBadge.className = 'badge badge-on';
+    lampBadge.textContent = '⚡ 开灯';
+  } else {
+    lampBadge.className = 'badge badge-off';
+    lampBadge.textContent = '⚪ 关灯';
+  }
+
+  // 模式
+  const modeBadge = document.getElementById('modeBadge');
+  const modeMap = {
+    0: ['badge badge-auto',    '🔄 自动'],
+    1: ['badge badge-reading', '🟡 阅读'],
+    2: ['badge badge-rest',    '🔵 休息']
+  };
+  const modeInfo = modeMap[d.mode] || modeMap[0];
+  modeBadge.className = modeInfo[0];
+  modeBadge.textContent = modeInfo[1];
+
+  // 场景
+  const sceneBadge = document.getElementById('sceneBadge');
+  if (d.scene === 0) {
+    sceneBadge.className = 'badge badge-warm';
+    sceneBadge.textContent = '📖 看书';
+  } else {
+    sceneBadge.className = 'badge badge-cool';
+    sceneBadge.textContent = '🖥️ 看屏幕';
+  }
+
+  // 人体感应
+  const pirBadge = document.getElementById('pirBadge');
+  if (d.pir === 1) {
+    pirBadge.className = 'badge badge-person';
+    pirBadge.textContent = '🚶 有人';
+  } else {
+    pirBadge.className = 'badge badge-empty';
+    pirBadge.textContent = '👤 无人';
+  }
+
+  // 疲劳计时
+  const fm = d.fatigue_min !== null ? d.fatigue_min : 0;
+  const ft = d.thr_fatigue || 20;
+  const pct = Math.min(100, (fm / ft) * 100);
+  document.getElementById('fatigueText').textContent =
+    `${fm.toFixed(0)} / ${ft} min`;
+  document.getElementById('fatigueThrLabel').textContent = `阈值: ${ft} min`;
+  const bar = document.getElementById('fatigueBar');
+  bar.style.width = pct + '%';
+  bar.style.background = pct >= 100 ? '#F44336' : pct >= 80 ? '#FF9800' : '#4CAF50';
+
+  // 阈值显示（防抖保护期内不更新）
+  const now = Date.now();
+  if ((now - lastUserSetTime.thr_dist) >= DEBOUNCE_MS)
+    document.getElementById('disp_thr_dist').textContent = d.thr_dist;
+  if ((now - lastUserSetTime.thr_fatigue) >= DEBOUNCE_MS)
+    document.getElementById('disp_thr_fatigue').textContent = d.thr_fatigue;
+  if ((now - lastUserSetTime.thr_lux) >= DEBOUNCE_MS)
+    document.getElementById('disp_thr_lux').textContent = d.thr_lux;
+
+  // 顶部阈值显示标签同步
+  document.getElementById('fatigueThrLabel').textContent = `阈值: ${d.thr_fatigue} min`;
+
+  checkAlarms();
+}
+
+// ===== 报警判断 =====
+function checkAlarms() {
+  const d = data;
+  const alarms = [];
+
+  if (d.fatigue_min !== null && d.thr_fatigue && d.fatigue_min >= d.thr_fatigue) {
+    alarms.push('⚠️ 疲劳报警：请起身休息一下！');
+    sendAlarmToNative({ which: 'fatigue', fatigue_min: d.fatigue_min, thr_fatigue: d.thr_fatigue });
+  }
+
+  if (d.dist !== null && d.thr_dist && d.dist < d.thr_dist && d.lamp === 1) {
+    alarms.push(`⚠️ 距离过近：当前 ${d.dist.toFixed(1)} cm，请保持用眼距离（阈值 ${d.thr_dist} cm）`);
+  }
+
+  const banner = document.getElementById('alarmBanner');
+  if (alarms.length > 0) {
+    banner.innerHTML = alarms.join('<br>');
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+// ===== Android 原生通知 =====
+function sendAlarmToNative(payload) {
+  if (window.Android) {
+    window.Android.onAlarm(JSON.stringify(payload));
+  } else if (Notification && Notification.permission === 'granted') {
+    new Notification('智能台灯报警', { body: payload.which === 'fatigue' ? '疲劳报警：请起身休息' : '距离过近报警' });
+  }
+}
+
+// ===== 发送指令 =====
+function sendCmd(cmd) {
+  if (!client.connected) { addLog('未连接，无法发送', 'err'); return; }
+  client.publish(CMD_TOPIC, cmd, { qos: 0 });
+  addLog('↑ ' + cmd, 'send');
+}
+
+// ===== 发送阈值 =====
+function sendThr(code, inputId, dispId, dataKey) {
+  const val = parseFloat(document.getElementById(inputId).value);
+  if (isNaN(val) || val <= 0) { addLog('请输入有效数值', 'err'); return; }
+  const cmd = code + ',' + val;
+  sendCmd(cmd);
+
+  // 乐观更新
+  lastUserSetTime[dataKey] = Date.now();
+  data[dataKey] = val;
+  document.getElementById(dispId).textContent = val;
+  document.getElementById(inputId).value = '';
+
+  // 更新疲劳阈值标签
+  if (dataKey === 'thr_fatigue') {
+    document.getElementById('fatigueThrLabel').textContent = `阈值: ${val} min`;
+    document.getElementById('fatigueText').textContent =
+      `${(data.fatigue_min || 0).toFixed(0)} / ${val} min`;
+  }
+}
+
+// ===== Tab 切换 =====
+function switchTab(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  const tabs = ['data', 'ctrl', 'thr', 'log'];
+  const idx = tabs.indexOf(name);
+  document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+}
+
+// ===== MQTT 状态 =====
+function setMqttStatus(connected) {
+  const dot = document.getElementById('mqttDot');
+  const txt = document.getElementById('mqttStatusText');
+  const cDot = document.getElementById('connDot');
+  const cTxt = document.getElementById('connText');
+  if (connected) {
+    dot.className = 'mqtt-dot connected';
+    txt.textContent = '已连接';
+    cDot.className = 'conn-dot on';
+    cTxt.textContent = '已连接 broker.emqx.io:8084';
+  } else {
+    dot.className = 'mqtt-dot disconnected';
+    txt.textContent = '未连接';
+    cDot.className = 'conn-dot off';
+    cTxt.textContent = '未连接，正在重连...';
+  }
+}
+
+// ===== 日志 =====
+const MAX_LOG = 200;
+function addLog(msg, type = '') {
+  const box = document.getElementById('logBox');
+  const now = new Date();
+  const ts = now.getHours().toString().padStart(2,'0') + ':' +
+             now.getMinutes().toString().padStart(2,'0') + ':' +
+             now.getSeconds().toString().padStart(2,'0');
+  const p = document.createElement('p');
+  if (type) p.className = type;
+  p.textContent = `[${ts}] ${msg}`;
+  box.appendChild(p);
+  // 超出200行删除旧行
+  while (box.children.length > MAX_LOG) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('logBox').innerHTML = '';
+}
+
+// 请求通知权限（浏览器）
+if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+</script>
+</body>
+</html>
