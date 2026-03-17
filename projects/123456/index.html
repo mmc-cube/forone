@@ -310,6 +310,20 @@
                 <span class="data-unit"></span>
             </div>
         </div>
+        <div class="data-row">
+            <span class="data-label">光照阈值</span>
+            <div>
+                <span class="data-value" id="lightThrDisplay">--</span>
+                <span class="data-unit"></span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">温度阈值</span>
+            <div>
+                <span class="data-value" id="tempThrDisplay">--</span>
+                <span class="data-unit">℃</span>
+            </div>
+        </div>
     </div>
 
     <!-- 3. 报警状态卡 -->
@@ -350,7 +364,7 @@
 
     <!-- 5. 阈值设置卡 -->
     <div class="card">
-        <div class="card-title">⚙️ 阈值设置</div>
+        <div class="card-title">⚙️ 阈值设置（下发到设备）</div>
 
         <div class="threshold-row">
             <span class="threshold-label">光照阈值</span>
@@ -534,25 +548,29 @@
             document.getElementById('acState').textContent = currentData.acState === 1 ? '开' : '关';
             document.getElementById('curtainState').textContent = currentData.curtainState === 1 ? '开' : '关';
 
+            // 阈值显示（实时数据卡片中）
+            document.getElementById('lightThrDisplay').textContent = currentData.lightThreshold;
+            document.getElementById('tempThrDisplay').textContent = currentData.tempThreshold.toFixed(0);
+
             // 更新模式显示
             document.getElementById('lightModeText').textContent = currentData.lightManual ? '模式：手动' : '模式：自动';
             document.getElementById('acModeText').textContent = currentData.acManual ? '模式：手动' : '模式：自动';
             document.getElementById('curtainModeText').textContent = currentData.curtainManual ? '模式：手动' : '模式：自动';
 
-            // 阈值输入框：等待同步期间使用预测值，同步完成后使用下位机回传值
-            let lightThrDisplay = waitingSync.lightThreshold && pendingValues.lightThreshold !== null
+            // 阈值设置输入框：等待同步期间使用预测值，否则使用当前值
+            let lightThrInput = waitingSync.lightThreshold && pendingValues.lightThreshold !== null
                 ? pendingValues.lightThreshold
                 : currentData.lightThreshold;
-            let tempThrDisplay = waitingSync.tempThreshold && pendingValues.tempThreshold !== null
+            let tempThrInput = waitingSync.tempThreshold && pendingValues.tempThreshold !== null
                 ? pendingValues.tempThreshold
                 : currentData.tempThreshold;
 
-            document.getElementById('lightThrInput').value = lightThrDisplay;
-            document.getElementById('tempThrInput').value = tempThrDisplay;
+            document.getElementById('lightThrInput').value = lightThrInput;
+            document.getElementById('tempThrInput').value = tempThrInput;
 
             // 报警值标红
             const tempEl = document.getElementById('tempValue');
-            if (currentData.temp > tempThrDisplay) {
+            if (currentData.temp > currentData.tempThreshold) {
                 tempEl.classList.add('alarm');
             } else {
                 tempEl.classList.remove('alarm');
