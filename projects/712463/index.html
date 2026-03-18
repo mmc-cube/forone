@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>智能安全帽跌倒检测</title>
+<style>
+  :root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --alarm: #F44336;
+    --warn: #FF9800;
+    --ok: #4CAF50;
+    --text: #212121;
+    --sub: #757575;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    padding-bottom: 32px;
+  }
+
+  /* ── 顶栏 ── */
+  .topbar {
+    background: var(--primary);
+    color: #fff;
+    padding: 44px 16px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  .topbar h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.3px; }
+  .bt-status { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #ccc; flex-shrink: 0; transition: background 0.3s;
+  }
+  .dot.connected { background: #69F0AE; }
+  .dot.scanning  { background: #FFD740; animation: blink 0.8s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* ── 卡片 ── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin: 12px 12px 0;
+    padding: 14px 16px;
+  }
+  .card-title {
+    font-size: 11px;
+    color: var(--sub);
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+
+  /* ── 连接区 ── */
+  .connect-row { display: flex; gap: 8px; align-items: center; }
+  .baud-select {
+    height: 48px;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    padding: 0 10px;
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    flex-shrink: 0;
+  }
+  .btn-connect {
+    flex: 1;
+    height: 48px;
+    border-radius: 10px;
+    border: none;
+    background: var(--primary);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, background 0.2s;
+  }
+  .btn-connect:active { opacity: 0.75; }
+  .btn-connect.connected { background: #9E9E9E; }
+
+  /* ── 提示条 ── */
+  .tip {
+    font-size: 12px;
+    color: var(--sub);
+    margin-top: 8px;
+    line-height: 1.6;
+  }
+  .tip a { color: var(--primary); text-decoration: none; }
+
+  /* ── 实时数据网格 ── */
+  .data-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .data-item {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+  }
+  .data-item.wide { grid-column: span 3; }
+  .data-label { font-size: 11px; color: var(--sub); margin-bottom: 3px; }
+  .data-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    transition: color 0.2s;
+  }
+  .data-value.wide { font-size: 24px; }
+  .data-unit { font-size: 10px; color: var(--sub); margin-top: 1px; }
+  .data-value.alarm { color: var(--alarm); }
+  .no-data { color: #BDBDBD; }
+
+  /* ── 报警 banner ── */
+  .alarm-banner {
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 17px;
+    font-weight: 700;
+    text-align: center;
+    background: #E8F5E9;
+    color: var(--ok);
+    transition: background 0.3s, color 0.3s;
+  }
+  .alarm-banner.level-fall {
+    background: #FFEBEE;
+    color: var(--alarm);
+    animation: pulse-alarm 0.55s infinite alternate;
+  }
+  .alarm-banner.level-warn {
+    background: #FFF3E0;
+    color: var(--warn);
+  }
+  @keyframes pulse-alarm { from{opacity:1} to{opacity:0.65} }
+
+  .alarm-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #EEEEEE;
+    color: #9E9E9E;
+    transition: background 0.2s, color 0.2s;
+  }
+  .tag.fall  { background: #FFCDD2; color: #C62828; }
+  .tag.shake { background: #FFE0B2; color: #E65100; }
+  .tag.tilt  { background: #FFF9C4; color: #F57F17; }
+
+  /* ── 控制按钮 ── */
+  .btn-action {
+    width: 100%;
+    height: 52px;
+    border-radius: 10px;
+    border: 2px solid #FFCDD2;
+    background: #FFEBEE;
+    color: var(--alarm);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn-action:active { opacity: 0.7; }
+
+  /* ── 阈值显示 ── */
+  .thr-display-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid #F5F5F5;
+  }
+  .thr-display-row:last-child { border-bottom: none; }
+  .thr-name { font-size: 13px; color: var(--sub); }
+  .thr-val  { font-size: 15px; font-weight: 700; color: var(--primary); min-width: 60px; text-align: right; }
+
+  /* ── 阈值设置 ── */
+  .thr-set-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .thr-set-row:last-child { margin-bottom: 0; }
+  .thr-set-label { font-size: 13px; color: var(--sub); width: 68px; flex-shrink: 0; }
+  .thr-input {
+    flex: 1;
+    height: 42px;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    padding: 0 10px;
+    font-size: 15px;
+    color: var(--text);
+    background: var(--bg);
+    outline: none;
+  }
+  .thr-input:focus { border-color: var(--primary); background: #fff; }
+  .btn-send {
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 8px;
+    border: none;
+    background: var(--primary);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+  }
+  .btn-send:active { opacity: 0.7; }
+
+  /* ── 日志 ── */
+  .log-toggle {
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    font-size: 11px;
+    color: var(--sub);
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0;
+  }
+  .log-toggle .arrow { transition: transform 0.2s; font-size: 10px; }
+  .log-toggle.open .arrow { transform: rotate(180deg); }
+  .log-box {
+    display: none;
+    margin-top: 10px;
+    background: #FAFAFA;
+    border-radius: 8px;
+    padding: 8px 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 11px;
+    font-family: "Courier New", monospace;
+    color: #555;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .log-box.open { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ══ 顶栏 ══ -->
+<div class="topbar">
+  <h1>智能安全帽</h1>
+  <div class="bt-status">
+    <div class="dot" id="dot"></div>
+    <span id="bt-label">未连接</span>
+  </div>
+</div>
+
+<!-- ══ 连接卡 ══ -->
+<div class="card">
+  <div class="card-title">串口连接（Web Serial）</div>
+  <div class="connect-row">
+    <select class="baud-select" id="baud">
+      <option value="9600" selected>9600</option>
+      <option value="115200">115200</option>
+      <option value="38400">38400</option>
+    </select>
+    <button class="btn-connect" id="btn-connect" onclick="toggleConnect()">
+      连接 JDY-31
+    </button>
+  </div>
+  <div class="tip">
+    使用前请在系统设置中配对 JDY-31，配对后点击"连接"并选择对应串口（COMx / rfcomm）。<br>
+    需要 Chrome 89+ 或 Edge 89+。Android 端请使用桌面版 Chrome。
+  </div>
+</div>
+
+<!-- ══ 实时数据卡 ══ -->
+<div class="card">
+  <div class="card-title">实时姿态数据</div>
+  <div class="data-grid">
+    <div class="data-item">
+      <div class="data-label">俯仰 Pitch</div>
+      <div class="data-value no-data" id="v-pitch">--</div>
+      <div class="data-unit">°</div>
+    </div>
+    <div class="data-item">
+      <div class="data-label">横滚 Roll</div>
+      <div class="data-value no-data" id="v-roll">--</div>
+      <div class="data-unit">°</div>
+    </div>
+    <div class="data-item">
+      <div class="data-label">偏航 Yaw</div>
+      <div class="data-value no-data" id="v-yaw">--</div>
+      <div class="data-unit">°</div>
+    </div>
+    <div class="data-item">
+      <div class="data-label">AccelX</div>
+      <div class="data-value no-data" id="v-ax">--</div>
+      <div class="data-unit">g</div>
+    </div>
+    <div class="data-item">
+      <div class="data-label">AccelY</div>
+      <div class="data-value no-data" id="v-ay">--</div>
+      <div class="data-unit">g</div>
+    </div>
+    <div class="data-item">
+      <div class="data-label">AccelZ</div>
+      <div class="data-value no-data" id="v-az">--</div>
+      <div class="data-unit">g</div>
+    </div>
+    <div class="data-item wide">
+      <div class="data-label">加速度合成值 AccelMag</div>
+      <div class="data-value wide no-data" id="v-mag">--</div>
+      <div class="data-unit">g</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 报警状态卡 ══ -->
+<div class="card">
+  <div class="card-title">报警状态</div>
+  <div class="alarm-banner" id="alarm-banner">系统正常运行</div>
+  <div class="alarm-tags">
+    <span class="tag" id="tag-fall">跌倒</span>
+    <span class="tag" id="tag-shake">转身异常</span>
+    <span class="tag" id="tag-tilt">倾斜异常</span>
+  </div>
+</div>
+
+<!-- ══ 控制卡 ══ -->
+<div class="card">
+  <div class="card-title">远程控制</div>
+  <button class="btn-action" onclick="sendSilence()">消警（关闭蜂鸣器 + 熄灭 LED2）</button>
+</div>
+
+<!-- ══ 阈值显示卡（只读，设备上报） ══ -->
+<div class="card">
+  <div class="card-title">当前阈值（设备上报）</div>
+  <div class="thr-display-row">
+    <span class="thr-name">跌倒撞击阈值</span>
+    <span class="thr-val no-data" id="d-thr1">-- g</span>
+  </div>
+  <div class="thr-display-row">
+    <span class="thr-name">快速转身阈值</span>
+    <span class="thr-val no-data" id="d-thr2">-- °/s</span>
+  </div>
+  <div class="thr-display-row">
+    <span class="thr-name">倾斜角度阈值</span>
+    <span class="thr-val no-data" id="d-thr3">-- °</span>
+  </div>
+</div>
+
+<!-- ══ 阈值设置卡（可写） ══ -->
+<div class="card">
+  <div class="card-title">阈值设置</div>
+  <div class="thr-set-row">
+    <span class="thr-set-label">跌倒阈值</span>
+    <input class="thr-input" id="in-thr1" type="number" step="0.1" min="0.1" max="5" placeholder="单位 g">
+    <button class="btn-send" onclick="sendThr(1)">发送</button>
+  </div>
+  <div class="thr-set-row">
+    <span class="thr-set-label">转身阈值</span>
+    <input class="thr-input" id="in-thr2" type="number" step="10" min="10" max="500" placeholder="单位 °/s">
+    <button class="btn-send" onclick="sendThr(2)">发送</button>
+  </div>
+  <div class="thr-set-row">
+    <span class="thr-set-label">倾斜角度</span>
+    <input class="thr-input" id="in-thr3" type="number" step="5" min="5" max="90" placeholder="单位 °">
+    <button class="btn-send" onclick="sendThr(3)">发送</button>
+  </div>
+</div>
+
+<!-- ══ 日志卡 ══ -->
+<div class="card">
+  <button class="log-toggle" id="log-toggle" onclick="toggleLog()">
+    通信日志
+    <span class="arrow">▼</span>
+  </button>
+  <div class="log-box" id="log-box"></div>
+</div>
+
+
+<script>
+// ════════════════════════════════════════════════
+//  Web Serial 状态
+// ════════════════════════════════════════════════
+let port       = null;
+let reader     = null;
+let writer     = null;
+let connected  = false;
+let rxBuffer   = '';          // 拼包缓冲区
+
+// 阈值防抖：发送后 800ms 内忽略设备回传的阈值字段更新
+const DEBOUNCE_MS = 800;
+const lastUserSet = { thr1: 0, thr2: 0, thr3: 0 };
+
+// ════════════════════════════════════════════════
+//  连接 / 断开
+// ════════════════════════════════════════════════
+async function toggleConnect() {
+  if (connected) {
+    await doDisconnect();
+    return;
+  }
+
+  if (!('serial' in navigator)) {
+    alert('您的浏览器不支持 Web Serial API。\n请使用 Chrome 89+ 或 Edge 89+。');
+    return;
+  }
+
+  try {
+    setStatus('scanning');
+    log('请选择串口设备...');
+
+    const baud = parseInt(document.getElementById('baud').value);
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: baud, dataBits: 8, stopBits: 1, parity: 'none' });
+
+    writer = port.writable.getWriter();
+
+    setStatus('connected');
+    log(`串口已打开，波特率 ${baud}`);
+    document.getElementById('btn-connect').textContent = '断开连接';
+    document.getElementById('btn-connect').classList.add('connected');
+
+    // 启动读取循环
+    readLoop();
+
+  } catch (e) {
+    setStatus('disconnected');
+    log('连接失败：' + e.message);
+  }
+}
+
+async function doDisconnect() {
+  connected = false;
+  try {
+    if (reader) { await reader.cancel(); reader = null; }
+    if (writer) { writer.releaseLock(); writer = null; }
+    if (port)   { await port.close();   port = null; }
+  } catch (e) { /* ignore */ }
+  setStatus('disconnected');
+  log('串口已关闭');
+  document.getElementById('btn-connect').textContent = '连接 JDY-31';
+  document.getElementById('btn-connect').classList.remove('connected');
+}
+
+// ════════════════════════════════════════════════
+//  串口读取循环
+// ════════════════════════════════════════════════
+async function readLoop() {
+  const decoder = new TextDecoderStream();
+  const pipeProm = port.readable.pipeTo(decoder.writable);
+  reader = decoder.readable.getReader();
+
+  try {
+    while (connected) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        rxBuffer += value;
+        // 按 \n 切帧
+        let idx;
+        while ((idx = rxBuffer.indexOf('\n')) !== -1) {
+          const line = rxBuffer.slice(0, idx).trim();
+          rxBuffer   = rxBuffer.slice(idx + 1);
+          if (line.length > 0) parseFrame(line);
+        }
+      }
+    }
+  } catch (e) {
+    if (connected) log('读取中断：' + e.message);
+  } finally {
+    reader = null;
+  }
+  await doDisconnect();
+}
+
+// ════════════════════════════════════════════════
+//  解析一帧数据
+//  格式：Pitch,Roll,Yaw,AccelX,AccelY,AccelZ,AccelMag,
+//        IsFall,IsShake,IsTilt,Threshold1,Threshold2,Threshold3
+// ════════════════════════════════════════════════
+function parseFrame(line) {
+  const parts = line.split(',');
+  if (parts.length < 13) {
+    log('[RX 格式错误] ' + line);
+    return;
+  }
+
+  const d = {
+    pitch  : parseFloat(parts[0]),   // 0 俯仰角
+    roll   : parseFloat(parts[1]),   // 1 横滚角
+    yaw    : parseFloat(parts[2]),   // 2 偏航角
+    ax     : parseFloat(parts[3]),   // 3 AccelX
+    ay     : parseFloat(parts[4]),   // 4 AccelY
+    az     : parseFloat(parts[5]),   // 5 AccelZ
+    mag    : parseFloat(parts[6]),   // 6 AccelMag
+    isFall : parseInt(parts[7]),     // 7 跌倒标志
+    isShake: parseInt(parts[8]),     // 8 转身标志
+    isTilt : parseInt(parts[9]),     // 9 倾斜标志
+    thr1   : parseFloat(parts[10]),  // 10 跌倒阈值
+    thr2   : parseFloat(parts[11]),  // 11 转身阈值
+    thr3   : parseFloat(parts[12]),  // 12 倾斜阈值
+  };
+
+  // 任意字段 NaN 则丢弃（避免乱码帧干扰）
+  if (Object.values(d).some(v => isNaN(v))) {
+    log('[RX 数值异常] ' + line);
+    return;
+  }
+
+  updateUI(d);
+  checkAlarms(d);
+}
+
+// ════════════════════════════════════════════════
+//  更新 UI
+// ════════════════════════════════════════════════
+function updateUI(d) {
+  const now = Date.now();
+
+  setText('v-pitch', d.pitch.toFixed(1));
+  setText('v-roll',  d.roll.toFixed(1));
+  setText('v-yaw',   d.yaw.toFixed(1));
+  setText('v-ax',    d.ax.toFixed(2));
+  setText('v-ay',    d.ay.toFixed(2));
+  setText('v-az',    d.az.toFixed(2));
+  setText('v-mag',   d.mag.toFixed(2));
+
+  // 合成加速度超阈值变红
+  const magEl  = document.getElementById('v-mag');
+  magEl.classList.toggle('alarm', d.mag > d.thr1);
+
+  // 阈值显示（防抖保护，用户刚设置后不被设备旧数据覆盖）
+  if ((now - lastUserSet.thr1) > DEBOUNCE_MS)
+    setText('d-thr1', d.thr1.toFixed(1) + ' g');
+  if ((now - lastUserSet.thr2) > DEBOUNCE_MS)
+    setText('d-thr2', d.thr2.toFixed(0) + ' °/s');
+  if ((now - lastUserSet.thr3) > DEBOUNCE_MS)
+    setText('d-thr3', d.thr3.toFixed(0) + ' °');
+
+  // 移除占位灰色
+  ['v-pitch','v-roll','v-yaw','v-ax','v-ay','v-az','v-mag',
+   'd-thr1','d-thr2','d-thr3'].forEach(id => {
+    document.getElementById(id).classList.remove('no-data');
+  });
+}
+
+// ════════════════════════════════════════════════
+//  报警判断（JS 端，按 PRD 第四层规则）
+// ════════════════════════════════════════════════
+function checkAlarms(d) {
+  const banner   = document.getElementById('alarm-banner');
+  const tagFall  = document.getElementById('tag-fall');
+  const tagShake = document.getElementById('tag-shake');
+  const tagTilt  = document.getElementById('tag-tilt');
+
+  // 重置
+  tagFall.className  = 'tag';
+  tagShake.className = 'tag';
+  tagTilt.className  = 'tag';
+
+  let level  = 0;   // 0=正常 1=警告 2=报警
+  let text   = '系统正常运行';
+
+  // IsFall == 1 → 跌倒报警（最高优先级）
+  if (d.isFall === 1) {
+    level = 2;
+    text  = '⚠ 跌倒报警！';
+    tagFall.classList.add('fall');
+    triggerVibrate();
+  }
+
+  // IsShake == 1 → 转身异常（次高）
+  if (d.isShake === 1) {
+    if (level < 1) { level = 1; text = '转身异常'; }
+    tagShake.classList.add('shake');
+  }
+
+  // IsTilt == 1 → 倾斜异常
+  if (d.isTilt === 1) {
+    if (level < 1) { level = 1; text = '倾斜异常'; }
+    tagTilt.classList.add('tilt');
+  }
+
+  banner.className = 'alarm-banner';
+  if      (level === 2) banner.classList.add('level-fall');
+  else if (level === 1) banner.classList.add('level-warn');
+  banner.textContent = text;
+}
+
+// ════════════════════════════════════════════════
+//  发送指令
+// ════════════════════════════════════════════════
+async function sendRaw(str) {
+  if (!writer) { log('[TX 失败] 串口未连接'); return; }
+  try {
+    const enc = new TextEncoder();
+    await writer.write(enc.encode(str));
+    log('[TX] ' + str.replace('\n', '\\n'));
+  } catch (e) {
+    log('[TX 错误] ' + e.message);
+  }
+}
+
+function sendSilence() {
+  sendRaw('01\n');
+  // 乐观更新：立即清除报警 banner
+  const banner = document.getElementById('alarm-banner');
+  banner.className = 'alarm-banner';
+  banner.textContent = '已发送消警指令，等待设备确认...';
+  document.getElementById('tag-fall').className = 'tag';
+}
+
+function sendThr(n) {
+  const inputEl = document.getElementById('in-thr' + n);
+  const val = parseFloat(inputEl.value);
+  if (isNaN(val) || val <= 0) {
+    log('[设置] 请输入有效数值');
+    inputEl.focus();
+    return;
+  }
+
+  // 指令编码：跌倒=02，转身=03，倾斜=04
+  const cmdCode = '0' + (n + 1);
+  sendRaw(`${cmdCode},${val}\n`);
+
+  // 防抖记录（800ms 内忽略设备回传覆盖）
+  const key = 'thr' + n;
+  lastUserSet[key] = Date.now();
+
+  // 乐观更新阈值显示卡
+  const units = [' g', ' °/s', ' °'];
+  const decimals = [1, 0, 0];
+  setText('d-thr' + n, val.toFixed(decimals[n - 1]) + units[n - 1]);
+  document.getElementById('d-thr' + n).classList.remove('no-data');
+}
+
+// ════════════════════════════════════════════════
+//  辅助
+// ════════════════════════════════════════════════
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function setStatus(s) {
+  const dot   = document.getElementById('dot');
+  const label = document.getElementById('bt-label');
+  dot.className = 'dot';
+  if (s === 'connected') {
+    dot.classList.add('connected');
+    label.textContent = '已连接';
+    connected = true;
+  } else if (s === 'scanning') {
+    dot.classList.add('scanning');
+    label.textContent = '选择串口...';
+  } else {
+    label.textContent = '未连接';
+    connected = false;
+  }
+}
+
+function triggerVibrate() {
+  if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+}
+
+// ── 日志 ──
+const MAX_LOG = 200;
+let logLines = [];
+function log(msg) {
+  const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  logLines.push(`[${ts}] ${msg}`);
+  if (logLines.length > MAX_LOG) logLines.shift();
+  const box = document.getElementById('log-box');
+  if (box.classList.contains('open')) {
+    box.textContent = logLines.join('\n');
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+function toggleLog() {
+  const btn = document.getElementById('log-toggle');
+  const box = document.getElementById('log-box');
+  btn.classList.toggle('open');
+  box.classList.toggle('open');
+  if (box.classList.contains('open')) {
+    box.textContent = logLines.join('\n');
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+log('页面已加载。请先在系统蓝牙设置中配对 JDY-31，再点击"连接"。');
+</script>
+</body>
+</html>
