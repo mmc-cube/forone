@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>智能电动窗帘控制系统</title>
+<script src="mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --primary-dark: #1976D2;
+    --alarm: #F44336;
+    --warn: #FF9800;
+    --ok: #4CAF50;
+    --manual: #9C27B0;
+    --text: #212121;
+    --sub: #757575;
+    --border: #E0E0E0;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 24px;
+  }
+
+  .page {
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 12px;
+  }
+
+  /* ── 卡片通用 ── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--sub);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .card-body { padding: 12px 16px; }
+
+  /* ── 1. 状态栏 ── */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+  }
+
+  .status-left { display: flex; align-items: center; gap: 8px; }
+
+  .status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--alarm);
+    transition: background 0.3s;
+    flex-shrink: 0;
+  }
+  .status-dot.connected { background: var(--ok); }
+
+  .status-text { font-size: 14px; color: var(--text); font-weight: 500; }
+
+
+  /* ── 2. 实时数据卡 ── */
+  .data-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-row:last-child { border-bottom: none; }
+
+  .data-label {
+    font-size: 13px;
+    color: var(--sub);
+    flex: 1;
+  }
+
+  .data-value-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .data-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    transition: color 0.3s;
+    line-height: 1;
+  }
+  .data-value.alarm { color: var(--alarm); }
+  .data-value.warn  { color: var(--warn); }
+
+  .data-unit {
+    font-size: 13px;
+    color: var(--sub);
+  }
+
+  /* 模式标签 */
+  .mode-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.3s, color 0.3s;
+  }
+  .mode-badge.auto   { background: #E8F5E9; color: var(--ok); }
+  .mode-badge.manual { background: #F3E5F5; color: var(--manual); }
+
+  /* ── 3. 报警状态卡 ── */
+  .alarm-ok {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 16px;
+    color: var(--ok);
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  .alarm-item {
+    padding: 10px 16px;
+    background: #FFEBEE;
+    border-left: 4px solid var(--alarm);
+    color: var(--alarm);
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .alarm-item:last-child { margin-bottom: 0; }
+
+  .alarm-item.warn {
+    background: #FFF3E0;
+    border-left-color: var(--warn);
+    color: var(--warn);
+  }
+
+  /* ── 4. 控制卡 ── */
+  .btn-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .btn-group-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 0 16px 12px;
+  }
+
+  .ctrl-btn {
+    height: 52px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 2px;
+    line-height: 1.2;
+  }
+  .ctrl-btn:active { opacity: 0.75; transform: scale(0.96); }
+
+  .ctrl-btn.open   { background: #E3F2FD; color: #1565C0; }
+  .ctrl-btn.close  { background: #FCE4EC; color: #C62828; }
+  .ctrl-btn.auto   { background: #E8F5E9; color: #2E7D32; }
+  .ctrl-btn.manual { background: #F3E5F5; color: #6A1B9A; }
+
+  .ctrl-btn .btn-icon  { font-size: 20px; }
+  .ctrl-btn .btn-label { font-size: 12px; }
+
+  /* ── 5. 阈值设置卡 ── */
+  .threshold-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+  }
+  .threshold-row:last-child { border-bottom: none; }
+
+  .threshold-label {
+    font-size: 14px;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .threshold-input {
+    width: 72px;
+    height: 38px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--text);
+    background: var(--bg);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .threshold-input:focus { border-color: var(--primary); }
+
+  .send-btn {
+    height: 38px;
+    padding: 0 14px;
+    border: none;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+  .send-btn:active { background: var(--primary-dark); }
+  .send-btn:disabled { background: var(--border); color: var(--sub); cursor: not-allowed; }
+
+  /* ── 6. 日志卡 ── */
+  .log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .log-header:active { background: var(--bg); }
+
+  .log-arrow {
+    font-size: 12px;
+    color: var(--sub);
+    transition: transform 0.25s;
+  }
+  .log-arrow.open { transform: rotate(180deg); }
+
+  .log-body {
+    display: none;
+    padding: 0 16px 12px;
+  }
+  .log-body.open { display: block; }
+
+  .log-list {
+    max-height: 200px;
+    overflow-y: auto;
+    background: #F9F9F9;
+    border-radius: 8px;
+    padding: 8px;
+  }
+
+  .log-item {
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--sub);
+    padding: 3px 0;
+    border-bottom: 1px solid var(--border);
+    word-break: break-all;
+  }
+  .log-item:last-child { border-bottom: none; }
+  .log-item .log-time { color: var(--primary); margin-right: 4px; }
+
+  .log-empty {
+    font-size: 12px;
+    color: var(--sub);
+    text-align: center;
+    padding: 12px 0;
+  }
+
+  /* ── 系统标题 ── */
+  .app-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    padding: 16px 16px 4px;
+    text-align: center;
+  }
+
+  .app-subtitle {
+    font-size: 12px;
+    color: var(--sub);
+    text-align: center;
+    padding-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- 标题 -->
+  <div class="app-title">智能电动窗帘</div>
+  <div class="app-subtitle">Smart Electric Curtain Control</div>
+
+  <!-- ① 状态栏 -->
+  <div class="card">
+    <div class="status-bar">
+      <div class="status-left">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-text" id="statusText">未连接</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② 实时数据卡 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">实时数据</span>
+      <span style="font-size:11px;color:var(--sub);" id="lastUpdate">--</span>
+    </div>
+    <div class="card-body">
+
+      <div class="data-row">
+        <span class="data-label">🌡 温度</span>
+        <div class="data-value-wrap">
+          <span class="data-value" id="valTemp">--</span>
+          <span class="data-unit">℃</span>
+        </div>
+      </div>
+
+      <div class="data-row">
+        <span class="data-label">💧 湿度</span>
+        <div class="data-value-wrap">
+          <span class="data-value" id="valHumi">--</span>
+          <span class="data-unit">%</span>
+        </div>
+      </div>
+
+      <div class="data-row">
+        <span class="data-label">🪟 窗帘开合</span>
+        <div class="data-value-wrap">
+          <span class="data-value" id="valCurtain">--</span>
+          <span class="data-unit">%</span>
+        </div>
+      </div>
+
+      <div class="data-row">
+        <span class="data-label">🔥 开窗阈值</span>
+        <div class="data-value-wrap">
+          <span class="data-value" id="valThrOpen" style="font-size:20px;">--</span>
+          <span class="data-unit">℃</span>
+        </div>
+      </div>
+
+      <div class="data-row">
+        <span class="data-label">❄️ 关窗阈值</span>
+        <div class="data-value-wrap">
+          <span class="data-value" id="valThrClose" style="font-size:20px;">--</span>
+          <span class="data-unit">℃</span>
+        </div>
+      </div>
+
+      <div class="data-row">
+        <span class="data-label">🔄 控制模式</span>
+        <div class="data-value-wrap">
+          <span class="mode-badge auto" id="modeBadge">自动</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ③ 报警状态卡 -->
+  <div class="card" id="alarmCard">
+    <div class="card-header">
+      <span class="card-title">报警状态</span>
+    </div>
+    <div id="alarmContent">
+      <div class="alarm-ok">
+        <span>✓</span><span>运行正常</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ 控制卡 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">远程控制</span>
+    </div>
+    <!-- 开/关窗帘 -->
+    <div class="btn-group">
+      <button class="ctrl-btn open" onclick="sendCmd('01')">
+        <span class="btn-icon">↑</span>
+        <span class="btn-label">开窗帘</span>
+      </button>
+      <button class="ctrl-btn close" onclick="sendCmd('02')">
+        <span class="btn-icon">↓</span>
+        <span class="btn-label">关窗帘</span>
+      </button>
+    </div>
+    <!-- 模式切换 -->
+    <div class="btn-group-2">
+      <button class="ctrl-btn auto" onclick="sendCmd('06,0')">
+        <span class="btn-icon">🤖</span>
+        <span class="btn-label">切换自动</span>
+      </button>
+      <button class="ctrl-btn manual" onclick="sendCmd('06,1')">
+        <span class="btn-icon">✋</span>
+        <span class="btn-label">切换手动</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ⑤ 阈值设置卡 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">阈值设置</span>
+    </div>
+    <div class="card-body">
+
+      <div class="threshold-row">
+        <span class="threshold-label">🔥 开窗温度阈值</span>
+        <input class="threshold-input" type="number" id="inputThrOpen" min="0" max="99" placeholder="30">
+        <button class="send-btn" onclick="sendThreshold('04', 'inputThrOpen')">发送</button>
+      </div>
+
+      <div class="threshold-row">
+        <span class="threshold-label">❄️ 关窗温度阈值</span>
+        <input class="threshold-input" type="number" id="inputThrClose" min="0" max="99" placeholder="20">
+        <button class="send-btn" onclick="sendThreshold('05', 'inputThrClose')">发送</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ⑥ 日志卡 -->
+  <div class="card">
+    <div class="log-header" onclick="toggleLog()">
+      <span class="card-title">原始日志</span>
+      <span class="log-arrow" id="logArrow">▼</span>
+    </div>
+    <div class="log-body" id="logBody">
+      <div class="log-list" id="logList">
+        <div class="log-empty">暂无数据</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+// =============================================
+//  配置（Topic 固定，不可修改）
+// =============================================
+const UPLOAD_TOPIC = '001/001/zhidiandongliantian/upload';
+const CMD_TOPIC    = '001/001/zhidiandongliantian/cmd';
+
+// =============================================
+//  当前数据缓存
+// =============================================
+let currentData = {
+  temp: null, humi: null, curtain_pos: null,
+  thr_open: null, thr_close: null, manual: null
+};
+
+let logItems = [];
+let logOpen  = false;
+
+// =============================================
+//  MQTT
+// =============================================
+let client = null;
+
+function connectMqtt() {
+  const clientId = 'webview_' + Math.random().toString(36).substr(2, 6);
+  client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: clientId,
+    reconnectPeriod: 3000,
+    connectTimeout: 10000
+  });
+
+  client.on('connect', () => {
+    setStatus(true);
+    client.subscribe(UPLOAD_TOPIC, { qos: 0 });
+  });
+
+  client.on('reconnect', () => setStatus(false));
+  client.on('offline',   () => setStatus(false));
+  client.on('error',     () => setStatus(false));
+
+  client.on('message', (topic, payload) => {
+    const raw = payload.toString();
+    addLog(raw);
+    const parts = raw.split(',');
+    if (parts.length < 5) return;
+
+    const data = {
+      temp:        parseFloat(parts[0]),
+      humi:        parseFloat(parts[1]),
+      curtain_pos: parseFloat(parts[2]),
+      thr_open:    parseFloat(parts[3]),
+      thr_close:   parseFloat(parts[4]),
+      manual:      parts.length >= 6 ? parseInt(parts[5]) : null
+    };
+
+    // 过滤 NaN
+    for (const k in data) {
+      if (data[k] !== null && !isNaN(data[k])) currentData[k] = data[k];
+    }
+
+    updateUI(currentData);
+    checkAlarms(currentData);
+  });
+}
+
+function sendCmd(cmd) {
+  if (!client || !client.connected) {
+    alert('MQTT 未连接，请稍候重试');
+    return;
+  }
+  client.publish(CMD_TOPIC, cmd);
+  addLog('[发送] ' + cmd);
+}
+
+// =============================================
+//  阈值发送
+// =============================================
+function sendThreshold(code, inputId) {
+  const input = document.getElementById(inputId);
+  const val   = parseInt(input.value);
+  if (isNaN(val) || val < 0 || val > 99) {
+    alert('请输入 0~99 之间的整数');
+    return;
+  }
+  const cmd = code + ',' + val;
+  sendCmd(cmd);
+
+  // 乐观更新本地缓存
+  if (code === '04') {
+    currentData.thr_open = val;
+    document.getElementById('valThrOpen').textContent = val;
+  } else {
+    currentData.thr_close = val;
+    document.getElementById('valThrClose').textContent = val;
+  }
+}
+
+// =============================================
+//  UI 更新
+// =============================================
+function updateUI(data) {
+  // 温度
+  if (data.temp !== null) {
+    const t = data.temp;
+    const el = document.getElementById('valTemp');
+    el.textContent = Number.isInteger(t) ? t + '.0' : t.toFixed(1);
+    el.className = 'data-value' + (data.thr_open !== null && t >= data.thr_open ? ' alarm' : '');
+  }
+
+  // 湿度
+  if (data.humi !== null) {
+    document.getElementById('valHumi').textContent = Math.round(data.humi);
+  }
+
+  // 窗帘位置
+  if (data.curtain_pos !== null) {
+    document.getElementById('valCurtain').textContent = Math.round(data.curtain_pos);
+  }
+
+  // 阈值
+  if (data.thr_open !== null)
+    document.getElementById('valThrOpen').textContent = Math.round(data.thr_open);
+  if (data.thr_close !== null)
+    document.getElementById('valThrClose').textContent = Math.round(data.thr_close);
+
+  // 控制模式
+  if (data.manual !== null) {
+    const badge = document.getElementById('modeBadge');
+    if (data.manual === 1) {
+      badge.textContent = '手动';
+      badge.className = 'mode-badge manual';
+    } else {
+      badge.textContent = '自动';
+      badge.className = 'mode-badge auto';
+    }
+  }
+
+  // 更新时间
+  const now = new Date();
+  document.getElementById('lastUpdate').textContent =
+    now.getHours().toString().padStart(2,'0') + ':' +
+    now.getMinutes().toString().padStart(2,'0') + ':' +
+    now.getSeconds().toString().padStart(2,'0');
+}
+
+// =============================================
+//  报警判断（完全按 PRD 第四层）
+// =============================================
+function checkAlarms(data) {
+  const alarms = [];
+
+  if (data.temp !== null && data.thr_open !== null && data.curtain_pos !== null) {
+    if (data.temp >= data.thr_open && data.curtain_pos < 100) {
+      alarms.push({ text: '⚠ 高温报警，窗帘未全开', type: 'alarm' });
+    }
+  }
+
+  if (data.temp !== null && data.thr_close !== null && data.curtain_pos !== null) {
+    if (data.temp <= data.thr_close && data.curtain_pos > 0) {
+      alarms.push({ text: '🔵 低温提示，窗帘未全关', type: 'warn' });
+    }
+  }
+
+  renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+  const el = document.getElementById('alarmContent');
+  if (alarms.length === 0) {
+    el.innerHTML = '<div class="alarm-ok"><span>✓</span><span>运行正常</span></div>';
+  } else {
+    el.innerHTML = alarms.map(a =>
+      `<div class="alarm-item ${a.type}">${a.text}</div>`
+    ).join('');
+  }
+}
+
+// =============================================
+//  日志
+// =============================================
+function addLog(text) {
+  const now = new Date();
+  const time = now.getHours().toString().padStart(2,'0') + ':' +
+               now.getMinutes().toString().padStart(2,'0') + ':' +
+               now.getSeconds().toString().padStart(2,'0');
+  logItems.unshift({ time, text });
+  if (logItems.length > 20) logItems.pop();
+  if (logOpen) renderLog();
+}
+
+function renderLog() {
+  const el = document.getElementById('logList');
+  if (logItems.length === 0) {
+    el.innerHTML = '<div class="log-empty">暂无数据</div>';
+    return;
+  }
+  el.innerHTML = logItems.map(item =>
+    `<div class="log-item"><span class="log-time">${item.time}</span>${escapeHtml(item.text)}</div>`
+  ).join('');
+}
+
+function toggleLog() {
+  logOpen = !logOpen;
+  document.getElementById('logBody').className = 'log-body' + (logOpen ? ' open' : '');
+  document.getElementById('logArrow').className = 'log-arrow' + (logOpen ? ' open' : '');
+  if (logOpen) renderLog();
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// =============================================
+//  状态
+// =============================================
+function setStatus(connected) {
+  document.getElementById('statusDot').className  = 'status-dot' + (connected ? ' connected' : '');
+  document.getElementById('statusText').textContent = connected ? '已连接' : '连接中...';
+}
+
+// =============================================
+//  启动
+// =============================================
+connectMqtt();
+</script>
+</body>
+</html>
