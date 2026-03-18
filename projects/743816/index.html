@@ -356,10 +356,9 @@
       </div>
 
       <div class="data-row">
-        <span class="data-label">🪟 窗帘开合</span>
+        <span class="data-label">🪟 窗帘状态</span>
         <div class="data-value-wrap">
           <span class="data-value" id="valCurtain">--</span>
-          <span class="data-unit">%</span>
         </div>
       </div>
 
@@ -583,7 +582,8 @@ function updateUI(data) {
 
   // 窗帘位置
   if (data.curtain_pos !== null) {
-    document.getElementById('valCurtain').textContent = Math.round(data.curtain_pos);
+    const pos = Math.round(data.curtain_pos);
+    document.getElementById('valCurtain').textContent = pos === 0 ? '关' : pos === 100 ? '开' : pos + '%';
   }
 
   // 阈值
