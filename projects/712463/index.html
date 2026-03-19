@@ -163,8 +163,6 @@
   .log-box { display: none; margin-top: 10px; background: #FAFAFA; border-radius: 8px; padding: 8px 10px; max-height: 200px; overflow-y: auto; font-size: 11px; font-family: "Courier New", monospace; color: #555; line-height: 1.65; white-space: pre-wrap; word-break: break-all; }
   .log-box.open { display: block; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-<script>emailjs.init('Q9n8dfk_QnFPyFUNA');</script>
 </head>
 <body>
 
@@ -285,13 +283,12 @@
   </div>
 </div>
 
-<!-- ══ 邮件通知设置卡 ══ -->
+<!-- ══ 微信通知设置卡 ══ -->
 <div class="card">
-  <div class="card-title">邮件通知</div>
+  <div class="card-title">微信通知</div>
 
-  <!-- 开关 + 状态 -->
   <div class="email-toggle-row">
-    <span class="email-toggle-label">报警时发送邮件</span>
+    <span class="email-toggle-label">报警时推送微信</span>
     <label class="toggle-switch">
       <input type="checkbox" id="email-enabled" onchange="onEmailToggle()">
       <span class="toggle-slider"></span>
@@ -299,10 +296,9 @@
   </div>
   <div class="email-status" id="email-status">已关闭</div>
 
-  <!-- 收件邮箱 -->
   <div class="email-row" style="margin-top:14px">
-    <span class="email-label">收件邮箱</span>
-    <input class="email-input" id="email-to" type="email" placeholder="例：someone@qq.com" oninput="saveEmailSettings()">
+    <span class="email-label">Token</span>
+    <input class="email-input" id="pushplus-token" type="text" placeholder="PushPlus Token" oninput="saveEmailSettings()">
     <button class="btn-test" onclick="sendTestEmail()">测试</button>
   </div>
 
@@ -329,15 +325,14 @@ const lastUserSet = { thr1: 0, thr2: 0, thr3: 0 };
 //  邮件通知模块（EmailJS）
 // ════════════════════════════════════════════════
 const EMAILJS_SERVICE  = 'service_u7q40ei';
-const EMAILJS_TEMPLATE = 'template_kfbpetm';
-const DEFAULT_EMAIL_TO = 'parlpott@gmail.com';
+const DEFAULT_PUSHPLUS_TOKEN = 'dd06ed5b3d754d7b9ad822061c4f918c';
 
 let lastFallState = 0;   // 边沿检测：上一帧的 isFall 值
 
 // 页面加载时恢复设置
 (function restoreEmailSettings() {
-  const s = JSON.parse(localStorage.getItem('helmet_email') || '{}');
-  document.getElementById('email-to').value = s.to || DEFAULT_EMAIL_TO;
+  const s = JSON.parse(localStorage.getItem('helmet_push') || '{}');
+  document.getElementById('pushplus-token').value = s.token || DEFAULT_PUSHPLUS_TOKEN;
   if (s.enabled) {
     document.getElementById('email-enabled').checked = true;
     updateEmailStatusText(true);
@@ -346,10 +341,10 @@ let lastFallState = 0;   // 边沿检测：上一帧的 isFall 值
 
 function saveEmailSettings() {
   const s = {
-    to:      document.getElementById('email-to').value.trim(),
+    token:   document.getElementById('pushplus-token').value.trim(),
     enabled: document.getElementById('email-enabled').checked,
   };
-  localStorage.setItem('helmet_email', JSON.stringify(s));
+  localStorage.setItem('helmet_push', JSON.stringify(s));
 }
 
 function onEmailToggle() {
@@ -361,9 +356,7 @@ function updateEmailStatusText(enabled) {
   const el = document.getElementById('email-status');
   el.className = 'email-status';
   if (!enabled) { el.textContent = '已关闭'; return; }
-  const to = document.getElementById('email-to').value.trim();
-  if (!to) { el.textContent = '请填写收件邮箱'; return; }
-  el.textContent = '已开启 → ' + to;
+  el.textContent = '已开启';
   el.classList.add('ok');
 }
 
@@ -374,31 +367,37 @@ function setEmailStatus(msg, cls) {
 }
 
 function doSendEmail(alarmType, mag, thr) {
-  const s  = JSON.parse(localStorage.getItem('helmet_email') || '{}');
-  const to = s.to || document.getElementById('email-to').value.trim() || DEFAULT_EMAIL_TO;
-  if (!to) { setEmailStatus('请先填写收件邮箱', 'err'); return; }
+  const s     = JSON.parse(localStorage.getItem('helmet_push') || '{}');
+  const token = s.token || document.getElementById('pushplus-token').value.trim() || DEFAULT_PUSHPLUS_TOKEN;
+  if (!token) { setEmailStatus('请先填写 Token', 'err'); return; }
   setEmailStatus('发送中...', '');
-  const params = {
-    to_email:   to,
-    alarm_type: alarmType,
-    time:       new Date().toLocaleString('zh-CN'),
-    mag:        mag,
-    thr:        thr,
-  };
-  emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, params)
-    .then(() => {
-      log('[邮件] 已发送至 ' + to);
-      setEmailStatus('✓ 已发送至 ' + to, 'ok');
-    })
-    .catch(err => {
-      log('[邮件] 发送失败：' + JSON.stringify(err));
-      setEmailStatus('✗ 发送失败：' + (err.text || err.status || JSON.stringify(err)), 'err');
-    });
+  const content = `报警类型：${alarmType}\n触发时间：${new Date().toLocaleString('zh-CN')}\n加速度值：${mag}\n跌倒阈值：${thr}\n\n请及时查看佩戴者状态。`;
+  fetch('https://www.pushplus.plus/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      token:   token,
+      title:   '⚠ 安全帽报警：' + alarmType,
+      content: content,
+      template: 'txt',
+    }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.code === 200) {
+      log('[微信] 推送成功');
+      setEmailStatus('✓ 微信推送成功', 'ok');
+    } else {
+      throw new Error(data.msg || JSON.stringify(data));
+    }
+  })
+  .catch(err => {
+    log('[微信] 推送失败：' + err.message);
+    setEmailStatus('✗ 推送失败：' + err.message, 'err');
+  });
 }
 
 function sendTestEmail() {
-  const to = document.getElementById('email-to').value.trim();
-  if (!to) { alert('请先填写收件邮箱'); return; }
   saveEmailSettings();
   doSendEmail('测试通知', '1.23 g', '2.0 g');
 }
