@@ -381,7 +381,9 @@ function setEmailStatus(msg, cls) {
 
 function doSendEmail(alarmType, mag, thr) {
   const s = JSON.parse(localStorage.getItem('helmet_email') || '{}');
-  if (!s.key || !s.to) {
+  const to  = s.to  || document.getElementById('email-to').value.trim()  || DEFAULT_EMAIL_TO;
+  const key = s.key || document.getElementById('resend-key').value.trim() || DEFAULT_EMAIL_KEY;
+  if (!key || !to) {
     setEmailStatus('请先填写收件邮箱和 API Key', 'err');
     return;
   }
@@ -389,12 +391,12 @@ function doSendEmail(alarmType, mag, thr) {
   fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
-      'Authorization': 'Bearer ' + s.key,
+      'Authorization': 'Bearer ' + key,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       from: 'onboarding@resend.dev',
-      to:   s.to,
+      to:   to,
       subject: '⚠ 安全帽报警：' + alarmType,
       text: body,
     }),
@@ -402,8 +404,8 @@ function doSendEmail(alarmType, mag, thr) {
   .then(r => r.json())
   .then(data => {
     if (data.id) {
-      log('[邮件] 已发送至 ' + s.to);
-      setEmailStatus('✓ 已发送至 ' + s.to, 'ok');
+      log('[邮件] 已发送至 ' + to);
+      setEmailStatus('✓ 已发送至 ' + to, 'ok');
     } else {
       throw new Error(data.message || data.name || JSON.stringify(data));
     }
