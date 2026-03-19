@@ -130,6 +130,32 @@
   .btn-send { height: 42px; padding: 0 16px; border-radius: 8px; border: none; background: var(--primary); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; flex-shrink: 0; transition: opacity 0.15s; }
   .btn-send:active { opacity: 0.7; }
 
+  /* ── 邮件通知设置 ── */
+  .email-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .email-row:last-of-type { margin-bottom: 0; }
+  .email-label { font-size: 13px; color: var(--sub); width: 80px; flex-shrink: 0; }
+  .email-input { flex: 1; height: 42px; border: 1px solid #E0E0E0; border-radius: 8px; padding: 0 10px; font-size: 14px; color: var(--text); background: var(--bg); outline: none; }
+  .email-input:focus { border-color: var(--primary); background: #fff; }
+  .email-toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .email-toggle-label { font-size: 14px; color: var(--text); }
+  .toggle-switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; inset: 0; background: #ccc; border-radius: 24px; transition: background 0.2s; cursor: pointer; }
+  .toggle-slider:before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .toggle-switch input:checked + .toggle-slider { background: var(--ok); }
+  .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
+  .email-status { font-size: 12px; color: var(--sub); margin-top: 4px; min-height: 16px; }
+  .email-status.ok  { color: var(--ok); }
+  .email-status.err { color: var(--alarm); }
+  .btn-test { height: 42px; padding: 0 16px; border-radius: 8px; border: none; background: #E8F5E9; color: var(--ok); font-size: 14px; font-weight: 600; cursor: pointer; flex-shrink: 0; transition: opacity 0.15s; }
+  .btn-test:active { opacity: 0.7; }
+  .collapsible-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .collapsible-header .arrow { font-size: 10px; color: var(--sub); transition: transform 0.2s; }
+  .collapsible-header.open .arrow { transform: rotate(180deg); }
+  .collapsible-body { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #F5F5F5; }
+  .collapsible-body.open { display: block; }
+  .api-hint { font-size: 11px; color: #BDBDBD; margin-top: 6px; line-height: 1.6; }
+
   /* ── 日志 ── */
   .log-toggle { width: 100%; background: none; border: none; text-align: left; font-size: 11px; color: var(--sub); font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 0; }
   .log-toggle .arrow { transition: transform 0.2s; font-size: 10px; }
@@ -257,6 +283,38 @@
   </div>
 </div>
 
+<!-- ══ 邮件通知设置卡 ══ -->
+<div class="card">
+  <div class="card-title">邮件通知</div>
+
+  <!-- 开关 + 状态 -->
+  <div class="email-toggle-row">
+    <span class="email-toggle-label">报警时发送邮件</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="email-enabled" onchange="onEmailToggle()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="email-status" id="email-status">已关闭</div>
+
+  <!-- 收件邮箱 -->
+  <div class="email-row" style="margin-top:14px">
+    <span class="email-label">收件邮箱</span>
+    <input class="email-input" id="email-to" type="email" placeholder="例：someone@qq.com" oninput="saveEmailSettings()">
+  </div>
+
+  <!-- Resend API Key -->
+  <div class="email-row">
+    <span class="email-label">API Key</span>
+    <input class="email-input" id="resend-key" type="text" placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx" oninput="saveEmailSettings()">
+    <button class="btn-test" onclick="sendTestEmail()">测试</button>
+  </div>
+
+  <div class="api-hint" style="margin-top:4px">
+    注册 resend.com 免费账号（3000封/月），复制 API Key 填入即可
+  </div>
+</div>
+
 <!-- ══ 日志卡 ══ -->
 <div class="card">
   <button class="log-toggle" id="log-toggle" onclick="toggleLog()">
@@ -273,6 +331,106 @@
 let connected = false;
 const DEBOUNCE_MS = 800;
 const lastUserSet = { thr1: 0, thr2: 0, thr3: 0 };
+
+// ════════════════════════════════════════════════
+//  邮件通知模块（Resend API）
+// ════════════════════════════════════════════════
+let lastFallState = 0;   // 边沿检测：上一帧的 isFall 值
+
+// 页面加载时恢复设置
+(function restoreEmailSettings() {
+  const s = JSON.parse(localStorage.getItem('helmet_email') || '{}');
+  if (s.to)  document.getElementById('email-to').value    = s.to;
+  if (s.key) document.getElementById('resend-key').value  = s.key;
+  if (s.enabled) {
+    document.getElementById('email-enabled').checked = true;
+    updateEmailStatusText(true);
+  }
+})();
+
+function saveEmailSettings() {
+  const s = {
+    to:      document.getElementById('email-to').value.trim(),
+    key:     document.getElementById('resend-key').value.trim(),
+    enabled: document.getElementById('email-enabled').checked,
+  };
+  localStorage.setItem('helmet_email', JSON.stringify(s));
+}
+
+function onEmailToggle() {
+  saveEmailSettings();
+  updateEmailStatusText(document.getElementById('email-enabled').checked);
+}
+
+function updateEmailStatusText(enabled) {
+  const el = document.getElementById('email-status');
+  el.className = 'email-status';
+  if (!enabled) { el.textContent = '已关闭'; return; }
+  const to = document.getElementById('email-to').value.trim();
+  if (!to) { el.textContent = '请填写收件邮箱'; return; }
+  el.textContent = '已开启 → ' + to;
+  el.classList.add('ok');
+}
+
+function setEmailStatus(msg, cls) {
+  const el = document.getElementById('email-status');
+  el.className = 'email-status' + (cls ? ' ' + cls : '');
+  el.textContent = msg;
+}
+
+function doSendEmail(alarmType, mag, thr) {
+  const s = JSON.parse(localStorage.getItem('helmet_email') || '{}');
+  if (!s.key || !s.to) {
+    setEmailStatus('请先填写收件邮箱和 API Key', 'err');
+    return;
+  }
+  const body = `智能安全帽跌倒检测系统 — 报警通知\n\n报警类型：${alarmType}\n触发时间：${new Date().toLocaleString('zh-CN')}\n加速度值：${mag}\n跌倒阈值：${thr}\n\n请及时查看佩戴者状态。`;
+  fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + s.key,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: 'onboarding@resend.dev',
+      to:   s.to,
+      subject: '⚠ 安全帽报警：' + alarmType,
+      text: body,
+    }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.id) {
+      log('[邮件] 已发送至 ' + s.to);
+      setEmailStatus('✓ 已发送至 ' + s.to, 'ok');
+    } else {
+      throw new Error(data.message || data.name || JSON.stringify(data));
+    }
+  })
+  .catch(err => {
+    log('[邮件] 发送失败：' + err.message);
+    setEmailStatus('✗ 发送失败：' + err.message, 'err');
+  });
+}
+
+function sendTestEmail() {
+  const to  = document.getElementById('email-to').value.trim();
+  const key = document.getElementById('resend-key').value.trim();
+  if (!to || !key) { alert('请先填写收件邮箱和 API Key'); return; }
+  saveEmailSettings();
+  setEmailStatus('正在发送测试邮件...', '');
+  doSendEmail('测试通知', '1.23 g', '2.0 g');
+}
+
+/** 由 checkAlarms 调用，边沿触发，同一次报警只发一封 */
+function triggerEmailIfNeeded(d) {
+  if (!document.getElementById('email-enabled').checked) return;
+  if (d.isFall === 1 && lastFallState === 0) {
+    const types = { 1:'跌倒报警', 2:'头部撞击', 3:'疑似晕厥' };
+    doSendEmail(types[d.fallType] || '跌倒报警', d.mag.toFixed(2) + ' g', d.thr1.toFixed(1) + ' g');
+  }
+  lastFallState = d.isFall;
+}
 
 // ════════════════════════════════════════════════
 //  BluetoothBridge 回调（Android 原生调用这些函数）
@@ -479,6 +637,8 @@ function checkAlarms(d) {
   if (level === 2) banner.classList.add('level-fall');
   else if (level === 1) banner.classList.add('level-warn');
   banner.textContent = text;
+
+  triggerEmailIfNeeded(d);
 }
 
 // ════════════════════════════════════════════════
