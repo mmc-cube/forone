@@ -163,6 +163,8 @@
   .log-box { display: none; margin-top: 10px; background: #FAFAFA; border-radius: 8px; padding: 8px 10px; max-height: 200px; overflow-y: auto; font-size: 11px; font-family: "Courier New", monospace; color: #555; line-height: 1.65; white-space: pre-wrap; word-break: break-all; }
   .log-box.open { display: block; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>emailjs.init('NYp2DK90XMxv3I0juMVlC');</script>
 </head>
 <body>
 
@@ -301,12 +303,6 @@
   <div class="email-row" style="margin-top:14px">
     <span class="email-label">收件邮箱</span>
     <input class="email-input" id="email-to" type="email" placeholder="例：someone@qq.com" oninput="saveEmailSettings()">
-  </div>
-
-  <!-- Resend API Key -->
-  <div class="email-row">
-    <span class="email-label">API Key</span>
-    <input class="email-input" id="resend-key" type="text" placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx" oninput="saveEmailSettings()">
     <button class="btn-test" onclick="sendTestEmail()">测试</button>
   </div>
 
@@ -330,19 +326,18 @@ const DEBOUNCE_MS = 800;
 const lastUserSet = { thr1: 0, thr2: 0, thr3: 0 };
 
 // ════════════════════════════════════════════════
-//  邮件通知模块（Resend API）
+//  邮件通知模块（EmailJS）
 // ════════════════════════════════════════════════
+const EMAILJS_SERVICE  = 'service_u7q40ei';
+const EMAILJS_TEMPLATE = 'template_kfbpetm';
+const DEFAULT_EMAIL_TO = 'parlpott@gmail.com';
+
 let lastFallState = 0;   // 边沿检测：上一帧的 isFall 值
 
-// 默认配置（硬编码）
-const DEFAULT_EMAIL_TO  = 'parlpott@gmail.com';
-const DEFAULT_EMAIL_KEY = 're_M2uzAZhu_HhTrENxG54LGeFmm6JZKxLrJ';
-
-// 页面加载时恢复设置（localStorage 优先，否则用默认值）
+// 页面加载时恢复设置
 (function restoreEmailSettings() {
   const s = JSON.parse(localStorage.getItem('helmet_email') || '{}');
-  document.getElementById('email-to').value   = s.to  || DEFAULT_EMAIL_TO;
-  document.getElementById('resend-key').value = s.key || DEFAULT_EMAIL_KEY;
+  document.getElementById('email-to').value = s.to || DEFAULT_EMAIL_TO;
   if (s.enabled) {
     document.getElementById('email-enabled').checked = true;
     updateEmailStatusText(true);
@@ -352,7 +347,6 @@ const DEFAULT_EMAIL_KEY = 're_M2uzAZhu_HhTrENxG54LGeFmm6JZKxLrJ';
 function saveEmailSettings() {
   const s = {
     to:      document.getElementById('email-to').value.trim(),
-    key:     document.getElementById('resend-key').value.trim(),
     enabled: document.getElementById('email-enabled').checked,
   };
   localStorage.setItem('helmet_email', JSON.stringify(s));
@@ -380,48 +374,32 @@ function setEmailStatus(msg, cls) {
 }
 
 function doSendEmail(alarmType, mag, thr) {
-  const s = JSON.parse(localStorage.getItem('helmet_email') || '{}');
-  const to  = s.to  || document.getElementById('email-to').value.trim()  || DEFAULT_EMAIL_TO;
-  const key = s.key || document.getElementById('resend-key').value.trim() || DEFAULT_EMAIL_KEY;
-  if (!key || !to) {
-    setEmailStatus('请先填写收件邮箱和 API Key', 'err');
-    return;
-  }
-  const body = `智能安全帽跌倒检测系统 — 报警通知\n\n报警类型：${alarmType}\n触发时间：${new Date().toLocaleString('zh-CN')}\n加速度值：${mag}\n跌倒阈值：${thr}\n\n请及时查看佩戴者状态。`;
-  fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + key,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'onboarding@resend.dev',
-      to:   to,
-      subject: '⚠ 安全帽报警：' + alarmType,
-      text: body,
-    }),
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.id) {
+  const s  = JSON.parse(localStorage.getItem('helmet_email') || '{}');
+  const to = s.to || document.getElementById('email-to').value.trim() || DEFAULT_EMAIL_TO;
+  if (!to) { setEmailStatus('请先填写收件邮箱', 'err'); return; }
+  setEmailStatus('发送中...', '');
+  const params = {
+    to_email:   to,
+    alarm_type: alarmType,
+    time:       new Date().toLocaleString('zh-CN'),
+    mag:        mag,
+    thr:        thr,
+  };
+  emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, params)
+    .then(() => {
       log('[邮件] 已发送至 ' + to);
       setEmailStatus('✓ 已发送至 ' + to, 'ok');
-    } else {
-      throw new Error(data.message || data.name || JSON.stringify(data));
-    }
-  })
-  .catch(err => {
-    log('[邮件] 发送失败：' + err.message);
-    setEmailStatus('✗ 发送失败：' + err.message, 'err');
-  });
+    })
+    .catch(err => {
+      log('[邮件] 发送失败：' + JSON.stringify(err));
+      setEmailStatus('✗ 发送失败：' + (err.text || err.status || JSON.stringify(err)), 'err');
+    });
 }
 
 function sendTestEmail() {
-  const to  = document.getElementById('email-to').value.trim();
-  const key = document.getElementById('resend-key').value.trim();
-  if (!to || !key) { alert('请先填写收件邮箱和 API Key'); return; }
+  const to = document.getElementById('email-to').value.trim();
+  if (!to) { alert('请先填写收件邮箱'); return; }
   saveEmailSettings();
-  setEmailStatus('正在发送测试邮件...', '');
   doSendEmail('测试通知', '1.23 g', '2.0 g');
 }
 
