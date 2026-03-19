@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>易燃物品智能安全检测系统</title>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 12px;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--sub);
+        }
+
+        .status-dot.connected {
+            background: var(--ok);
+        }
+
+        .status-dot.disconnected {
+            background: var(--alarm);
+        }
+
+        .status-text {
+            font-size: 14px;
+        }
+
+        /* 数据行 */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+
+        .data-unit {
+            font-size: 13px;
+            color: var(--sub);
+            margin-left: 4px;
+        }
+
+        .alarm-value {
+            color: var(--alarm) !important;
+        }
+
+        /* 报警状态 */
+        .alarm-status {
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .alarm-status.ok {
+            background: #E8F5E9;
+            color: var(--ok);
+        }
+
+        .alarm-status.alarm {
+            background: var(--alarm);
+            color: white;
+        }
+
+        .alarm-item {
+            background: var(--alarm);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+
+        /* 阈值设置 */
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .threshold-label {
+            font-size: 14px;
+            color: var(--sub);
+            min-width: 80px;
+        }
+
+        .threshold-input {
+            width: 80px;
+            height: 40px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 0 8px;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .threshold-btn {
+            flex: 1;
+            height: 40px;
+            border: none;
+            border-radius: 6px;
+            background: var(--primary);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .threshold-btn:active {
+            background: #1976D2;
+        }
+
+        /* 日志 */
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .log-toggle {
+            font-size: 12px;
+            color: var(--primary);
+        }
+
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s;
+        }
+
+        .log-content.expanded {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            font-size: 12px;
+            color: var(--sub);
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <!-- 状态栏 -->
+    <div class="card">
+        <div class="status-bar">
+            <div class="status-dot disconnected" id="statusDot"></div>
+            <span class="status-text" id="statusText">未连接</span>
+        </div>
+    </div>
+
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-label">烟雾</span>
+            <div>
+                <span class="data-value" id="smokeValue">----</span>
+                <span class="data-unit">ADC</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">火焰</span>
+            <div>
+                <span class="data-value" id="flameValue">----</span>
+                <span class="data-unit">ADC</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">温度</span>
+            <div>
+                <span class="data-value" id="tempValue">--.-</span>
+                <span class="data-unit">℃</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">烟雾阈值</span>
+            <div>
+                <span class="data-value" id="smokeThrValue">----</span>
+                <span class="data-unit">ADC</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">温度阈值</span>
+            <div>
+                <span class="data-value" id="tempThrValue">--</span>
+                <span class="data-unit">℃</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">火焰阈值</span>
+            <div>
+                <span class="data-value" id="flameThrValue">----</span>
+                <span class="data-unit">ADC</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card" id="alarmCard">
+        <div class="card-title">报警状态</div>
+        <div class="alarm-status ok" id="alarmStatus">运行正常 ✓</div>
+        <div id="alarmItems"></div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="threshold-row">
+            <span class="threshold-label">烟雾阈值</span>
+            <input type="number" class="threshold-input" id="smokeThrInput" placeholder="0-4095">
+            <button class="threshold-btn" onclick="sendThreshold('02')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">温度阈值</span>
+            <input type="number" class="threshold-input" id="tempThrInput" placeholder="0-100">
+            <button class="threshold-btn" onclick="sendThreshold('03')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">火焰阈值</span>
+            <input type="number" class="threshold-input" id="flameThrInput" placeholder="0-4095">
+            <button class="threshold-btn" onclick="sendThreshold('04')">发送</button>
+        </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card">
+        <div class="log-header" onclick="toggleLog()">
+            <span class="card-title" style="margin-bottom:0;">数据日志</span>
+            <span class="log-toggle" id="logToggle">展开</span>
+        </div>
+        <div class="log-content" id="logContent">
+            <div id="logList"></div>
+        </div>
+    </div>
+
+    <script src="mqtt.min.js"></script>
+    <script>
+        // MQTT 配置 - 硬编码 PRD 中的 Topic
+        const UPLOAD_TOPIC = '778899/889900/yanranwupinjiance/upload';
+        const CMD_TOPIC = '778899/889900/yanranwupinjiance/cmd';
+
+        let client = null;
+        let logExpanded = false;
+        let logData = [];
+
+        // 当前数据
+        let currentData = {
+            smoke: 0,
+            flame: 0,
+            temp: 0,
+            smoke_threshold: 2000,
+            temp_threshold: 40,
+            flame_threshold: 3000
+        };
+
+        // 等待同步状态（发送阈值后等待下位机确认）
+        let waitingSync = {
+            smoke: false,
+            temp: false,
+            flame: false
+        };
+
+        // 连接 MQTT
+        function connectMQTT() {
+            const clientId = 'webview_' + Math.random().toString(36).substr(2, 6);
+            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+                clientId: clientId,
+                reconnectPeriod: 3000
+            });
+
+            client.on('connect', function() {
+                console.log('MQTT Connected');
+                updateStatus(true);
+                client.subscribe(UPLOAD_TOPIC, function(err) {
+                    if (err) {
+                        console.error('Subscribe error:', err);
+                    }
+                });
+            });
+
+            client.on('disconnect', function() {
+                console.log('MQTT Disconnected');
+                updateStatus(false);
+            });
+
+            client.on('error', function(err) {
+                console.error('MQTT Error:', err);
+            });
+
+            client.on('message', function(topic, payload) {
+                if (topic === UPLOAD_TOPIC) {
+                    const message = payload.toString();
+                    parseAndUpdate(message);
+                    addLog(message);
+                }
+            });
+        }
+
+        // 更新状态显示
+        function updateStatus(connected) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+
+            if (connected) {
+                dot.className = 'status-dot connected';
+                text.textContent = '已连接';
+            } else {
+                dot.className = 'status-dot disconnected';
+                text.textContent = '未连接';
+            }
+        }
+
+        // 解析上行数据
+        function parseAndUpdate(message) {
+            const parts = message.split(',');
+            if (parts.length < 6) return;
+
+            const newSmokeThr = parseFloat(parts[3]);
+            const newTempThr = parseFloat(parts[4]);
+            const newFlameThr = parseFloat(parts[5]);
+            let syncCompleted = false;
+
+            // 检查是否是下位机确认（等待同步状态 + 阈值匹配）
+            if (waitingSync.smoke && Math.abs(newSmokeThr - currentData.smoke_threshold) < 1) {
+                waitingSync.smoke = false;  // 同步完成
+                syncCompleted = true;
+            }
+            if (waitingSync.temp && Math.abs(newTempThr - currentData.temp_threshold) < 1) {
+                waitingSync.temp = false;
+                syncCompleted = true;
+            }
+            if (waitingSync.flame && Math.abs(newFlameThr - currentData.flame_threshold) < 1) {
+                waitingSync.flame = false;
+                syncCompleted = true;
+            }
+
+            // 更新传感器值，但阈值在等待同步期间不更新（保持用户设置的值）
+            currentData.smoke = parseFloat(parts[0]);
+            currentData.flame = parseFloat(parts[1]);
+            currentData.temp = parseFloat(parts[2]);
+
+            // 只有在同步完成后或非等待状态才更新阈值
+            if (!waitingSync.smoke) {
+                currentData.smoke_threshold = newSmokeThr;
+            }
+            if (!waitingSync.temp) {
+                currentData.temp_threshold = newTempThr;
+            }
+            if (!waitingSync.flame) {
+                currentData.flame_threshold = newFlameThr;
+            }
+
+            updateUI();
+
+            // 等待同步期间不改变报警状态，同步完成后再由下位机数据接管
+            if (!waitingSync.smoke && !waitingSync.temp && !waitingSync.flame) {
+                checkAlarms();
+            }
+        }
+
+        // 更新 UI
+        function updateUI() {
+            document.getElementById('smokeValue').textContent = Math.round(currentData.smoke);
+            document.getElementById('flameValue').textContent = Math.round(currentData.flame);
+            document.getElementById('tempValue').textContent = currentData.temp.toFixed(1);
+            document.getElementById('smokeThrValue').textContent = Math.round(currentData.smoke_threshold);
+            document.getElementById('tempThrValue').textContent = Math.round(currentData.temp_threshold);
+            document.getElementById('flameThrValue').textContent = Math.round(currentData.flame_threshold);
+
+            // 只更新阈值显示值，不更新输入框（避免覆盖用户输入）
+            // 输入框只在用户发送阈值后、下位机确认前保持用户输入的值
+        }
+
+        // 报警判断
+        function checkAlarms() {
+            const alarms = [];
+
+            // 烟雾报警
+            if (currentData.smoke > currentData.smoke_threshold) {
+                alarms.push('烟雾浓度超标！');
+            }
+
+            // 火焰报警（值越大火焰越强）
+            if (currentData.flame > currentData.flame_threshold) {
+                alarms.push('检测到火焰！');
+            }
+
+            // 温度报警
+            if (currentData.temp > currentData.temp_threshold) {
+                alarms.push('温度过高！');
+            }
+
+            renderAlarms(alarms);
+        }
+
+        // 渲染报警状态
+        function renderAlarms(alarms) {
+            const statusEl = document.getElementById('alarmStatus');
+            const itemsEl = document.getElementById('alarmItems');
+
+            if (alarms.length === 0) {
+                statusEl.className = 'alarm-status ok';
+                statusEl.textContent = '运行正常 ✓';
+                itemsEl.innerHTML = '';
+            } else {
+                statusEl.className = 'alarm-status alarm';
+                statusEl.textContent = '报警！';
+                itemsEl.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
+            }
+
+            // 更新数据值颜色
+            updateValueColors(alarms);
+        }
+
+        // 更新数值颜色
+        function updateValueColors(alarms) {
+            const smokeEl = document.getElementById('smokeValue');
+            const flameEl = document.getElementById('flameValue');
+            const tempEl = document.getElementById('tempValue');
+
+            smokeEl.classList.toggle('alarm-value', alarms.includes('烟雾浓度超标！'));
+            flameEl.classList.toggle('alarm-value', alarms.includes('检测到火焰！'));
+            tempEl.classList.toggle('alarm-value', alarms.includes('温度过高！'));
+        }
+
+        // 发送指令
+        function sendCmd(cmd) {
+            if (client && client.connected) {
+                client.publish(CMD_TOPIC, cmd);
+                console.log('Sent:', cmd);
+            } else {
+                alert('MQTT 未连接');
+            }
+        }
+
+        // 发送阈值
+        function sendThreshold(code) {
+            let value;
+            if (code === '02') {
+                value = document.getElementById('smokeThrInput').value;
+            } else if (code === '03') {
+                value = document.getElementById('tempThrInput').value;
+            } else if (code === '04') {
+                value = document.getElementById('flameThrInput').value;
+            }
+
+            if (!value || value === '') {
+                alert('请输入阈值');
+                return;
+            }
+
+            sendCmd(`${code},${value}`);
+
+            // 立即更新本地状态并检查报警（即时预测）
+            const numValue = parseFloat(value);
+            if (code === '02') {
+                currentData.smoke_threshold = numValue;
+                waitingSync.smoke = true;
+                // 立即检查烟雾报警
+                if (currentData.smoke > numValue) {
+                    renderAlarms(['烟雾浓度超标！']);
+                } else {
+                    checkAlarms();
+                }
+                document.getElementById('smokeThrInput').value = '';
+            } else if (code === '03') {
+                currentData.temp_threshold = numValue;
+                waitingSync.temp = true;
+                // 立即检查温度报警
+                if (currentData.temp > numValue) {
+                    renderAlarms(['温度过高！']);
+                } else {
+                    checkAlarms();
+                }
+                document.getElementById('tempThrInput').value = '';
+            } else if (code === '04') {
+                currentData.flame_threshold = numValue;
+                waitingSync.flame = true;
+                // 立即检查火焰报警
+                if (currentData.flame > numValue) {
+                    renderAlarms(['检测到火焰！']);
+                } else {
+                    checkAlarms();
+                }
+                document.getElementById('flameThrInput').value = '';
+            }
+
+            // 立即更新 UI 显示阈值
+            updateUI();
+        }
+
+        // 日志
+        function addLog(message) {
+            logData.unshift(message);
+            if (logData.length > 20) {
+                logData.pop();
+            }
+            renderLog();
+        }
+
+        function renderLog() {
+            const logList = document.getElementById('logList');
+            logList.innerHTML = logData.map(l => `<div class="log-item">${l}</div>`).join('');
+        }
+
+        function toggleLog() {
+            logExpanded = !logExpanded;
+            const content = document.getElementById('logContent');
+            const toggle = document.getElementById('logToggle');
+
+            if (logExpanded) {
+                content.classList.add('expanded');
+                toggle.textContent = '收起';
+            } else {
+                content.classList.remove('expanded');
+                toggle.textContent = '展开';
+            }
+        }
+
+        // 页面加载后连接 MQTT
+        window.onload = function() {
+            connectMQTT();
+        };
+    </script>
+</body>
+</html>
