@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>种植监测系统</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f4f8;
+            color: #333;
+            height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            height: 100dvh;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* 头部 */
+        .header {
+            padding: 8px 14px;
+            border-bottom: 1px solid #e8eef5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #f0f7ff 0%, #f5fffb 100%);
+            flex-shrink: 0;
+        }
+        .header h1 { font-size: 15px; font-weight: 600; color: #2c5a4a; }
+        .status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #999; }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #ddd; }
+        .status-dot.connected { background: #51cf66; }
+
+        /* 警告 */
+        .alert-bar {
+            display: none;
+            padding: 5px 14px;
+            background: #fff3cd;
+            border-bottom: 1px solid #ffeaa7;
+            font-size: 11px;
+            color: #856404;
+            flex-shrink: 0;
+        }
+        .alert-bar.show { display: flex; gap: 10px; flex-wrap: wrap; }
+
+        /* 主体滚动区 */
+        .body {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            padding: 8px 10px;
+            gap: 7px;
+        }
+
+        /* 水位 + 传感器 合并一行 */
+        .top-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .sensor-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .card {
+            background: #f8fafb;
+            border: 1px solid #e8eef5;
+            border-radius: 7px;
+            padding: 7px 4px;
+            text-align: center;
+        }
+        .card.blue  { border-top: 2px solid #42a5f5; }
+        .card.green { border-top: 2px solid #66bb6a; }
+        .card.orange{ border-top: 2px solid #ffa726; }
+        .card.teal  { border-top: 2px solid #26c6da; }
+
+        .card-icon  { font-size: 14px; line-height: 1; }
+        .card-label { font-size: 9px; color: #999; margin: 2px 0; }
+        .card-value { font-size: 18px; font-weight: 700; line-height: 1; }
+        .card-unit  { font-size: 9px; color: #bbb; }
+        .card.blue  .card-value { color: #1976d2; }
+        .card.green .card-value { color: #2c7f3a; }
+        .card.orange .card-value{ color: #f57c00; }
+        .card.teal  .card-value { color: #00838f; }
+
+        /* 分隔标题 */
+        .row-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: #2c5a4a;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .row-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e8eef5;
+        }
+
+        /* 设备控制：一行3个 */
+        .device-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .device-card {
+            background: #f8fafb;
+            border: 1px solid #e8eef5;
+            border-radius: 7px;
+            padding: 7px 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .device-name {
+            font-size: 11px;
+            font-weight: 500;
+            color: #444;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .device-btns { display: flex; gap: 5px; }
+        .btn-on, .btn-off {
+            width: 36px;
+            height: 24px;
+            border-radius: 4px;
+            border: 1px solid;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .btn-on  { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
+        .btn-off { background: #fce4ec; color: #c62828; border-color: #ef9a9a; }
+        .btn-on.active  { background: #51cf66; color: white; border-color: #51cf66; }
+        .btn-off.active { background: #ff6b6b; color: white; border-color: #ff6b6b; }
+        .btn-on:active  { opacity: 0.75; }
+        .btn-off:active { opacity: 0.75; }
+
+        /* 参数设置：3行，每行一个阈值 */
+        .param-row {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            flex-shrink: 0;
+        }
+        .param-card {
+            background: #f8fafb;
+            border: 1px solid #e8eef5;
+            border-radius: 7px;
+            padding: 6px 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .param-name {
+            font-size: 11px;
+            color: #555;
+            width: 72px;
+            flex-shrink: 0;
+        }
+        .param-cur-wrap {
+            display: flex;
+            align-items: baseline;
+            gap: 2px;
+            flex: 1;
+        }
+        .param-cur  { font-size: 14px; font-weight: 700; color: #1976d2; }
+        .param-cur-unit { font-size: 9px; color: #bbb; }
+        .param-input {
+            width: 64px;
+            padding: 4px 6px;
+            border: 1px solid #dde;
+            border-radius: 4px;
+            font-size: 12px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .param-send {
+            padding: 5px 10px;
+            background: #51cf66;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .param-send:active { background: #40c057; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- 头部 -->
+    <div class="header">
+        <h1>🌱 种植监测系统</h1>
+        <div class="status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">连接中</span>
+        </div>
+    </div>
+
+    <!-- 警告条 -->
+    <div class="alert-bar" id="alertBar"></div>
+
+    <div class="body">
+        <!-- 水位行 -->
+        <div class="row-title">💧 水箱</div>
+        <div class="top-row">
+            <div class="card teal" style="grid-column: span 2;">
+                <div class="card-icon">📏</div>
+                <div class="card-label">水位</div>
+                <div class="card-value" id="waterHeight">--</div>
+                <div class="card-unit">cm</div>
+            </div>
+            <div class="card blue" style="grid-column: span 2;">
+                <div class="card-icon">🪣</div>
+                <div class="card-label">储量</div>
+                <div class="card-value" id="waterVolume">--</div>
+                <div class="card-unit">升</div>
+            </div>
+        </div>
+
+        <!-- 传感器行 -->
+        <div class="row-title">📊 传感器</div>
+        <div class="sensor-row">
+            <div class="card blue">
+                <div class="card-icon">🌡️</div>
+                <div class="card-label">温度</div>
+                <div class="card-value" id="temperature">--</div>
+                <div class="card-unit">°C</div>
+            </div>
+            <div class="card blue">
+                <div class="card-icon">💧</div>
+                <div class="card-label">湿度</div>
+                <div class="card-value" id="humidity">--</div>
+                <div class="card-unit">%</div>
+            </div>
+            <div class="card orange">
+                <div class="card-icon">☀️</div>
+                <div class="card-label">光照</div>
+                <div class="card-value" id="light">--</div>
+                <div class="card-unit">lux</div>
+            </div>
+            <div class="card green">
+                <div class="card-icon">🌿</div>
+                <div class="card-label">土壤</div>
+                <div class="card-value" id="soil">--</div>
+                <div class="card-unit">%</div>
+            </div>
+            <div class="card orange">
+                <div class="card-icon">💨</div>
+                <div class="card-label">CO₂</div>
+                <div class="card-value" id="co2">--</div>
+                <div class="card-unit">ppm</div>
+            </div>
+        </div>
+
+        <!-- 设备控制 -->
+        <div class="row-title">⚙️ 控制</div>
+        <div class="device-row">
+            <div class="device-card">
+                <div class="device-name">🚰 雨水泵</div>
+                <div class="device-btns">
+                    <button class="btn-on"  id="btn-rain-on"  onclick="control('rain','on')">开</button>
+                    <button class="btn-off" id="btn-rain-off" onclick="control('rain','off')">关</button>
+                </div>
+            </div>
+            <div class="device-card">
+                <div class="device-name">💦 自来水</div>
+                <div class="device-btns">
+                    <button class="btn-on"  id="btn-tap-on"  onclick="control('tap','on')">开</button>
+                    <button class="btn-off" id="btn-tap-off" onclick="control('tap','off')">关</button>
+                </div>
+            </div>
+            <div class="device-card">
+                <div class="device-name">🌀 补光</div>
+                <div class="device-btns">
+                    <button class="btn-on"  id="btn-fan-on"  onclick="control('fan','on')">开</button>
+                    <button class="btn-off" id="btn-fan-off" onclick="control('fan','off')">关</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 参数设置 -->
+        <div class="row-title">🎚️ 阈值设置</div>
+        <div class="param-row">
+            <div class="param-card">
+                <div class="param-name">💧 雨水</div>
+                <div class="param-cur-wrap">
+                    <span class="param-cur" id="cur_t1">--</span>
+                    <span class="param-cur-unit">cm</span>
+                </div>
+                <input type="number" class="param-input" id="threshold1" placeholder="50">
+                <button class="param-send" onclick="sendThreshold(1)">发送</button>
+            </div>
+            <div class="param-card">
+                <div class="param-name">🌿 土壤</div>
+                <div class="param-cur-wrap">
+                    <span class="param-cur" id="cur_t2">--</span>
+                    <span class="param-cur-unit">%</span>
+                </div>
+                <input type="number" class="param-input" id="threshold2" placeholder="35">
+                <button class="param-send" onclick="sendThreshold(2)">发送</button>
+            </div>
+            <div class="param-card">
+                <div class="param-name">☀️ 光照</div>
+                <div class="param-cur-wrap">
+                    <span class="param-cur" id="cur_t3">--</span>
+                    <span class="param-cur-unit">lux</span>
+                </div>
+                <input type="number" class="param-input" id="threshold3" placeholder="300">
+                <button class="param-send" onclick="sendThreshold(3)">发送</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const MQTT_BROKER  = 'wss://broker.emqx.io:8084/mqtt';
+    const TOPIC_UPLOAD = '123124/234235/zhihuiyushui/upload';
+    const TOPIC_CMD    = '123124/234235/zhihuiyushui/cmd';
+
+    let client = null, lastData = {};
+
+    function randomId() {
+        return 'web_' + Math.random().toString(16).slice(2) + '_' + Date.now().toString(16);
+    }
+
+    function initMQTT() {
+        client = mqtt.connect(MQTT_BROKER, {
+            clientId: randomId(), clean: true, keepalive: 30,
+            connectTimeout: 10000, reconnectPeriod: 2000
+        });
+        client.on('connect',    () => { setStatus(true);  client.subscribe(TOPIC_UPLOAD, {qos:0}); });
+        client.on('message',    (t, m) => { if (t === TOPIC_UPLOAD) handleData(m.toString()); });
+        client.on('reconnect',  () => setStatus(false));
+        client.on('disconnect', () => setStatus(false));
+        client.on('close',      () => setStatus(false));
+        client.on('offline',    () => setStatus(false));
+        client.on('error',      () => setStatus(false));
+    }
+
+    function setStatus(ok) {
+        document.getElementById('statusDot').classList.toggle('connected', ok);
+        document.getElementById('statusText').textContent = ok ? '已连接' : '连接中';
+    }
+
+    function handleData(data) {
+        try {
+            const p = data.split(',');
+            if (p.length < 11) return;
+            lastData = {
+                waterHeight: parseInt(p[0]), waterVolume: parseInt(p[1]),
+                temperature: parseInt(p[2]), humidity:    parseInt(p[3]),
+                light:       parseInt(p[4]), soil:        parseInt(p[5]),
+                co2:         parseInt(p[6]), rainPump:    parseInt(p[7]),
+                tapPump:     parseInt(p[8]), fanLed:      parseInt(p[9]),
+                thresholds:  p[10].split('|').map(x => parseInt(x))
+            };
+            updateUI();
+        } catch(e) { console.error(e); }
+    }
+
+    function updateUI() {
+        const d = lastData;
+        setText('waterHeight', d.waterHeight);
+        setText('waterVolume', d.waterVolume);
+        setText('temperature', d.temperature);
+        setText('humidity',    d.humidity);
+        setText('light',       d.light);
+        setText('soil',        d.soil);
+        setText('co2',         d.co2);
+
+        // 设备状态高亮
+        setActive('btn-rain-on',  'btn-rain-off',  d.rainPump);
+        setActive('btn-tap-on',   'btn-tap-off',   d.tapPump);
+        setActive('btn-fan-on',   'btn-fan-off',   d.fanLed);
+
+        // 阈值当前值
+        if (d.thresholds) {
+            setText('cur_t1', d.thresholds[0]);
+            setText('cur_t2', d.thresholds[1]);
+            setText('cur_t3', d.thresholds[2]);
+        }
+
+        // 警告
+        const alerts = [];
+        if (d.thresholds) {
+            if (d.waterHeight >= d.thresholds[0]) alerts.push('⚠️ 水位超限');
+            if (d.soil > 0 && d.soil <= d.thresholds[1]) alerts.push('⚠️ 土壤缺水');
+            if (d.light <= d.thresholds[2]) alerts.push('⚠️ 光照不足');
+        }
+        const bar = document.getElementById('alertBar');
+        bar.innerHTML = alerts.join('&emsp;');
+        bar.classList.toggle('show', alerts.length > 0);
+    }
+
+    function setText(id, val) {
+        document.getElementById(id).textContent = (val === undefined || val === null) ? '--' : val;
+    }
+
+    function setActive(onId, offId, state) {
+        document.getElementById(onId).classList.toggle('active',  !!state);
+        document.getElementById(offId).classList.toggle('active', !state);
+    }
+
+    function control(type, action) {
+        const map = { rain:{on:'05',off:'06'}, tap:{on:'07',off:'08'}, fan:{on:'09',off:'10'} };
+        const cmd = map[type]?.[action];
+        if (cmd && client?.connected) client.publish(TOPIC_CMD, cmd);
+    }
+
+    function sendThreshold(idx) {
+        const val = document.getElementById('threshold' + idx).value;
+        if (val === '') return;
+        const cmd = '0' + (idx + 1) + ',' + val;
+        if (client?.connected) client.publish(TOPIC_CMD, cmd);
+    }
+
+    window.addEventListener('DOMContentLoaded', initMQTT);
+</script>
+</body>
+</html>
