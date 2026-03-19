@@ -310,9 +310,6 @@
     <button class="btn-test" onclick="sendTestEmail()">测试</button>
   </div>
 
-  <div class="api-hint" style="margin-top:4px">
-    注册 resend.com 免费账号（3000封/月），复制 API Key 填入即可
-  </div>
 </div>
 
 <!-- ══ 日志卡 ══ -->
@@ -337,11 +334,15 @@ const lastUserSet = { thr1: 0, thr2: 0, thr3: 0 };
 // ════════════════════════════════════════════════
 let lastFallState = 0;   // 边沿检测：上一帧的 isFall 值
 
-// 页面加载时恢复设置
+// 默认配置（硬编码）
+const DEFAULT_EMAIL_TO  = 'parlpott@gmail.com';
+const DEFAULT_EMAIL_KEY = 're_M2uzAZhu_HhTrENxG54LGeFmm6JZKxLrJ';
+
+// 页面加载时恢复设置（localStorage 优先，否则用默认值）
 (function restoreEmailSettings() {
   const s = JSON.parse(localStorage.getItem('helmet_email') || '{}');
-  if (s.to)  document.getElementById('email-to').value    = s.to;
-  if (s.key) document.getElementById('resend-key').value  = s.key;
+  document.getElementById('email-to').value   = s.to  || DEFAULT_EMAIL_TO;
+  document.getElementById('resend-key').value = s.key || DEFAULT_EMAIL_KEY;
   if (s.enabled) {
     document.getElementById('email-enabled').checked = true;
     updateEmailStatusText(true);
