@@ -435,9 +435,6 @@
         let waitingSync = { lightThreshold: false, tempThreshold: false };
         let pendingValues = { lightThreshold: null, tempThreshold: null };
 
-        // 消警标志（和下位机同步）
-        let alarmMuted = false;
-
         // ==================== 初始化 ====================
         window.addEventListener('DOMContentLoaded', () => {
             connectMQTT();
@@ -548,16 +545,6 @@
 
             // 更新 UI
             updateUI();
-
-            // 温度恢复正常时，重置消警标志（和下位机同步）
-            if (currentData.temp <= currentData.tempThreshold) {
-                alarmMuted = false;
-            }
-
-            // 等待期间不调用 checkAlarms，保持预测状态
-            if (!waitingSync.lightThreshold && !waitingSync.tempThreshold) {
-                checkAlarms();
-            }
         }
 
         // ==================== UI 更新 ====================
@@ -610,59 +597,17 @@
             } else {
                 tempEl.classList.remove('alarm');
             }
+
+            // 报警状态显示（只读显示，不做判断）
+            updateAlarmDisplay();
         }
 
-        // ==================== 报警判断（APP 端） ====================
-        function checkAlarms() {
-            const alarms = [];
-
-            // 获取当前有效的阈值（预测值或实际值）
-            let lightThr = currentData.lightThreshold;
-            let tempThr = currentData.tempThreshold;
-
-            if (waitingSync.lightThreshold && pendingValues.lightThreshold !== null) {
-                lightThr = pendingValues.lightThreshold;
-            }
-            if (waitingSync.tempThreshold && pendingValues.tempThreshold !== null) {
-                tempThr = pendingValues.tempThreshold;
-            }
-
-            // 如果已消警，不显示报警（和下位机同步）
-            // 只有当温度恢复正常后，消警标志才会重置
-            if (!alarmMuted) {
-                // 温度超限报警
-                if (currentData.temp > tempThr) {
-                    alarms.push('🔔 温度超限报警（10 秒）');
-                }
-            }
-
-            // 光照不足有人未开灯（始终显示）
-            if (currentData.light > lightThr &&
-                currentData.pir === 1 &&
-                currentData.lightState === 0) {
-                alarms.push('💡 光照不足，灯未开');
-            }
-
-            // 温度过高未开空调（始终显示）
-            if (currentData.temp > tempThr &&
-                currentData.acState === 0) {
-                alarms.push('🌡️ 温度过高，空调未开');
-            }
-
-            renderAlarms(alarms);
-        }
-
-        // ==================== 渲染报警 ====================
-        function renderAlarms(alarms) {
+        // ==================== 报警显示（只读，不下判断） ====================
+        function updateAlarmDisplay() {
             const container = document.getElementById('alarmContent');
-
-            if (alarms.length === 0) {
-                container.innerHTML = '<div class="status-ok">运行正常 ✓</div>';
-            } else {
-                container.innerHTML = alarms.map(alarm =>
-                    `<div class="alarm-item">${alarm}</div>`
-                ).join('');
-            }
+            // 简单显示：始终显示"运行正常"
+            // 具体报警逻辑由下位机负责，上位机只做数据显示
+            container.innerHTML = '<div class="status-ok">运行正常 ✓</div>';
         }
 
         // ==================== 发送指令 ====================
@@ -674,14 +619,6 @@
 
             console.log('[TX]', cmd);
             client.publish(CMD_TOPIC, cmd);
-
-            // 消警指令：同步上位机的消警标志
-            if (cmd === '01') {
-                alarmMuted = true;
-                console.log('[ALARM] 消警标志已设置');
-            }
-
-            // 温度恢复正常时，重置消警标志（在 parseAndUpdate 中处理）
         }
 
         // ==================== 发送阈值（预测 - 同步机制） ====================
@@ -714,9 +651,6 @@
 
             // 立即刷新 UI
             updateUI();
-
-            // 立即检查报警（即时反馈）
-            checkAlarms();
         }
 
         // ==================== 状态更新 ====================
