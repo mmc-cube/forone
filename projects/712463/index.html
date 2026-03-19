@@ -402,19 +402,20 @@ function parseFrame(line) {
   if (parts.length < 13) { log('[格式错误] ' + line); return; }
 
   const d = {
-    pitch  : parseFloat(parts[0]),
-    roll   : parseFloat(parts[1]),
-    yaw    : parseFloat(parts[2]),
-    ax     : parseFloat(parts[3]),
-    ay     : parseFloat(parts[4]),
-    az     : parseFloat(parts[5]),
-    mag    : parseFloat(parts[6]),
-    isFall : parseInt(parts[7]),
-    isShake: parseInt(parts[8]),
-    isTilt : parseInt(parts[9]),
-    thr1   : parseFloat(parts[10]),
-    thr2   : parseFloat(parts[11]),
-    thr3   : parseFloat(parts[12]),
+    pitch    : parseFloat(parts[0]),
+    roll     : parseFloat(parts[1]),
+    yaw      : parseFloat(parts[2]),
+    ax       : parseFloat(parts[3]),
+    ay       : parseFloat(parts[4]),
+    az       : parseFloat(parts[5]),
+    mag      : parseFloat(parts[6]),
+    isFall   : parseInt(parts[7]),
+    isShake  : parseInt(parts[8]),
+    isTilt   : parseInt(parts[9]),
+    thr1     : parseFloat(parts[10]),
+    thr2     : parseFloat(parts[11]),
+    thr3     : parseFloat(parts[12]),
+    fallType : parts.length >= 14 ? parseInt(parts[13]) : 0,
   };
 
   if (Object.values(d).some(v => isNaN(v))) { log('[数值异常] ' + line); return; }
@@ -459,11 +460,11 @@ function checkAlarms(d) {
   let level = 0, text = '系统正常运行';
 
   if (d.isFall === 1) {
-    level = 2; text = '⚠ 跌倒报警！';
+    const fallTexts = { 1: '⚠ 跌倒报警！', 2: '⚠ 头部撞击！', 3: '⚠ 疑似晕厥！' };
+    level = 2; text = fallTexts[d.fallType] || '⚠ 跌倒报警！';
     document.getElementById('tag-fall').classList.add('fall');
     triggerVibrate();
-    // 通知 Android 原生
-    if (window.Android) window.Android.onAlarm(JSON.stringify({ which:'fall', mag:d.mag, thr_fall:d.thr1 }));
+    if (window.Android) window.Android.onAlarm(JSON.stringify({ which:'fall', fallType:d.fallType, mag:d.mag, thr_fall:d.thr1 }));
   }
   if (d.isShake === 1) {
     if (level < 1) { level = 1; text = '转身异常'; }
