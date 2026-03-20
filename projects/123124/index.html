@@ -109,6 +109,7 @@
   .data-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; }
   .data-value.alarm { color: var(--alarm); }
   .data-value.warn { color: var(--warn); }
+  .data-value.ok { color: var(--ok); }
   .data-unit { font-size: 11px; color: var(--sub); margin-top: 2px; }
 
   /* ---- Alarm Cards ---- */
@@ -226,6 +227,11 @@
       <div class="data-item">
         <div class="data-label">溢满状态</div>
         <div class="data-value" id="valFull">--</div>
+        <div class="data-unit"></div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">桶盖状态</div>
+        <div class="data-value" id="valLid">--</div>
         <div class="data-unit"></div>
       </div>
     </div>
@@ -378,16 +384,17 @@ function setStatus(online, text) {
 // ============================================================
 function parsePayload(raw) {
   const parts = raw.split(',');
-  if (parts.length < 7) return;
+  if (parts.length < 8) return;
 
   const data = {
     dist:     parseFloat(parts[0]) || 0,
     gas:      parseInt(parts[1])   || 0,
     flame:    parseInt(parts[2])   || 0,
     full:     parseInt(parts[3])   || 0,
-    gasThr:   parseInt(parts[4])   || 500,
-    flameThr: parseInt(parts[5])   || 2000,
-    distThr:  parseFloat(parts[6]) || 50.0
+    lidState: parseInt(parts[4])   || 0,
+    gasThr:   parseInt(parts[5])   || 500,
+    flameThr: parseInt(parts[6])   || 2000,
+    distThr:  parseFloat(parts[7]) || 50.0
   };
   lastData = data;
   updateUI(data);
@@ -414,6 +421,11 @@ function updateUI(data) {
   const fullEl = document.getElementById('valFull');
   fullEl.textContent = data.full === 1 ? '已满' : '正常';
   fullEl.className = 'data-value' + (data.full === 1 ? ' warn' : '');
+
+  // 桶盖状态
+  const lidEl = document.getElementById('valLid');
+  lidEl.textContent = data.lidState === 1 ? '已打开' : '已关闭';
+  lidEl.className = 'data-value' + (data.lidState === 1 ? ' ok' : '');
 
   // 阈值显示（防抖）
   if (!inDebounce('gasThr'))   set('dispGasThr',   data.gasThr);
