@@ -441,11 +441,11 @@
 
     <!-- 继电器控制卡 -->
     <div class="card">
-        <div class="card-title">继电器控制</div>
+        <div class="card-title">设备控制</div>
         <div class="control-grid">
-            <button class="control-btn off" id="relay1Btn" onclick="toggleRelay(1)">继电器 1: 关</button>
-            <button class="control-btn off" id="relay2Btn" onclick="toggleRelay(2)">继电器 2: 关</button>
-            <button class="control-btn off" id="relay3Btn" onclick="toggleRelay(3)">继电器 3: 关</button>
+            <button class="control-btn off" id="relay1Btn" onclick="toggleRelay(1)">灯光：关</button>
+            <button class="control-btn off" id="relay2Btn" onclick="toggleRelay(2)">窗帘：关</button>
+            <button class="control-btn off" id="relay3Btn" onclick="toggleRelay(3)">风扇：关</button>
         </div>
     </div>
 
@@ -641,12 +641,14 @@
         // 更新继电器按钮
         function updateRelayBtn(num, state) {
             const btn = document.getElementById('relay' + num + 'Btn');
+            const names = { 1: '灯光', 2: '窗帘', 3: '风扇' };
+            const name = names[num] || '继电器' + num;
             if (state === 1) {
-                btn.textContent = '继电器' + num + ': 开';
+                btn.textContent = name + ': 开';
                 btn.classList.remove('off');
                 btn.classList.add('active');
             } else {
-                btn.textContent = '继电器' + num + ': 关';
+                btn.textContent = name + ': 关';
                 btn.classList.remove('active');
                 btn.classList.add('off');
             }
