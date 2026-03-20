@@ -439,6 +439,17 @@
         </div>
     </div>
 
+    <!-- 模式切换卡 -->
+    <div class="card">
+        <div class="card-title">运行模式</div>
+        <button class="alarm-reset-btn" id="modeBtn" onclick="toggleMode()">
+            🤖 自动模式
+        </button>
+        <div style="text-align: center; margin-top: 10px; font-size: 13px; color: var(--sub);">
+            <span id="modeDesc">自动模式下，灯光和通风由传感器自动控制</span>
+        </div>
+    </div>
+
     <!-- 继电器控制卡 -->
     <div class="card">
         <div class="card-title">设备控制</div>
@@ -508,7 +519,8 @@
             thr_temp: 30,
             thr_humi: 80,
             thr_co2: 1000,
-            thr_pm25: 75
+            thr_pm25: 2000,  // 修复：与下位机默认值一致
+            autoMode: 1      // 1=自动模式，0=手动模式
         };
 
         // 防抖保护 - 记录最后设置时间
