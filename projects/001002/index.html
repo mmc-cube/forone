@@ -576,7 +576,7 @@
         // 解析并更新数据
         function parseAndUpdate(message) {
             const parts = message.split(',');
-            if (parts.length < 13) return;
+            if (parts.length < 14) return;  // 修改：14 字段
 
             const now = Date.now();
 
@@ -594,6 +594,7 @@
             const newThrHumi = parseInt(parts[10]);
             const newThrCo2 = parseInt(parts[11]);
             const newThrPm25 = parseInt(parts[12]);
+            const newAutoMode = parseInt(parts[13]);  // 新增：自动模式状态
 
             // 更新传感器数据（始终更新）
             currentData.temp = newTemp;
@@ -607,6 +608,9 @@
             currentData.relay1 = newRelay1;
             currentData.relay2 = newRelay2;
             currentData.relay3 = newRelay3;
+
+            // 自动模式状态更新
+            currentData.autoMode = newAutoMode;
 
             // 阈值更新 - 防抖保护：用户刚设置后短暂忽略下位机回传
             if (!lastUserSetTime.thr_temp || (now - lastUserSetTime.thr_temp) >= DEBOUNCE_MS) {
@@ -647,6 +651,9 @@
             updateRelayBtn(2, currentData.relay2);
             updateRelayBtn(3, currentData.relay3);
 
+            // 更新模式按钮状态
+            updateModeBtn(currentData.autoMode);
+
             // 报警状态用（不直接更新 UI，等 checkAlarms 统一处理）
         }
 
@@ -664,6 +671,28 @@
                 btn.classList.remove('active');
                 btn.classList.add('off');
             }
+        }
+
+        // 更新模式按钮状态
+        function updateModeBtn(autoMode) {
+            const btn = document.getElementById('modeBtn');
+            const desc = document.getElementById('modeDesc');
+            if (autoMode === 1) {
+                btn.textContent = '🤖 自动模式';
+                btn.classList.add('active');
+                desc.textContent = '自动模式下，灯光和通风由传感器自动控制';
+            } else {
+                btn.textContent = '✋ 手动模式';
+                btn.classList.remove('active');
+                desc.textContent = '手动模式下，可通过上方按钮控制灯光和通风';
+            }
+        }
+
+        // 切换模式
+        function toggleMode() {
+            const newState = currentData.autoMode === 1 ? 0 : 1;
+            sendCmd('9,' + newState);
+            addLog('模式切换：' + (newState === 1 ? '自动' : '手动'));
         }
 
         // 报警判断
