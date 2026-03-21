@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智能台灯控制系统</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            padding: 12px;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--alarm);
+        }
+        .status-dot.connected { background: var(--ok); }
+        .status-text {
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        /* 数据行 */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 13px; color: var(--sub); }
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+        .data-value.alarm { color: var(--alarm); }
+
+        /* 报警区 */
+        .alarm-ok {
+            color: var(--ok);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .alarm-item {
+            background: #FFEBEE;
+            color: var(--alarm);
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .alarm-item:last-child { margin-bottom: 0; }
+
+        /* 按钮 */
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .btn {
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-primary:active { background: #1976D2; }
+        .btn-secondary {
+            background: #E3F2FD;
+            color: var(--primary);
+        }
+        .btn-danger {
+            background: #FFEBEE;
+            color: var(--alarm);
+        }
+
+        /* 阈值设置 */
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .threshold-row:last-child { border-bottom: none; }
+        .threshold-label { font-size: 14px; color: var(--text); }
+        .threshold-input {
+            width: 80px;
+            height: 36px;
+            border: 1px solid #E0E0E0;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 16px;
+            outline: none;
+        }
+        .threshold-input:focus { border-color: var(--primary); }
+        .threshold-btn {
+            height: 36px;
+            padding: 0 16px;
+            border: none;
+            border-radius: 6px;
+            background: var(--primary);
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .threshold-btn:active { background: #1976D2; }
+
+        /* 日志 */
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .log-toggle { font-size: 12px; color: var(--sub); }
+        .log-content {
+            margin-top: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 11px;
+            background: #FAFAFA;
+            border-radius: 6px;
+            padding: 8px;
+            display: none;
+        }
+        .log-content.show { display: block; }
+        .log-item {
+            padding: 4px 0;
+            border-bottom: 1px dashed #E0E0E0;
+            word-break: break-all;
+        }
+        .log-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <!-- 状态栏 -->
+    <div class="card">
+        <div class="status-bar">
+            <div class="status-dot" id="statusDot"></div>
+            <span class="status-text" id="statusText">连接中...</span>
+        </div>
+    </div>
+
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-label">光照强度</span>
+            <span><span class="data-value" id="lux">--</span><span class="data-unit">lux</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">用户距离</span>
+            <span><span class="data-value" id="dist">--</span><span class="data-unit">cm</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">人体感应</span>
+            <span class="data-value" id="pir">--</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">灯光模式</span>
+            <span class="data-value" id="ledMode">--</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">控制模式</span>
+            <span class="data-value" id="ctrlMode">--</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">灯状态</span>
+            <span class="data-value" id="lamp">--</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">疲劳计时</span>
+            <span><span class="data-value" id="fatigueMin">--</span><span class="data-unit">min</span></span>
+        </div>
+    </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card" id="alarmCard">
+        <div class="card-title">报警状态</div>
+        <div id="alarmContent">
+            <div class="alarm-ok">运行正常 ✓</div>
+        </div>
+    </div>
+
+    <!-- 控制卡 -->
+    <div class="card">
+        <div class="card-title">远程控制</div>
+        <div class="btn-grid">
+            <button class="btn btn-primary" onclick="sendCmd('01')">开灯</button>
+            <button class="btn btn-secondary" onclick="sendCmd('02')">关灯</button>
+            <button class="btn btn-secondary" onclick="sendCmd('03')">暖光模式</button>
+            <button class="btn btn-secondary" onclick="sendCmd('04')">冷光模式</button>
+            <button class="btn btn-secondary" onclick="sendCmd('07')">手动模式</button>
+            <button class="btn btn-primary" onclick="sendCmd('05')">自动模式</button>
+            <button class="btn btn-danger" onclick="sendCmd('06')">消警</button>
+        </div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="threshold-row">
+            <span class="threshold-label">安全距离</span>
+            <div>
+                <input type="number" class="threshold-input" id="thrDistInput" value="30">
+                <button class="threshold-btn" onclick="sendThreshold('11', 'thrDistInput')">发送</button>
+            </div>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">疲劳时长</span>
+            <div>
+                <input type="number" class="threshold-input" id="thrFatigueInput" value="20">
+                <button class="threshold-btn" onclick="sendThreshold('12', 'thrFatigueInput')">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card">
+        <div class="log-header" onclick="toggleLog()">
+            <div class="card-title" style="margin-bottom:0">通信日志</div>
+            <span class="log-toggle" id="logToggle">展开 ▼</span>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
+
+    <script>
+        // MQTT 配置
+        const UPLOAD_TOPIC = '596173/1001/zntaideng/upload';
+        const CMD_TOPIC = '596173/1001/zntaideng/cmd';
+
+        // 当前数据（按嵌入式实际发送顺序）
+        let currentData = {
+            lux: 0, dist: 0, pir: 0, ledMode: 0, ctrlMode: 0,
+            lamp: 0, fatigueMin: 0,
+            thrDist: 30, thrFatigue: 20, thrLux: 90
+        };
+
+        // 保护状态：下发指令后，一段时间内不被下位机数据覆盖
+        const PROTECT_DURATION = 3000;  // 保护期 3 秒
+        let protectUntil = {
+            lamp: 0,
+            ledMode: 0,
+            ctrlMode: 0,
+            thrDist: 0,
+            thrFatigue: 0
+        };
+
+        // 日志
+        let logs = [];
+        const MAX_LOGS = 20;
+
+        // MQTT 连接
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+            reconnectPeriod: 3000
+        });
+
+        client.on('connect', () => {
+            document.getElementById('statusDot').classList.add('connected');
+            document.getElementById('statusText').textContent = '已连接';
+            client.subscribe(UPLOAD_TOPIC);
+            addLog('已连接到服务器');
+        });
+
+        client.on('disconnect', () => {
+            document.getElementById('statusDot').classList.remove('connected');
+            document.getElementById('statusText').textContent = '未连接';
+        });
+
+        client.on('message', (topic, payload) => {
+            const msg = payload.toString();
+            addLog('← ' + msg);
+            parseAndUpdate(msg);
+        });
+
+        function parseAndUpdate(msg) {
+            const parts = msg.split(',');
+            if (parts.length < 10) return;
+
+            const now = Date.now();
+
+            // 传感器数据（始终更新）
+            currentData.lux = parseFloat(parts[0]);
+            currentData.dist = parseFloat(parts[1]);
+            currentData.pir = parseInt(parts[2]);
+            currentData.fatigueMin = parseFloat(parts[6]);
+
+            // 控制状态数据（保护期内不更新）
+            if (now > protectUntil.ledMode) {
+                currentData.ledMode = parseInt(parts[3]);
+            }
+            if (now > protectUntil.ctrlMode) {
+                currentData.ctrlMode = parseInt(parts[4]);
+            }
+            if (now > protectUntil.lamp) {
+                currentData.lamp = parseInt(parts[5]);
+            }
+
+            // 阈值数据（保护期内不更新）
+            if (now > protectUntil.thrDist) {
+                currentData.thrDist = parseFloat(parts[7]);
+            }
+            if (now > protectUntil.thrFatigue) {
+                currentData.thrFatigue = parseFloat(parts[8]);
+            }
+
+            updateUI();
+            checkAlarms();
+        }
+
+        function updateUI() {
+            document.getElementById('lux').textContent = currentData.lux.toFixed(1);
+            document.getElementById('dist').textContent = currentData.dist.toFixed(1);
+            document.getElementById('pir').textContent = currentData.pir === 1 ? '有人' : '无人';
+            document.getElementById('ledMode').textContent = currentData.ledMode === 0 ? '暖光' : '冷光';
+            document.getElementById('ctrlMode').textContent = currentData.ctrlMode === 0 ? '手动' : '自动';
+            document.getElementById('lamp').textContent = currentData.lamp === 1 ? '开' : '关';
+            document.getElementById('fatigueMin').textContent = currentData.fatigueMin.toFixed(0);
+
+            // 更新输入框默认值
+            document.getElementById('thrDistInput').value = currentData.thrDist;
+            document.getElementById('thrFatigueInput').value = currentData.thrFatigue;
+
+            // 疲劳计时报警样式
+            const fatigueEl = document.getElementById('fatigueMin');
+            if (currentData.fatigueMin >= currentData.thrFatigue && currentData.thrFatigue > 0) {
+                fatigueEl.classList.add('alarm');
+            } else {
+                fatigueEl.classList.remove('alarm');
+            }
+        }
+
+        function checkAlarms() {
+            const alarms = [];
+            if (currentData.fatigueMin >= currentData.thrFatigue && currentData.thrFatigue > 0) {
+                alarms.push('疲劳提醒！请休息');
+            }
+
+            const content = document.getElementById('alarmContent');
+            if (alarms.length === 0) {
+                content.innerHTML = '<div class="alarm-ok">运行正常 ✓</div>';
+            } else {
+                content.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
+            }
+        }
+
+        function sendCmd(cmd) {
+            client.publish(CMD_TOPIC, cmd);
+            addLog('→ ' + cmd);
+
+            // 乐观更新 + 设置保护期
+            const now = Date.now();
+            const code = parseInt(cmd);
+
+            switch (code) {
+                case 1:  // 开灯
+                    currentData.lamp = 1;
+                    protectUntil.lamp = now + PROTECT_DURATION;
+                    break;
+                case 2:  // 关灯
+                    currentData.lamp = 0;
+                    protectUntil.lamp = now + PROTECT_DURATION;
+                    break;
+                case 3:  // 暖光模式
+                    currentData.ledMode = 0;
+                    protectUntil.ledMode = now + PROTECT_DURATION;
+                    break;
+                case 4:  // 冷光模式
+                    currentData.ledMode = 1;
+                    protectUntil.ledMode = now + PROTECT_DURATION;
+                    break;
+                case 5:  // 自动模式
+                    currentData.ctrlMode = 1;
+                    protectUntil.ctrlMode = now + PROTECT_DURATION;
+                    break;
+                case 7:  // 手动模式
+                    currentData.ctrlMode = 0;
+                    protectUntil.ctrlMode = now + PROTECT_DURATION;
+                    break;
+            }
+
+            updateUI();
+        }
+
+        function sendThreshold(code, inputId) {
+            const value = parseInt(document.getElementById(inputId).value);
+            const cmd = code + ',' + value;
+            client.publish(CMD_TOPIC, cmd);
+            addLog('→ ' + cmd);
+
+            // 乐观更新 + 设置保护期
+            const now = Date.now();
+            switch (code) {
+                case '11':
+                    currentData.thrDist = value;
+                    protectUntil.thrDist = now + PROTECT_DURATION;
+                    break;
+                case '12':
+                    currentData.thrFatigue = value;
+                    protectUntil.thrFatigue = now + PROTECT_DURATION;
+                    break;
+            }
+
+            updateUI();
+        }
+
+        function addLog(text) {
+            const now = new Date();
+            const time = now.toLocaleTimeString();
+            logs.unshift(`[${time}] ${text}`);
+            if (logs.length > MAX_LOGS) logs.pop();
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const el = document.getElementById('logContent');
+            el.innerHTML = logs.map(l => `<div class="log-item">${l}</div>`).join('');
+        }
+
+        function toggleLog() {
+            const content = document.getElementById('logContent');
+            const toggle = document.getElementById('logToggle');
+            content.classList.toggle('show');
+            toggle.textContent = content.classList.contains('show') ? '收起 ▲' : '展开 ▼';
+        }
+    </script>
+</body>
+</html>
