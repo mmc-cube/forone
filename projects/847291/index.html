@@ -210,12 +210,11 @@
             target_light: 80
         };
 
-        // 冻结状态（防止下发后被回传数据覆盖）
+        // 冻结状态（等待下位机回传确认后解除）
         let freezeState = {
-            active: false,          // 是否处于冻结状态
-            target_light: null,     // 冻结的目标光照值
-            led_brightness: null,   // 冻结的LED亮度值
-            timeout: null           // 冻结超时
+            target_light: null,     // 冻结的目标值 { value, frozenAt }
+            led_brightness: null,   // 冻结的LED亮度值 { value, frozenAt }
+            maxWait: 5000           // 最大等待时间(ms)，防止永久冻结
         };
 
         let logs = [];
@@ -241,21 +240,25 @@
                     // 光照始终更新
                     currentData.light = parseFloat(parts[0]);
 
-                    // LED亮度：冻结期间使用冻结值
-                    if (freezeState.led_brightness !== null) {
-                        currentData.led_brightness = freezeState.led_brightness;
+                    // LED亮度：检查冻结状态，等待确认
+                    const ledReceived = parseFloat(parts[1]);
+                    const ledCheck = checkFrozen('led_brightness', ledReceived);
+                    if (ledCheck.useFrozenValue) {
+                        currentData.led_brightness = freezeState.led_brightness.value;
                     } else {
-                        currentData.led_brightness = parseFloat(parts[1]);
+                        currentData.led_brightness = ledReceived;
                     }
 
                     currentData.work_mode = parseInt(parts[2]);
 
-                    // 目标光照：冻结期间使用冻结值
+                    // 目标光照：检查冻结状态，等待确认
                     if (parts.length >= 4) {
-                        if (freezeState.target_light !== null) {
-                            currentData.target_light = freezeState.target_light;
+                        const targetReceived = parseFloat(parts[3]);
+                        const targetCheck = checkFrozen('target_light', targetReceived);
+                        if (targetCheck.useFrozenValue) {
+                            currentData.target_light = freezeState.target_light.value;
                         } else {
-                            currentData.target_light = parseFloat(parts[3]);
+                            currentData.target_light = targetReceived;
                         }
                     }
                     updateUI();
@@ -307,18 +310,39 @@
             }
         }
 
-        // 设置冻结（防止下发后立即被覆盖）
+        // 设置冻结（等待下位机回传确认后解除）
         function setFreeze(field, value) {
-            freezeState[field] = value;
+            freezeState[field] = {
+                value: value,
+                frozenAt: Date.now()
+            };
+            addLog('下发 ' + field + ' = ' + value + '，等待确认...');
+        }
 
-            // 清除之前的超时
-            if (freezeState.timeout) clearTimeout(freezeState.timeout);
+        // 检查字段是否仍在冻结中，并尝试确认
+        // 返回 { frozen: true/false, useFrozenValue: true/false }
+        function checkFrozen(field, receivedValue) {
+            const frozen = freezeState[field];
+            if (!frozen) {
+                return { frozen: false, useFrozenValue: false };
+            }
 
-            // 1秒后自动解除冻结
-            freezeState.timeout = setTimeout(() => {
-                freezeState.target_light = null;
-                freezeState.led_brightness = null;
-            }, 1000);
+            // 超时保护：超过maxWait仍未确认，强制解除冻结
+            if (Date.now() - frozen.frozenAt > freezeState.maxWait) {
+                freezeState[field] = null;
+                addLog(field + ' 等待超时，解除冻结');
+                return { frozen: false, useFrozenValue: false };
+            }
+
+            // 收到确认值：回传值等于冻结值，确认成功
+            if (Math.abs(receivedValue - frozen.value) < 0.5) {
+                freezeState[field] = null;
+                addLog(field + ' 已确认: ' + receivedValue);
+                return { frozen: false, useFrozenValue: false };
+            }
+
+            // 冻结中，未确认：继续使用冻结值
+            return { frozen: true, useFrozenValue: true };
         }
 
         function onSliderInput(value) {
@@ -342,7 +366,7 @@
         function toggleMode() {
             const newMode = currentData.work_mode === 1 ? 0 : 1;
             sendCmd('07,' + newMode);
-            // 切换模式时清除冻结
+            // 切换模式时清除所有冻结（不再需要保护旧值）
             freezeState.target_light = null;
             freezeState.led_brightness = null;
         }
