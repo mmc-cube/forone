@@ -180,7 +180,12 @@
                 <span id="sliderLabel">目标光照</span>
                 <span id="sliderValue">80%</span>
             </div>
-            <input type="range" class="slider" id="brightnessSlider" min="0" max="100" value="80" oninput="onSliderInput(this.value)">
+            <input type="range" class="slider" id="brightnessSlider" min="0" max="100" value="80"
+                oninput="onSliderInput(this.value)"
+                onmousedown="isSliderDragging=true"
+                ontouchstart="isSliderDragging=true"
+                onmouseup="isSliderDragging=false"
+                ontouchend="isSliderDragging=false">
         </div>
         <div class="control-row">
             <button class="btn btn-primary" id="modeBtn" onclick="toggleMode()">切换为手动</button>
@@ -221,6 +226,7 @@
         let logs = [];
         let client = null;
         let sliderTimeout = null;
+        let isSliderDragging = false;  // 滑块正在被拖动
 
         // 初始化 MQTT
         function initMQTT() {
@@ -284,15 +290,21 @@
                 modeBadge.className = 'mode-badge';
                 modeBtn.textContent = '切换为手动';
                 sliderLabel.textContent = '目标光照';
-                slider.value = currentData.target_light;
-                sliderValue.textContent = currentData.target_light.toFixed(0) + '%';
+                // 拖动期间不更新滑块位置
+                if (!isSliderDragging) {
+                    slider.value = currentData.target_light;
+                    sliderValue.textContent = currentData.target_light.toFixed(0) + '%';
+                }
             } else {
                 modeBadge.textContent = '手动';
                 modeBadge.className = 'mode-badge manual';
                 modeBtn.textContent = '切换为自动';
                 sliderLabel.textContent = 'LED亮度';
-                slider.value = currentData.led_brightness;
-                sliderValue.textContent = currentData.led_brightness + '%';
+                // 拖动期间不更新滑块位置
+                if (!isSliderDragging) {
+                    slider.value = currentData.led_brightness;
+                    sliderValue.textContent = currentData.led_brightness + '%';
+                }
             }
         }
 
