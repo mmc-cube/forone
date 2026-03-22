@@ -209,6 +209,15 @@
             work_mode: 1,
             target_light: 80
         };
+
+        // 冻结状态（防止下发后被回传数据覆盖）
+        let freezeState = {
+            active: false,          // 是否处于冻结状态
+            target_light: null,     // 冻结的目标光照值
+            led_brightness: null,   // 冻结的LED亮度值
+            timeout: null           // 冻结超时
+        };
+
         let logs = [];
         let client = null;
         let sliderTimeout = null;
@@ -229,11 +238,25 @@
             client.on('message', (topic, payload) => {
                 const parts = payload.toString().split(',');
                 if (parts.length >= 3) {
+                    // 光照始终更新
                     currentData.light = parseFloat(parts[0]);
-                    currentData.led_brightness = parseFloat(parts[1]);
+
+                    // LED亮度：冻结期间使用冻结值
+                    if (freezeState.led_brightness !== null) {
+                        currentData.led_brightness = freezeState.led_brightness;
+                    } else {
+                        currentData.led_brightness = parseFloat(parts[1]);
+                    }
+
                     currentData.work_mode = parseInt(parts[2]);
+
+                    // 目标光照：冻结期间使用冻结值
                     if (parts.length >= 4) {
-                        currentData.target_light = parseFloat(parts[3]);
+                        if (freezeState.target_light !== null) {
+                            currentData.target_light = freezeState.target_light;
+                        } else {
+                            currentData.target_light = parseFloat(parts[3]);
+                        }
                     }
                     updateUI();
                 }
@@ -284,15 +307,34 @@
             }
         }
 
+        // 设置冻结（防止下发后立即被覆盖）
+        function setFreeze(field, value) {
+            freezeState[field] = value;
+
+            // 清除之前的超时
+            if (freezeState.timeout) clearTimeout(freezeState.timeout);
+
+            // 1秒后自动解除冻结
+            freezeState.timeout = setTimeout(() => {
+                freezeState.target_light = null;
+                freezeState.led_brightness = null;
+            }, 1000);
+        }
+
         function onSliderInput(value) {
             document.getElementById('sliderValue').textContent = value + '%';
             if (sliderTimeout) clearTimeout(sliderTimeout);
             sliderTimeout = setTimeout(() => {
                 if (currentData.work_mode === 1) {
+                    // 自动模式：设置目标光照
                     sendCmd('08,' + value);
                     currentData.target_light = parseFloat(value);
+                    setFreeze('target_light', parseFloat(value));
                 } else {
+                    // 手动模式：设置LED亮度
                     sendCmd('06,' + value);
+                    currentData.led_brightness = parseFloat(value);
+                    setFreeze('led_brightness', parseFloat(value));
                 }
             }, 300);
         }
@@ -300,6 +342,9 @@
         function toggleMode() {
             const newMode = currentData.work_mode === 1 ? 0 : 1;
             sendCmd('07,' + newMode);
+            // 切换模式时清除冻结
+            freezeState.target_light = null;
+            freezeState.led_brightness = null;
         }
 
         function clearAlarm() {
