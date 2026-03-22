@@ -343,7 +343,8 @@
             light_low: 30,
             light_high: 70,
             bright_min: 20,
-            bright_max: 100
+            bright_max: 100,
+            target_light: 80
         };
         let logs = [];
         let client = null;
@@ -379,6 +380,9 @@
                     currentData.light_high = parseFloat(parts[4]);
                     currentData.bright_min = parseFloat(parts[5]);
                     currentData.bright_max = parseFloat(parts[6]);
+                    if (parts.length >= 8) {
+                        currentData.target_light = parseFloat(parts[7]);
+                    }
 
                     updateUI();
                     checkAlarms();
@@ -416,19 +420,29 @@
             // 更新模式显示
             const modeBadge = document.getElementById('modeBadge');
             const modeBtn = document.getElementById('modeBtn');
+            const sliderLabel = document.querySelector('.slider-label span:first-child');
+            const slider = document.getElementById('brightnessSlider');
+            const sliderValue = document.getElementById('sliderValue');
+
             if (currentData.work_mode === 1) {
+                // 自动模式
                 modeBadge.textContent = '自动';
                 modeBadge.className = 'mode-badge';
                 modeBtn.textContent = '切换为手动';
+                // 滑块控制目标光照值
+                sliderLabel.textContent = '目标光照';
+                slider.value = currentData.target_light;
+                sliderValue.textContent = currentData.target_light.toFixed(0) + '%';
             } else {
+                // 手动模式
                 modeBadge.textContent = '手动';
                 modeBadge.className = 'mode-badge manual';
                 modeBtn.textContent = '切换为自动';
+                // 滑块控制 LED 亮度
+                sliderLabel.textContent = 'LED亮度调节';
+                slider.value = currentData.led_brightness;
+                sliderValue.textContent = currentData.led_brightness + '%';
             }
-
-            // 更新滑块
-            document.getElementById('brightnessSlider').value = currentData.led_brightness;
-            document.getElementById('sliderValue').textContent = currentData.led_brightness + '%';
 
             // 更新阈值输入框
             document.getElementById('inputLightLow').value = currentData.light_low;
@@ -474,7 +488,14 @@
             document.getElementById('sliderValue').textContent = value + '%';
             if (sliderTimeout) clearTimeout(sliderTimeout);
             sliderTimeout = setTimeout(() => {
-                sendCmd('06,' + value);
+                if (currentData.work_mode === 1) {
+                    // 自动模式：设置目标光照
+                    sendCmd('08,' + value);
+                    currentData.target_light = parseFloat(value);
+                } else {
+                    // 手动模式：设置 LED 亮度
+                    sendCmd('06,' + value);
+                }
             }, 300);
         }
 
