@@ -189,7 +189,6 @@
         </div>
         <div class="control-row">
             <button class="btn btn-primary" id="modeBtn" onclick="toggleMode()">切换为手动</button>
-            <button class="btn btn-alarm" onclick="clearAlarm()">消警</button>
         </div>
     </div>
 
@@ -382,11 +381,6 @@
             // 切换模式时清除所有冻结（不再需要保护旧值）
             freezeState.target_light = null;
             freezeState.led_brightness = null;
-        }
-
-        function clearAlarm() {
-            sendCmd('01');
-            addLog('消警');
         }
 
         function addLog(msg) {
