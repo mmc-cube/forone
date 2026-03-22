@@ -78,28 +78,10 @@
         .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
         .data-value.alarm { color: var(--alarm); }
 
-        .alarm-item {
-            background: #FFEBEE;
-            color: var(--alarm);
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            font-size: 14px;
-        }
-        .alarm-item:last-child { margin-bottom: 0; }
-        .no-alarm {
-            color: var(--ok);
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-        }
-
         .control-row {
             display: flex;
             gap: 12px;
-            margin-bottom: 12px;
         }
-        .control-row:last-child { margin-bottom: 0; }
         .btn {
             flex: 1;
             height: 48px;
@@ -111,8 +93,6 @@
         }
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:active { background: #388E3C; }
-        .btn-secondary { background: #E0E0E0; color: var(--text); }
-        .btn-secondary:active { background: #BDBDBD; }
         .btn-alarm { background: var(--alarm); color: white; }
 
         .slider-container { margin: 12px 0; }
@@ -138,34 +118,6 @@
             cursor: pointer;
         }
 
-        .threshold-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-        }
-        .threshold-row:last-child { border-bottom: none; }
-        .threshold-label { font-size: 13px; }
-        .threshold-input {
-            width: 80px;
-            height: 36px;
-            border: 1px solid #E0E0E0;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 14px;
-            margin: 0 8px;
-        }
-        .threshold-btn {
-            padding: 8px 16px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 13px;
-            cursor: pointer;
-        }
-
         .log-card { cursor: pointer; }
         .log-header {
             display: flex;
@@ -187,45 +139,9 @@
             border-bottom: 1px solid #eee;
         }
         .log-item:last-child { border-bottom: none; }
-
-        .config-panel {
-            display: none;
-            margin-bottom: 12px;
-        }
-        .config-panel.show { display: block; }
-        .config-row {
-            display: flex;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        .config-label { width: 60px; font-size: 13px; }
-        .config-input {
-            flex: 1;
-            height: 36px;
-            border: 1px solid #E0E0E0;
-            border-radius: 8px;
-            padding: 0 12px;
-            font-size: 14px;
-        }
     </style>
 </head>
 <body>
-    <!-- 配置面板 -->
-    <div class="card config-panel" id="configPanel">
-        <div class="card-title">MQTT 配置</div>
-        <div class="config-row">
-            <span class="config-label">学号1:</span>
-            <input type="text" class="config-input" id="configId1" value="123124">
-        </div>
-        <div class="config-row">
-            <span class="config-label">学号2:</span>
-            <input type="text" class="config-input" id="configId2" value="234235">
-        </div>
-        <div style="text-align: right; margin-top: 12px;">
-            <button class="btn btn-primary" style="width: auto; padding: 0 24px;" onclick="saveConfig()">保存并重连</button>
-        </div>
-    </div>
-
     <!-- 状态栏 -->
     <div class="card">
         <div class="status-bar">
@@ -233,10 +149,7 @@
                 <span class="status-dot disconnected" id="statusDot"></span>
                 <span id="statusText">未连接</span>
             </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="mode-badge" id="modeBadge">自动</span>
-                <button onclick="toggleConfig()" style="background: none; border: none; font-size: 18px; cursor: pointer;">⚙️</button>
-            </div>
+            <span class="mode-badge" id="modeBadge">自动</span>
         </div>
     </div>
 
@@ -244,7 +157,7 @@
     <div class="card">
         <div class="card-title">实时数据</div>
         <div class="data-row">
-            <span class="data-label">光照强度</span>
+            <span class="data-label">当前光照</span>
             <div>
                 <span class="data-value" id="lightValue">--</span>
                 <span class="data-unit">%</span>
@@ -257,21 +170,6 @@
                 <span class="data-unit">%</span>
             </div>
         </div>
-        <div class="data-row">
-            <span class="data-label">光照范围</span>
-            <div>
-                <span class="data-value" id="lightRange" style="font-size: 18px;">-- ~ --</span>
-                <span class="data-unit">%</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- 报警状态卡 -->
-    <div class="card" id="alarmCard">
-        <div class="card-title">报警状态</div>
-        <div id="alarmContent">
-            <div class="no-alarm">✓ 运行正常</div>
-        </div>
     </div>
 
     <!-- 控制卡 -->
@@ -279,39 +177,14 @@
         <div class="card-title">控制面板</div>
         <div class="slider-container">
             <div class="slider-label">
-                <span>LED亮度调节</span>
-                <span id="sliderValue">50%</span>
+                <span id="sliderLabel">目标光照</span>
+                <span id="sliderValue">80%</span>
             </div>
-            <input type="range" class="slider" id="brightnessSlider" min="0" max="100" value="50" oninput="onSliderInput(this.value)">
+            <input type="range" class="slider" id="brightnessSlider" min="0" max="100" value="80" oninput="onSliderInput(this.value)">
         </div>
         <div class="control-row">
             <button class="btn btn-primary" id="modeBtn" onclick="toggleMode()">切换为手动</button>
             <button class="btn btn-alarm" onclick="clearAlarm()">消警</button>
-        </div>
-    </div>
-
-    <!-- 阈值设置卡 -->
-    <div class="card">
-        <div class="card-title">阈值设置</div>
-        <div class="threshold-row">
-            <span class="threshold-label">光照下限</span>
-            <input type="number" class="threshold-input" id="inputLightLow" min="0" max="100" value="30">
-            <button class="threshold-btn" onclick="sendThreshold('02', 'inputLightLow')">发送</button>
-        </div>
-        <div class="threshold-row">
-            <span class="threshold-label">光照上限</span>
-            <input type="number" class="threshold-input" id="inputLightHigh" min="0" max="100" value="70">
-            <button class="threshold-btn" onclick="sendThreshold('03', 'inputLightHigh')">发送</button>
-        </div>
-        <div class="threshold-row">
-            <span class="threshold-label">亮度最小值</span>
-            <input type="number" class="threshold-input" id="inputBrightMin" min="0" max="100" value="20">
-            <button class="threshold-btn" onclick="sendThreshold('04', 'inputBrightMin')">发送</button>
-        </div>
-        <div class="threshold-row">
-            <span class="threshold-label">亮度最大值</span>
-            <input type="number" class="threshold-input" id="inputBrightMax" min="0" max="100" value="100">
-            <button class="threshold-btn" onclick="sendThreshold('05', 'inputBrightMax')">发送</button>
         </div>
     </div>
 
@@ -325,25 +198,15 @@
     </div>
 
     <script>
-        // 配置
-        let configId1 = localStorage.getItem('configId1') || '123124';
-        let configId2 = localStorage.getItem('configId2') || '234235';
-        document.getElementById('configId1').value = configId1;
-        document.getElementById('configId2').value = configId2;
-
         // Topic
-        let UPLOAD_TOPIC = `${configId1}/${configId2}/zhiliangdiao/upload`;
-        let CMD_TOPIC = `${configId1}/${configId2}/zhiliangdiao/cmd`;
+        const UPLOAD_TOPIC = '123124/234235/zhiliangdiao/upload';
+        const CMD_TOPIC = '123124/234235/zhiliangdiao/cmd';
 
         // 数据状态
         let currentData = {
             light: 0,
             led_brightness: 0,
             work_mode: 1,
-            light_low: 30,
-            light_high: 70,
-            bright_min: 20,
-            bright_max: 100,
             target_light: 80
         };
         let logs = [];
@@ -352,13 +215,6 @@
 
         // 初始化 MQTT
         function initMQTT() {
-            if (client) {
-                client.end();
-            }
-
-            UPLOAD_TOPIC = `${configId1}/${configId2}/zhiliangdiao/upload`;
-            CMD_TOPIC = `${configId1}/${configId2}/zhiliangdiao/cmd`;
-
             client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
                 clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
                 reconnectPeriod: 3000
@@ -367,158 +223,90 @@
             client.on('connect', () => {
                 client.subscribe(UPLOAD_TOPIC);
                 updateStatus(true);
-                addLog('已连接到服务器');
+                addLog('已连接');
             });
 
             client.on('message', (topic, payload) => {
                 const parts = payload.toString().split(',');
-                if (parts.length >= 7) {
+                if (parts.length >= 3) {
                     currentData.light = parseFloat(parts[0]);
                     currentData.led_brightness = parseFloat(parts[1]);
                     currentData.work_mode = parseInt(parts[2]);
-                    currentData.light_low = parseFloat(parts[3]);
-                    currentData.light_high = parseFloat(parts[4]);
-                    currentData.bright_min = parseFloat(parts[5]);
-                    currentData.bright_max = parseFloat(parts[6]);
-                    if (parts.length >= 8) {
-                        currentData.target_light = parseFloat(parts[7]);
+                    if (parts.length >= 4) {
+                        currentData.target_light = parseFloat(parts[3]);
                     }
-
                     updateUI();
-                    checkAlarms();
                 }
             });
 
-            client.on('close', () => {
-                updateStatus(false);
-            });
-
-            client.on('error', (err) => {
-                addLog('连接错误: ' + err.message);
-            });
+            client.on('close', () => updateStatus(false));
+            client.on('error', (err) => addLog('错误: ' + err.message));
         }
 
-        // 更新状态显示
         function updateStatus(connected) {
             const dot = document.getElementById('statusDot');
             const text = document.getElementById('statusText');
-            if (connected) {
-                dot.className = 'status-dot connected';
-                text.textContent = '已连接';
-            } else {
-                dot.className = 'status-dot disconnected';
-                text.textContent = '未连接';
-            }
+            dot.className = connected ? 'status-dot connected' : 'status-dot disconnected';
+            text.textContent = connected ? '已连接' : '未连接';
         }
 
-        // 更新 UI
         function updateUI() {
             document.getElementById('lightValue').textContent = currentData.light.toFixed(1);
             document.getElementById('ledValue').textContent = currentData.led_brightness;
-            document.getElementById('lightRange').textContent = `${currentData.light_low} ~ ${currentData.light_high}`;
 
-            // 更新模式显示
             const modeBadge = document.getElementById('modeBadge');
             const modeBtn = document.getElementById('modeBtn');
-            const sliderLabel = document.querySelector('.slider-label span:first-child');
+            const sliderLabel = document.getElementById('sliderLabel');
             const slider = document.getElementById('brightnessSlider');
             const sliderValue = document.getElementById('sliderValue');
 
             if (currentData.work_mode === 1) {
-                // 自动模式
                 modeBadge.textContent = '自动';
                 modeBadge.className = 'mode-badge';
                 modeBtn.textContent = '切换为手动';
-                // 滑块控制目标光照值
                 sliderLabel.textContent = '目标光照';
                 slider.value = currentData.target_light;
                 sliderValue.textContent = currentData.target_light.toFixed(0) + '%';
             } else {
-                // 手动模式
                 modeBadge.textContent = '手动';
                 modeBadge.className = 'mode-badge manual';
                 modeBtn.textContent = '切换为自动';
-                // 滑块控制 LED 亮度
-                sliderLabel.textContent = 'LED亮度调节';
+                sliderLabel.textContent = 'LED亮度';
                 slider.value = currentData.led_brightness;
                 sliderValue.textContent = currentData.led_brightness + '%';
             }
-
-            // 更新阈值输入框
-            document.getElementById('inputLightLow').value = currentData.light_low;
-            document.getElementById('inputLightHigh').value = currentData.light_high;
-            document.getElementById('inputBrightMin').value = currentData.bright_min;
-            document.getElementById('inputBrightMax').value = currentData.bright_max;
         }
 
-        // 检查报警
-        function checkAlarms() {
-            const alarmContent = document.getElementById('alarmContent');
-            const lightValue = document.getElementById('lightValue');
-            const alarms = [];
-
-            if (currentData.light < currentData.light_low) {
-                alarms.push('⚠ 光照不足，已自动提亮');
-            }
-            if (currentData.light > currentData.light_high) {
-                alarms.push('⚠ 光照过强，已自动降低亮度');
-            }
-
-            if (alarms.length === 0) {
-                alarmContent.innerHTML = '<div class="no-alarm">✓ 运行正常</div>';
-                lightValue.className = 'data-value';
-            } else {
-                alarmContent.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
-                lightValue.className = 'data-value alarm';
-            }
-        }
-
-        // 发送指令
         function sendCmd(cmd) {
             if (client && client.connected) {
                 client.publish(CMD_TOPIC, cmd);
                 addLog('发送: ' + cmd);
-            } else {
-                addLog('未连接，无法发送');
             }
         }
 
-        // 滑块拖动
         function onSliderInput(value) {
             document.getElementById('sliderValue').textContent = value + '%';
             if (sliderTimeout) clearTimeout(sliderTimeout);
             sliderTimeout = setTimeout(() => {
                 if (currentData.work_mode === 1) {
-                    // 自动模式：设置目标光照
                     sendCmd('08,' + value);
                     currentData.target_light = parseFloat(value);
                 } else {
-                    // 手动模式：设置 LED 亮度
                     sendCmd('06,' + value);
                 }
             }, 300);
         }
 
-        // 切换模式
         function toggleMode() {
             const newMode = currentData.work_mode === 1 ? 0 : 1;
             sendCmd('07,' + newMode);
-            addLog(newMode === 1 ? '切换为自动模式' : '切换为手动模式');
         }
 
-        // 消警
         function clearAlarm() {
             sendCmd('01');
-            addLog('发送消警指令');
+            addLog('消警');
         }
 
-        // 发送阈值
-        function sendThreshold(code, inputId) {
-            const value = document.getElementById(inputId).value;
-            sendCmd(code + ',' + value);
-        }
-
-        // 日志
         function addLog(msg) {
             const now = new Date();
             const time = now.toLocaleTimeString('zh-CN', { hour12: false });
@@ -528,38 +316,17 @@
         }
 
         function renderLogs() {
-            const content = document.getElementById('logContent');
-            content.innerHTML = logs.map(l => `<div class="log-item">${l.time} - ${l.msg}</div>`).join('');
+            document.getElementById('logContent').innerHTML =
+                logs.map(l => `<div class="log-item">${l.time} - ${l.msg}</div>`).join('');
         }
 
         function toggleLog() {
             const content = document.getElementById('logContent');
             const toggle = document.getElementById('logToggle');
-            if (content.classList.contains('show')) {
-                content.classList.remove('show');
-                toggle.textContent = '展开 ▼';
-            } else {
-                content.classList.add('show');
-                toggle.textContent = '收起 ▲';
-            }
+            content.classList.toggle('show');
+            toggle.textContent = content.classList.contains('show') ? '收起 ▲' : '展开 ▼';
         }
 
-        // 配置面板
-        function toggleConfig() {
-            const panel = document.getElementById('configPanel');
-            panel.classList.toggle('show');
-        }
-
-        function saveConfig() {
-            configId1 = document.getElementById('configId1').value || '123124';
-            configId2 = document.getElementById('configId2').value || '234235';
-            localStorage.setItem('configId1', configId1);
-            localStorage.setItem('configId2', configId2);
-            initMQTT();
-            toggleConfig();
-        }
-
-        // 启动
         initMQTT();
     </script>
 </body>
