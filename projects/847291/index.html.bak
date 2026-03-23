@@ -172,12 +172,6 @@
                 <span class="data-unit">%</span>
             </div>
         </div>
-        <div class="data-row">
-            <span class="data-label">灯状态</span>
-            <div>
-                <span class="data-value" id="lampValue">--</span>
-            </div>
-        </div>
     </div>
 
     <!-- 控制卡 -->
@@ -197,10 +191,7 @@
         </div>
         <div class="control-row">
             <button class="btn btn-primary" id="modeBtn" onclick="toggleMode()">切换为手动</button>
-        </div>
-        <div class="control-row" style="margin-top: 8px;">
-            <button class="btn btn-on" onclick="lampOn()">开灯</button>
-            <button class="btn btn-off" onclick="lampOff()">关灯</button>
+            <button class="btn btn-on" id="lampBtn" onclick="toggleLamp()">关灯</button>
         </div>
     </div>
 
@@ -231,7 +222,6 @@
         let freezeState = {
             target_light: null,     // 冻结的目标值 { value, frozenAt, confirmed }
             led_brightness: null,   // 冻结的LED亮度值 { value, frozenAt, confirmed }
-            lamp_on: null,          // 冻结的灯开关状态 { value, frozenAt, confirmed }
             protectDuration: 3000,  // 保护时长(ms)，确认后也继续保持保护
             maxWait: 8000           // 最大等待时间(ms)，防止永久冻结
         };
@@ -274,11 +264,9 @@
                         currentData.target_light = targetCheck.useLocal ? targetCheck.localValue : targetReceived;
                     }
 
-                    // 灯开关状态：检查保护状态
+                    // 灯开关状态
                     if (parts.length >= 5) {
-                        const lampReceived = parseInt(parts[4]);
-                        const lampCheck = checkFrozen('lamp_on', lampReceived);
-                        currentData.lamp_on = lampCheck.useLocal ? lampCheck.localValue : lampReceived;
+                        currentData.lamp_on = parseInt(parts[4]);
                     }
 
                     updateUI();
@@ -300,15 +288,12 @@
             document.getElementById('lightValue').textContent = currentData.light.toFixed(1);
             document.getElementById('ledValue').textContent = currentData.led_brightness;
 
-            // 灯状态显示
-            document.getElementById('lampValue').textContent = currentData.lamp_on === 1 ? '开' : '关';
-            document.getElementById('lampValue').style.color = currentData.lamp_on === 1 ? '#4CAF50' : '#9E9E9E';
-
             const modeBadge = document.getElementById('modeBadge');
             const modeBtn = document.getElementById('modeBtn');
             const sliderLabel = document.getElementById('sliderLabel');
             const slider = document.getElementById('brightnessSlider');
             const sliderValue = document.getElementById('sliderValue');
+            const lampBtn = document.getElementById('lampBtn');
 
             if (currentData.work_mode === 1) {
                 modeBadge.textContent = '自动';
@@ -330,6 +315,15 @@
                     slider.value = currentData.led_brightness;
                     sliderValue.textContent = currentData.led_brightness + '%';
                 }
+            }
+
+            // 灯开关按钮状态
+            if (currentData.lamp_on === 1) {
+                lampBtn.textContent = '关灯';
+                lampBtn.className = 'btn btn-on';
+            } else {
+                lampBtn.textContent = '开灯';
+                lampBtn.className = 'btn btn-off';
             }
         }
 
@@ -409,16 +403,11 @@
             freezeState.led_brightness = null;
         }
 
-        function lampOn() {
-            sendCmd('09,1');
-            currentData.lamp_on = 1;
-            setFreeze('lamp_on', 1);
-        }
-
-        function lampOff() {
-            sendCmd('09,0');
-            currentData.lamp_on = 0;
-            setFreeze('lamp_on', 0);
+        function toggleLamp() {
+            const newLampState = currentData.lamp_on === 1 ? 0 : 1;
+            sendCmd('09,' + newLampState);
+            currentData.lamp_on = newLampState;
+            updateUI();
         }
 
         function addLog(msg) {
