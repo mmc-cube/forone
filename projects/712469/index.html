@@ -423,7 +423,14 @@
     <div class="card-badge" id="badge-db">正常</div>
   </div>
 
-  <!-- 电机状态 -->
+  <!-- 哭闹次数 -->
+  <div class="data-card" id="card-cry">
+    <div class="card-label">😢 哭闹次数</div>
+    <div class="card-value" id="val-cry">--</div>
+    <div class="card-unit">次</div>
+    <div class="card-badge" id="badge-cry">累计</div>
+  </div>
+</div>
   <div class="status-card" id="card-motor">
     <div class="status-icon" id="motor-icon">⏸️</div>
     <div class="status-info">
@@ -638,7 +645,7 @@ const SYNC_TIMEOUT_MS = 5000;  // 5 秒超时保护
 //  状态
 // ═══════════════════════════════════════
 let data = {
-  temp: null, humi: null, db: null,
+  temp: null, humi: null, db: null, cry_cnt: null,
   motor_state: null, music_state: null,
   thr_temp_lo: null, thr_temp_hi: null, thr_humi: null,
   thr_db: null, thr_time: null, thr_duration: null
@@ -705,14 +712,15 @@ function handleMessage(payload) {
     temp:         parseFloat(parts[0]),
     humi:         parseFloat(parts[1]),
     db:           parseFloat(parts[2]),
-    motor_state:  parseInt(parts[3]),
-    music_state:  parseInt(parts[4]),
-    thr_temp_lo:  parseFloat(parts[5]),
-    thr_temp_hi:  parseFloat(parts[6]),
-    thr_humi:     parseFloat(parts[7]),
-    thr_db:       parseFloat(parts[8]),
-    thr_time:     parseInt(parts[9]),
-    thr_duration: parseInt(parts[10])
+    cry_cnt:      parseInt(parts[3]),
+    motor_state:  parseInt(parts[4]),
+    music_state:  parseInt(parts[5]),
+    thr_temp_lo:  parseFloat(parts[6]),
+    thr_temp_hi:  parseFloat(parts[7]),
+    thr_humi:     parseFloat(parts[8]),
+    thr_db:       parseFloat(parts[9]),
+    thr_time:     parseInt(parts[10]),
+    thr_duration: parseInt(parts[11])
   };
 
   // 检查是否有正在等待同步的阈值
@@ -762,6 +770,7 @@ function handleMessage(payload) {
   data.temp = newData.temp;
   data.humi = newData.humi;
   data.db = newData.db;
+  data.cry_cnt = newData.cry_cnt;
   data.motor_state = newData.motor_state;
   data.music_state = newData.music_state;
 
@@ -807,6 +816,9 @@ function updateUI() {
   // 分贝/声音
   setText('val-db', isNaN(data.db) ? '--' : data.db);
   setAlarmCard('card-db', 'badge-db', dbAlarm, dbAlarm ? '超标!' : '正常');
+
+  // 哭闹次数
+  setText('val-cry', isNaN(data.cry_cnt) ? '--' : data.cry_cnt);
 
   // 电机状态
   const motorOn = data.motor_state === 1;
