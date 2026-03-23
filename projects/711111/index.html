@@ -144,6 +144,25 @@
             color: white;
         }
 
+        /* 阈值显示（只读） */
+        .threshold-display {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: var(--bg);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        .threshold-display:last-child { margin-bottom: 0; }
+        .threshold-display .label {
+            font-size: 14px;
+            color: var(--sub);
+        }
+        .threshold-display .value {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
         /* 阈值设置 */
         .threshold-row {
             display: flex;
@@ -174,6 +193,7 @@
             font-size: 14px;
             cursor: pointer;
         }
+        .threshold-btn:active { background: #1976D2; }
 
         /* 日志 */
         .log-toggle {
@@ -264,29 +284,46 @@
         </div>
     </div>
 
+    <!-- 当前阈值卡（只读，来自下位机） -->
+    <div class="card">
+        <div class="card-title">当前阈值（设备端）</div>
+        <div class="threshold-display">
+            <span class="label">CO2 阈值</span>
+            <span class="value"><span id="cur-co2-thr">1500</span> ppm</span>
+        </div>
+        <div class="threshold-display">
+            <span class="label">PM2.5 阈值</span>
+            <span class="value"><span id="cur-pm25-thr">75</span> μg/m³</span>
+        </div>
+        <div class="threshold-display">
+            <span class="label">温度阈值</span>
+            <span class="value"><span id="cur-temp-thr">35.0</span> °C</span>
+        </div>
+    </div>
+
     <!-- 控制卡 -->
     <div class="card">
         <div class="card-title">远程控制</div>
         <button class="btn btn-danger" onclick="sendCmd('01')">消警</button>
     </div>
 
-    <!-- 阈值设置卡 -->
+    <!-- 阈值设置卡（用户输入，独立） -->
     <div class="card">
-        <div class="card-title">阈值设置</div>
+        <div class="card-title">阈值设置（发送到设备）</div>
         <div class="threshold-row">
             <span class="threshold-label">CO2 阈值 (ppm)</span>
-            <input type="number" class="threshold-input" id="thr-co2" value="1500">
-            <button class="threshold-btn" onclick="sendThreshold('02', 'thr-co2')">发送</button>
+            <input type="number" class="threshold-input" id="set-co2" value="1500" min="100" max="5000">
+            <button class="threshold-btn" onclick="sendThreshold('02', 'set-co2')">发送</button>
         </div>
         <div class="threshold-row">
             <span class="threshold-label">PM2.5 阈值 (μg/m³)</span>
-            <input type="number" class="threshold-input" id="thr-pm25" value="75">
-            <button class="threshold-btn" onclick="sendThreshold('03', 'thr-pm25')">发送</button>
+            <input type="number" class="threshold-input" id="set-pm25" value="75" min="0" max="500">
+            <button class="threshold-btn" onclick="sendThreshold('03', 'set-pm25')">发送</button>
         </div>
         <div class="threshold-row">
             <span class="threshold-label">温度阈值 (°C)</span>
-            <input type="number" class="threshold-input" id="thr-temp" value="35" step="0.1">
-            <button class="threshold-btn" onclick="sendThreshold('04', 'thr-temp')">发送</button>
+            <input type="number" class="threshold-input" id="set-temp" value="35" min="0" max="60" step="0.1">
+            <button class="threshold-btn" onclick="sendThreshold('04', 'set-temp')">发送</button>
         </div>
     </div>
 
@@ -360,10 +397,10 @@
             const now = new Date();
             document.getElementById('updateTime').textContent = now.toLocaleTimeString();
 
-            // 同步阈值输入框
-            document.getElementById('thr-co2').value = currentData.co2_thresh;
-            document.getElementById('thr-pm25').value = currentData.pm25_thresh;
-            document.getElementById('thr-temp').value = currentData.temp_thresh;
+            // 更新当前阈值显示（只读）
+            document.getElementById('cur-co2-thr').textContent = currentData.co2_thresh;
+            document.getElementById('cur-pm25-thr').textContent = currentData.pm25_thresh;
+            document.getElementById('cur-temp-thr').textContent = currentData.temp_thresh.toFixed(1);
         }
 
         // 更新 UI
