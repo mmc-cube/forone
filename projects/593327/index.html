@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>豆芽生长箱智能控制系统</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --warn: #FF9800;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 12px;
+            padding-bottom: 80px;
+        }
+
+        .topbar {
+            padding: 44px 16px 10px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 12px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--sub);
+        }
+
+        .status-dot.connected {
+            background: var(--ok);
+        }
+
+        .status-dot.disconnected {
+            background: var(--alarm);
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 10px;
+        }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .data-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .data-item.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .data-label {
+            font-size: 12px;
+            color: var(--sub);
+            margin-bottom: 4px;
+        }
+
+        .data-value {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+
+        .data-value .value {
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .data-value .unit {
+            font-size: 12px;
+            color: var(--sub);
+        }
+
+        .data-value .threshold {
+            font-size: 11px;
+            color: var(--sub);
+            margin-left: auto;
+        }
+
+        .alarm-value .value {
+            color: var(--alarm);
+        }
+
+        .warn-value .value {
+            color: var(--warn);
+        }
+
+        .status-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.on {
+            background: var(--primary);
+            color: white;
+        }
+
+        .status-badge.off {
+            background: #e0e0e0;
+            color: var(--sub);
+        }
+
+        .alarm-banner {
+            background: var(--alarm);
+            color: white;
+            padding: 10px 14px;
+            border-radius: var(--radius);
+            margin-bottom: 12px;
+            text-align: center;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:active {
+            background: #1976D2;
+        }
+
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            gap: 10px;
+        }
+
+        .threshold-label {
+            flex: 1;
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        .threshold-input {
+            width: 70px;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .threshold-btn {
+            width: 55px;
+            padding: 6px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .threshold-btn:active {
+            background: #1976D2;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s;
+        }
+
+        .log-content.expanded {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            font-size: 11px;
+            color: var(--sub);
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+            font-family: monospace;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        /* 底部导航栏 */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 420px;
+            display: flex;
+            background: var(--card);
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+            padding: 8px 0;
+            z-index: 1000;
+        }
+
+        .tab-item {
+            flex: 1;
+            text-align: center;
+            padding: 12px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            color: var(--sub);
+        }
+
+        .tab-item.active {
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        .tab-item:hover {
+            background: #f0f0f0;
+            border-radius: 8px;
+            margin: 0 4px;
+        }
+
+        /* 页面切换 */
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .settings-group {
+            margin-bottom: 14px;
+        }
+
+        .settings-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .settings-group-title {
+            font-size: 13px;
+            color: var(--sub);
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot" id="mqttStatus"></div>
+                <span id="mqttStatusText">未连接</span>
+            </div>
+            <div class="status-item">
+                <span style="color: var(--sub); font-size: 13px;">豆芽生长箱</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页面 1：实时监控 -->
+    <div id="page-monitor" class="page active">
+        <div id="alarmBanner" class="alarm-banner" style="display: none;">
+            ⚠ <span id="alarmText">报警</span>
+        </div>
+
+        <div class="card">
+            <div class="card-title">环境数据</div>
+            <div class="data-grid">
+                <div class="data-item" id="tempItem">
+                    <div class="data-label">温度</div>
+                    <div class="data-value">
+                        <span class="value" id="temp">--</span>
+                        <span class="unit">°C</span>
+                        <span class="threshold" id="tempThresh">阈：--~--°C</span>
+                    </div>
+                </div>
+                <div class="data-item" id="humiItem">
+                    <div class="data-label">空气湿度</div>
+                    <div class="data-value">
+                        <span class="value" id="humi">--</span>
+                        <span class="unit">%RH</span>
+                    </div>
+                </div>
+                <div class="data-item" id="soilItem">
+                    <div class="data-label">土壤湿度</div>
+                    <div class="data-value">
+                        <span class="value" id="soil">--</span>
+                        <span class="unit">%</span>
+                        <span class="threshold" id="soilThresh">阈：--%</span>
+                    </div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">光照</div>
+                    <div class="data-value">
+                        <span class="value" id="light">--</span>
+                        <span class="unit">ADC</span>
+                    </div>
+                </div>
+                <div class="data-item" id="gasItem">
+                    <div class="data-label">气体</div>
+                    <div class="data-value">
+                        <span class="value" id="gas">--</span>
+                        <span class="unit">ADC</span>
+                        <span class="threshold" id="gasThresh">阈：--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">执行器状态</div>
+            <div class="status-row">
+                <span class="status-badge off" id="heatStatus">加热片</span>
+                <span class="status-badge off" id="fanStatus">散热风扇</span>
+                <span class="status-badge off" id="pumpStatus">水泵</span>
+                <span class="status-badge off" id="ventStatus">通风风扇</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <button class="btn btn-primary" onclick="sendAlarmReset()">消警</button>
+        </div>
+
+        <div class="card">
+            <div class="log-header" onclick="toggleLog()">
+                <span class="card-title" style="margin: 0;">数据日志</span>
+                <span style="color: var(--sub); font-size: 13px;" id="logToggle">展开</span>
+            </div>
+            <div class="log-content" id="logContent">
+                <div id="logList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页面 2：阈值设置 -->
+    <div id="page-settings" class="page">
+        <div class="card">
+            <div class="settings-group">
+                <div class="settings-group-title">温度设置</div>
+                <div class="threshold-row">
+                    <span class="threshold-label">温度下限 (°C)</span>
+                    <input type="number" id="threshTempL_input" class="threshold-input" min="10" max="30">
+                    <button class="threshold-btn" onclick="setThreshold('tempL', '02')">发送</button>
+                </div>
+                <div class="threshold-row">
+                    <span class="threshold-label">温度上限 (°C)</span>
+                    <input type="number" id="threshTempH_input" class="threshold-input" min="15" max="35">
+                    <button class="threshold-btn" onclick="setThreshold('tempH', '03')">发送</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">湿度设置</div>
+                <div class="threshold-row">
+                    <span class="threshold-label">土壤湿度 (%)</span>
+                    <input type="number" id="threshSoil_input" class="threshold-input" min="10" max="90">
+                    <button class="threshold-btn" onclick="setThreshold('soil', '04')">发送</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">气体报警设置</div>
+                <div class="threshold-row">
+                    <span class="threshold-label">气体报警 (ADC)</span>
+                    <input type="number" id="threshGas_input" class="threshold-input" min="500" max="4000">
+                    <button class="threshold-btn" onclick="setThreshold('gas', '05')">发送</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">浇水设置</div>
+                <div class="threshold-row">
+                    <span class="threshold-label">浇水时长 (秒)</span>
+                    <input type="number" id="waterTime_input" class="threshold-input" min="1" max="60">
+                    <button class="threshold-btn" onclick="setThreshold('waterTime', '06')">发送</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部导航栏 -->
+    <div class="tab-bar">
+        <div class="tab-item active" onclick="switchPage('monitor')" id="tab-monitor">📊 监控</div>
+        <div class="tab-item" onclick="switchPage('settings')" id="tab-settings">⚙️ 设置</div>
+    </div>
+
+    <script>
+        // ==================== 数据状态 ====================
+        let currentData = {
+            temp: null, humi: null, soil: null, light: null, gas: null,
+            heat: null, fan: null, pump: null, vent: null,
+            threshTempL: null, threshTempH: null, threshSoil: null, threshGas: null,
+            waterTime: null
+        };
+
+        // ==================== MQTT 配置 ====================
+        const UPLOAD_TOPIC = '593/327/dulaojiankang/upload';
+        const CMD_TOPIC = '593/327/dulaojiankang/cmd';
+
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+            reconnectPeriod: 3000
+        });
+
+        client.on('connect', () => {
+            console.log('MQTT Connected');
+            document.getElementById('mqttStatus').className = 'status-dot connected';
+            document.getElementById('mqttStatusText').textContent = '已连接';
+            client.subscribe(UPLOAD_TOPIC);
+        });
+
+        client.on('error', (err) => {
+            console.error('MQTT Error:', err);
+            document.getElementById('mqttStatus').className = 'status-dot disconnected';
+            document.getElementById('mqttStatusText').textContent = '连接失败';
+        });
+
+        client.on('reconnect', () => {
+            document.getElementById('mqttStatus').className = 'status-dot disconnected';
+            document.getElementById('mqttStatusText').textContent = '重连中...';
+        });
+
+        client.on('message', (topic, payload) => {
+            if (topic === UPLOAD_TOPIC) {
+                const message = payload.toString();
+                parseMessage(message);
+                addLog(message);
+            }
+        });
+
+        // ==================== 页面切换 ====================
+        function switchPage(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+
+            document.getElementById('page-' + page).classList.add('active');
+            document.getElementById('tab-' + page).classList.add('active');
+        }
+
+        // ==================== 消息解析 ====================
+        function parseMessage(message) {
+            const parts = message.split(',');
+            if (parts.length < 14) return;
+
+            const newData = {
+                temp: parseFloat(parts[0]) / 10,
+                humi: parseInt(parts[1]),
+                soil: parseInt(parts[2]),
+                light: parseInt(parts[3]),
+                gas: parseInt(parts[4]),
+                heat: parseInt(parts[5]),
+                fan: parseInt(parts[6]),
+                vent: parseInt(parts[7]),    /* 通风风扇 */
+                pump: parseInt(parts[8]),    /* 水泵 */
+                threshTempL: parseInt(parts[9]),
+                threshTempH: parseInt(parts[10]),
+                threshSoil: parseInt(parts[11]),
+                threshGas: parseInt(parts[12]),
+                waterTime: parseInt(parts[13])
+            };
+
+            // 传感器值始终更新
+            currentData.temp = newData.temp;
+            currentData.humi = newData.humi;
+            currentData.soil = newData.soil;
+            currentData.light = newData.light;
+            currentData.gas = newData.gas;
+
+            // 执行器状态更新
+            currentData.heat = newData.heat;
+            currentData.fan = newData.fan;
+            currentData.vent = newData.vent;
+            currentData.pump = newData.pump;
+
+            // 阈值更新（直接采用下位机回传的值）
+            currentData.threshTempL = newData.threshTempL;
+            currentData.threshTempH = newData.threshTempH;
+            currentData.threshSoil = newData.threshSoil;
+            currentData.threshGas = newData.threshGas;
+            currentData.waterTime = newData.waterTime;
+
+            updateUI();
+            checkAlarms();
+        }
+
+        // ==================== UI 更新 ====================
+        function updateUI() {
+            if (currentData.temp !== null) {
+                document.getElementById('temp').textContent = currentData.temp.toFixed(1);
+                // 更新阈值显示
+                if (currentData.threshTempL !== null && currentData.threshTempH !== null) {
+                    document.getElementById('tempThresh').textContent = `阈：${currentData.threshTempL}~${currentData.threshTempH}°C`;
+                }
+            }
+            if (currentData.humi !== null) {
+                document.getElementById('humi').textContent = currentData.humi;
+            }
+            if (currentData.soil !== null) {
+                document.getElementById('soil').textContent = currentData.soil;
+                if (currentData.threshSoil !== null) {
+                    document.getElementById('soilThresh').textContent = `阈：${currentData.threshSoil}%`;
+                }
+            }
+            if (currentData.light !== null) {
+                document.getElementById('light').textContent = currentData.light;
+            }
+            if (currentData.gas !== null) {
+                document.getElementById('gas').textContent = currentData.gas;
+                if (currentData.threshGas !== null) {
+                    document.getElementById('gasThresh').textContent = `阈：${currentData.threshGas}`;
+                }
+            }
+            // waterTime 在设置页面显示，监控页面不显示
+
+            document.getElementById('heatStatus').textContent = currentData.heat ? '加热片 ON' : '加热片';
+            document.getElementById('heatStatus').className = 'status-badge ' + (currentData.heat ? 'on' : 'off');
+
+            document.getElementById('fanStatus').textContent = currentData.fan ? '散热风扇 ON' : '散热风扇';
+            document.getElementById('fanStatus').className = 'status-badge ' + (currentData.fan ? 'on' : 'off');
+
+            document.getElementById('pumpStatus').textContent = currentData.pump ? '水泵 ON' : '水泵';
+            document.getElementById('pumpStatus').className = 'status-badge ' + (currentData.pump ? 'on' : 'off');
+
+            document.getElementById('ventStatus').textContent = currentData.vent ? '通风风扇 ON' : '通风风扇';
+            document.getElementById('ventStatus').className = 'status-badge ' + (currentData.vent ? 'on' : 'off');
+
+            // 报警样式
+            updateAlarmStyle();
+        }
+
+        function updateAlarmStyle() {
+            // 温度异常标红
+            const tempEl = document.getElementById('tempItem');
+            if (currentData.temp !== null && currentData.threshTempL !== null && currentData.threshTempH !== null) {
+                if (currentData.temp < currentData.threshTempL || currentData.temp > currentData.threshTempH) {
+                    tempEl.classList.add('alarm-value');
+                } else {
+                    tempEl.classList.remove('alarm-value');
+                }
+            }
+
+            // 土壤偏干标黄
+            const soilEl = document.getElementById('soilItem');
+            if (currentData.soil !== null && currentData.threshSoil !== null && currentData.soil < currentData.threshSoil) {
+                soilEl.classList.add('warn-value');
+            } else {
+                soilEl.classList.remove('warn-value');
+            }
+
+            // 气体超标标红
+            const gasEl = document.getElementById('gasItem');
+            if (currentData.gas !== null && currentData.threshGas !== null && currentData.gas > currentData.threshGas) {
+                gasEl.classList.add('alarm-value');
+            } else {
+                gasEl.classList.remove('alarm-value');
+            }
+        }
+
+        // ==================== 报警判断 ====================
+        function checkAlarms() {
+            const alarms = [];
+
+            if (currentData.temp !== null && currentData.threshTempL !== null && currentData.threshTempH !== null) {
+                if (currentData.temp < currentData.threshTempL) {
+                    alarms.push('温度过低');
+                } else if (currentData.temp > currentData.threshTempH) {
+                    alarms.push('温度过高');
+                }
+            }
+
+            if (currentData.gas !== null && currentData.threshGas !== null && currentData.gas > currentData.threshGas) {
+                alarms.push('气体超标');
+            }
+
+            if (currentData.soil !== null && currentData.threshSoil !== null && currentData.soil < currentData.threshSoil) {
+                alarms.push('基质偏干');
+            }
+
+            renderAlarms(alarms);
+        }
+
+        function renderAlarms(alarms) {
+            const banner = document.getElementById('alarmBanner');
+            const text = document.getElementById('alarmText');
+
+            if (alarms.length > 0) {
+                banner.style.display = 'block';
+                text.textContent = alarms.join(' | ');
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+
+        // ==================== 阈值设置 ====================
+        function setThreshold(type, cmdCode) {
+            let inputId;
+            if (type === 'waterTime') {
+                inputId = 'waterTime_input';
+            } else {
+                inputId = 'thresh' + type.charAt(0).toUpperCase() + type.slice(1) + '_input';
+            }
+
+            const inputEl = document.getElementById(inputId);
+            const value = inputEl.value;
+
+            if (!value || value === '') {
+                alert('请输入阈值');
+                return;
+            }
+
+            const numValue = parseFloat(value);
+            if (isNaN(numValue)) {
+                alert('请输入有效数字');
+                return;
+            }
+
+            sendCmd(`${cmdCode},${numValue}`);
+
+            inputEl.blur();
+        }
+
+        // ==================== 命令发送 ====================
+        function sendCmd(cmd) {
+            client.publish(CMD_TOPIC, cmd);
+            console.log('Sent command:', cmd);
+        }
+
+        function sendAlarmReset() {
+            sendCmd('01');
+        }
+
+        // ==================== 日志功能 ====================
+        let logEntries = [];
+
+        function addLog(message) {
+            logEntries.unshift(message);
+            if (logEntries.length > 20) {
+                logEntries = logEntries.slice(0, 20);
+            }
+            renderLog();
+        }
+
+        function renderLog() {
+            const logList = document.getElementById('logList');
+            logList.innerHTML = logEntries.map(entry => `<div class="log-entry">${entry}</div>`).join('');
+        }
+
+        function toggleLog() {
+            const content = document.getElementById('logContent');
+            const toggle = document.getElementById('logToggle');
+            content.classList.toggle('expanded');
+            toggle.textContent = content.classList.contains('expanded') ? '收起' : '展开';
+        }
+    </script>
+</body>
+</html>
