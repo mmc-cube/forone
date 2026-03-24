@@ -777,7 +777,7 @@
 
         function updateThreshDisplay(key, dataKey) {
             const display = document.getElementById(dataKey + '_display');
-            if (currentData[dataKey] !== null) {
+            if (display && currentData[dataKey] !== null) {
                 display.textContent = currentData[dataKey];
             }
         }
