@@ -978,17 +978,17 @@
         function setThreshold(type, cmdCode, min, max) {
             console.log('[SETTHRESH] 调用参数:', { type, cmdCode, min, max });
 
-            // 根据 type 获取对应的输入框 ID（驼峰命名）
-            const idMap = {
-                tempL: 'TempL',
-                tempH: 'TempH',
-                soil: 'Soil',
-                gas: 'Gas',
-                water: 'Time',
-                ventGas: 'GasThresh'
+            // 根据 type 获取对应的输入框 ID
+            const inputIdMap = {
+                tempL: 'threshTempL_input',
+                tempH: 'threshTempH_input',
+                soil: 'threshSoil_input',
+                gas: 'threshGas_input',
+                water: 'waterTime_input',
+                ventGas: 'ventGasThresh_input'
             };
 
-            const inputId = 'thresh' + idMap[type] + '_input';
+            const inputId = inputIdMap[type];
             console.log('[SETTHRESH] 查找输入框 ID:', inputId);
 
             const input = document.getElementById(inputId);
@@ -1037,7 +1037,15 @@
             sendCmd(cmd);
 
             // 3. 记录用户操作时间（防抖）
-            const dataKey = 'thresh' + idMap[type];  // tempL -> threshTempL
+            const dataKeyMap = {
+                tempL: 'threshTempL',
+                tempH: 'threshTempH',
+                soil: 'threshSoil',
+                gas: 'threshGas',
+                water: 'waterTime',
+                ventGas: 'ventGasThresh'
+            };
+            const dataKey = dataKeyMap[type];
             lastUserSetTime[dataKey] = Date.now();
 
             // 4. 立即更新显示（预测状态）
