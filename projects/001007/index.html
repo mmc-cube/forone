@@ -764,9 +764,21 @@
 
             // 阈值更新逻辑（只在非等待状态或超时后更新）
             const threshKeys = ['threshTempL', 'threshTempH', 'threshSoil', 'threshGas', 'waterTime', 'ventGasThresh'];
+
+            // dataKey 到 syncKey 的正确映射
+            const syncKeyMap = {
+                'threshTempL': 'tempL',
+                'threshTempH': 'tempH',
+                'threshSoil': 'soil',
+                'threshGas': 'gas',
+                'waterTime': 'water',
+                'ventGasThresh': 'ventGas'
+            };
+
             for (const key of threshKeys) {
+                const syncKey = syncKeyMap[key];
+
                 // 如果正在等待同步确认，跳过更新（用 pendingValue 显示预测值）
-                const syncKey = key.replace('thresh', '').toLowerCase();
                 if (waitingSync[syncKey]) {
                     continue;  // 等待确认期间，使用 predictValue 显示
                 }
