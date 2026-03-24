@@ -609,23 +609,9 @@
             keepalive: 60
         });
 
-        // ==================== 同步保护状态（核心改进） ====================
-        let waitingSync = {
-            tempL: false, tempH: false, soil: false, gas: false,
-            water: false, ventGas: false
-        };
-        let pendingValue = {
-            tempL: null, tempH: null, soil: null, gas: null,
-            water: null, ventGas: null
-        };
-        let syncTimeoutTimer = {
-            tempL: null, tempH: null, soil: null, gas: null,
-            water: null, ventGas: null
-        };
-
+        // ==================== 同步保护状态（简化版：只保留防抖） ====================
         let lastUserSetTime = {};
-        const DEBOUNCE_MS = 500;
-        const SYNC_TIMEOUT_MS = 5000;
+        const DEBOUNCE_MS = 500;  // 防抖时间：用户设置后 500ms 内忽略自动回写
 
         // ==================== 当前数据 ====================
         let currentData = {
@@ -725,79 +711,21 @@
             currentData.pump = newData.pump;
             currentData.vent = newData.vent;
 
-            // 检查同步确认
-            let hasPendingSync = false;
-            for (const [key, isWaiting] of Object.entries(waitingSync)) {
-                if (isWaiting) {
-                    hasPendingSync = true;
-                    const expectedValue = pendingValue[key];
-                    let receivedValue;
-
-                    switch(key) {
-                        case 'tempL': receivedValue = newData.threshTempL; break;
-                        case 'tempH': receivedValue = newData.threshTempH; break;
-                        case 'soil': receivedValue = newData.threshSoil; break;
-                        case 'gas': receivedValue = newData.threshGas; break;
-                        case 'water': receivedValue = newData.waterTime; break;
-                        case 'ventGas': receivedValue = newData.ventGasThresh; break;
-                    }
-
-                    // 收到回传数据，确认同步成功
-                    if (expectedValue !== null && Math.abs(receivedValue - expectedValue) < 0.5) {
-                        console.log(`Sync confirmed for ${key}: ${receivedValue}`);
-                        if (syncTimeoutTimer[key]) {
-                            clearTimeout(syncTimeoutTimer[key]);
-                            syncTimeoutTimer[key] = null;
-                        }
-                        waitingSync[key] = false;
-                        pendingValue[key] = null;
-
-                        // 清除防抖标记，使用驼峰格式
-                        const dataKey = `thresh${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-                        lastUserSetTime[dataKey] = 0;
-
-                        // 立即更新 UI 显示确认后的值
-                        currentData[dataKey] = receivedValue;
-                    }
-                }
-            }
-
-            // 阈值更新逻辑（只在非等待状态或超时后更新）
+            // 阈值更新逻辑：直接更新，不检查保护状态
+            // 只有用户手动设置时才需要防抖保护，下位机主动上报的数据应该直接显示
             const threshKeys = ['threshTempL', 'threshTempH', 'threshSoil', 'threshGas', 'waterTime', 'ventGasThresh'];
-
-            // dataKey 到 syncKey 的正确映射
-            const syncKeyMap = {
-                'threshTempL': 'tempL',
-                'threshTempH': 'tempH',
-                'threshSoil': 'soil',
-                'threshGas': 'gas',
-                'waterTime': 'water',
-                'ventGasThresh': 'ventGas'
-            };
-
             for (const key of threshKeys) {
-                const syncKey = syncKeyMap[key];
-
-                // 如果正在等待同步确认，跳过更新（用 pendingValue 显示预测值）
-                if (waitingSync[syncKey]) {
-                    continue;  // 等待确认期间，使用 predictValue 显示
-                }
-
-                // 防抖：用户刚设置过的数据，短时间内不更新
+                // 防抖保护：用户刚设置过的数据，500ms 内不更新（避免旧数据覆盖新设置）
                 if (lastUserSetTime[key] && (now - lastUserSetTime[key]) < DEBOUNCE_MS) {
                     continue;
                 }
-
                 currentData[key] = newData[key];
             }
 
             updateUI();
 
-            if (hasPendingSync) {
-                checkAlarmsWithPending();
-            } else {
-                checkAlarms();
-            }
+            // 使用简化后的报警判断
+            checkAlarms();
 
             addLog(message);
         }
@@ -857,7 +785,6 @@
         function updateThreshDisplay(key, dataKey) {
             const display = document.getElementById(dataKey + '_display');
             if (currentData[dataKey] !== null) {
-                // 等待确认期间显示预测值，确认后显示 currentData 中的实际值
                 display.textContent = currentData[dataKey];
             }
         }
@@ -868,7 +795,7 @@
             return { text: '弱光', class: 'light-weak' };
         }
 
-        // ==================== 报警判断（正常模式） ====================
+        // ==================== 报警判断 ====================
         function checkAlarms() {
             const alarms = [];
 
@@ -891,37 +818,6 @@
                 if (currentData.soil < currentData.threshSoil) {
                     alarms.push('⚠ 基质偏干');
                 }
-            }
-
-            renderAlarms(alarms);
-
-            if (alarms.length > 0) {
-                sendAlarmToNative({ alarms });
-            }
-        }
-
-        // ==================== 报警判断（等待确认期间使用预测值） ====================
-        function checkAlarmsWithPending() {
-            const alarms = [];
-
-            // 使用预测值或当前值
-            const threshTempL = waitingSync.tempL ? pendingValue.tempL : currentData.threshTempL;
-            const threshTempH = waitingSync.tempH ? pendingValue.tempH : currentData.threshTempH;
-            const threshSoil = waitingSync.soil ? pendingValue.soil : currentData.threshSoil;
-            const threshGas = waitingSync.gas ? pendingValue.gas : currentData.threshGas;
-
-            if (currentData.temp !== null && threshTempL !== null && threshTempH !== null) {
-                if (currentData.temp < threshTempL || currentData.temp > threshTempH) {
-                    alarms.push('⚠ 温度异常');
-                }
-            }
-
-            if (currentData.gas !== null && currentData.gas > threshGas) {
-                alarms.push('⚠ 气体超标');
-            }
-
-            if (currentData.soil !== null && currentData.soil < threshSoil) {
-                alarms.push('⚠ 基质偏干');
             }
 
             renderAlarms(alarms);
@@ -1028,23 +924,14 @@
                 return;
             }
 
-            if (waitingSync[type]) {
-                console.warn('[SETTHRESH] 正在等待同步，忽略:', type);
-                return;
-            }
-
             console.log('[SETTHRESH] 验证通过，准备发送指令');
 
-            // 1. 设置等待同步状态
-            waitingSync[type] = true;
-            pendingValue[type] = numValue;
-
-            // 2. 发送指令
+            // 1. 发送指令
             const cmd = `${cmdCode},${numValue}`;
             console.log('[SETTHRESH] 发送指令:', cmd);
             sendCmd(cmd);
 
-            // 3. 记录用户操作时间（防抖）
+            // 2. 记录用户操作时间（防抖保护）
             const dataKeyMap = {
                 tempL: 'threshTempL',
                 tempH: 'threshTempH',
@@ -1056,22 +943,12 @@
             const dataKey = dataKeyMap[type];
             lastUserSetTime[dataKey] = Date.now();
 
-            // 4. 立即更新显示（预测状态）
+            // 3. 立即更新显示（乐观更新 - 用户立即看到设置值）
             currentData[dataKey] = numValue;
             updateThreshDisplay(type, dataKey);
 
-            // 5. 立即检查报警（即时反馈）
+            // 4. 立即检查报警（即时反馈）
             checkAlarmsWithPending();
-
-            // 6. 设置超时保护
-            syncTimeoutTimer[type] = setTimeout(() => {
-                if (waitingSync[type]) {
-                    console.warn('[SETTHRESH] 同步超时，释放保护:', type);
-                    waitingSync[type] = false;
-                    pendingValue[type] = null;
-                    syncTimeoutTimer[type] = null;
-                }
-            }, SYNC_TIMEOUT_MS);
 
             input.blur();
         }
