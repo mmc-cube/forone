@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>老人健康监护系统</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            padding: 44px 12px 20px;
+            max-width: 420px;
+            margin: 0 auto;
+            min-height: 100vh;
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        /* ===== 状态栏 ===== */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--sub);
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+        .status-dot.connected { background: var(--ok); }
+        .status-dot.disconnected { background: var(--alarm); }
+        .status-dot.bluetooth { background: #9C27B0; }
+
+        /* ===== 实时数据 ===== */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label {
+            font-size: 13px;
+            color: var(--sub);
+        }
+        .data-value {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+        .data-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        .data-unit {
+            font-size: 13px;
+            color: var(--sub);
+        }
+        .data-value.alarm .data-number {
+            color: var(--alarm);
+        }
+
+        /* ===== 报警状态 ===== */
+        .alarm-status {
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .alarm-status.normal {
+            background: #E8F5E9;
+            color: var(--ok);
+        }
+        .alarm-status.warning {
+            background: #FFEBEE;
+            color: var(--alarm);
+        }
+        .alarm-item {
+            display: inline-block;
+            padding: 4px 12px;
+            background: var(--alarm);
+            color: #fff;
+            border-radius: 20px;
+            font-size: 13px;
+            margin: 4px;
+        }
+
+        /* ===== 蓝牙 RSSI ===== */
+        .rssi-bar-wrap {
+            padding: 8px 0;
+        }
+        .rssi-bar-bg {
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        .rssi-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A, #FFC107, #F44336);
+            transition: width 0.3s;
+        }
+        .rssi-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--sub);
+        }
+        .rssi-distance {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* ===== 按钮 ===== */
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            flex: 1;
+            min-width: 120px;
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-danger {
+            background: var(--alarm);
+            color: #fff;
+        }
+        .btn-secondary {
+            background: #9E9E9E;
+            color: #fff;
+        }
+
+        /* ===== 阈值设置 ===== */
+        .threshold-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+        }
+        .threshold-input {
+            width: 80px;
+            height: 36px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .threshold-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .btn-small {
+            width: 60px;
+            height: 36px;
+            border: none;
+            border-radius: 6px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        /* ===== 日志 ===== */
+        .log-wrap {
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--sub);
+        }
+        .log-item {
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .log-wrap.collapsed {
+            max-height: 0;
+            overflow: hidden;
+        }
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        /* ===== 蓝牙连接按钮 ===== */
+        .bluetooth-btn-wrap {
+            margin-top: 12px;
+        }
+        .bluetooth-status {
+            font-size: 12px;
+            color: var(--sub);
+            margin-top: 8px;
+        }
+
+        /* ===== 隐藏类 ===== */
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- 状态栏 -->
+    <div class="card status-bar">
+        <div class="status-item">
+            <span class="status-dot" id="mqttDot"></span>
+            <span>MQTT: <span id="mqttStatus">未连接</span></span>
+        </div>
+        <div class="status-item">
+            <span class="status-dot" id="btDot"></span>
+            <span>蓝牙：<span id="btStatus">未连接</span></span>
+        </div>
+    </div>
+
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-label">心率</span>
+            <div class="data-value" id="hrValue">
+                <span class="data-number" id="heartRate">--</span>
+                <span class="data-unit">BPM</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">血氧</span>
+            <div class="data-value" id="spo2Value">
+                <span class="data-number" id="spo2">--</span>
+                <span class="data-unit">%</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">体温</span>
+            <div class="data-value" id="tempValue">
+                <span class="data-number" id="bodyTemp">--</span>
+                <span class="data-unit">°C</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">GPS</span>
+            <div class="data-value">
+                <span class="data-number" style="font-size:16px" id="gpsCoord">--</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">跌倒状态</span>
+            <div class="data-value">
+                <span class="data-number" style="font-size:18px" id="fallStatus">正常</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card" id="alarmCard">
+        <div class="card-title">报警状态</div>
+        <div class="alarm-status normal" id="alarmStatus">
+            运行正常 ✓
+        </div>
+    </div>
+
+    <!-- 蓝牙 RSSI 卡 -->
+    <div class="card">
+        <div class="card-title">蓝牙定位 (JDY-31)</div>
+        <div class="rssi-bar-wrap">
+            <div class="rssi-bar-bg">
+                <div class="rssi-bar-fill" id="rssiBar" style="width: 0%"></div>
+            </div>
+            <div class="rssi-info">
+                <span>RSSI: <span id="rssiValue">--</span> dBm</span>
+                <span class="rssi-distance" id="rssiDistance">--</span>
+            </div>
+        </div>
+        <div class="bluetooth-btn-wrap">
+            <button class="btn btn-primary" onclick="connectBluetooth()" style="width:100%">
+                🔗 连接蓝牙
+            </button>
+            <div class="bluetooth-status" id="btDebug">等待连接...</div>
+        </div>
+    </div>
+
+    <!-- 控制卡 -->
+    <div class="card">
+        <div class="card-title">控制</div>
+        <div class="btn-row">
+            <button class="btn btn-danger" onclick="sendClearAlarm()">🔕 消警</button>
+            <button class="btn btn-secondary" onclick="disconnectMQTT()">断开连接</button>
+        </div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="threshold-row">
+            <span class="data-label">心率上限</span>
+            <div>
+                <input type="number" class="threshold-input" id="hrThresholdInput" value="120" min="60" max="150">
+                <button class="btn-small" onclick="setHrThreshold()">发送</button>
+            </div>
+        </div>
+        <div class="threshold-row">
+            <span class="data-label">血氧下限</span>
+            <div>
+                <input type="number" class="threshold-input" id="spo2ThresholdInput" value="95" min="90" max="99">
+                <button class="btn-small" onclick="setSpo2Threshold()">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 阈值显示卡（只读） -->
+    <div class="card">
+        <div class="card-title">当前阈值（下位机上报）</div>
+        <div class="data-row">
+            <span class="data-label">心率上限</span>
+            <div class="data-value">
+                <span class="data-number" style="font-size:20px" id="hrThresholdDisplay">--</span>
+                <span class="data-unit">BPM</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">血氧下限</span>
+            <div class="data-value">
+                <span class="data-number" style="font-size:20px" id="spo2ThresholdDisplay">--</span>
+                <span class="data-unit">%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card">
+        <div class="log-header" onclick="toggleLog()">
+            <div class="card-title" style="margin:0">系统日志</div>
+            <span style="font-size:12px;color:var(--sub)">▼ 点击展开</span>
+        </div>
+        <div class="log-wrap collapsed" id="logWrap"></div>
+    </div>
+
+    <script>
+        // ==================== MQTT 配置 ====================
+        const MQTT_CONFIG = {
+            host: 'broker.emqx.io',
+            port: 8083,
+            path: '/mqtt',
+            clientId: 'laoren_' + Math.random().toString(36).substr(2, 6)
+        };
+        const TOPIC_UPLOAD = '401/657/laorenjianhu/upload';
+        const TOPIC_CMD = '401/657/laorenjianhu/cmd';
+
+        // ==================== 全局状态 ====================
+        let mqttClient = null;
+        let isConnected = false;
+        let logs = [];
+        let currentData = {
+            heartRate: null,
+            spo2: null,
+            bodyTemp: null,
+            gpsLat: null,
+            gpsLng: null,
+            fall: 0,
+            sos: 0,
+            hrThreshold: null,
+            spo2Threshold: null
+        };
+
+        // 防抖保护
+        let lastUserSetTime = { hr: 0, spo2: 0 };
+        const DEBOUNCE_MS = 500;
+
+        // 蓝牙状态
+        let bluetoothSocket = null;
+        let isBluetoothConnected = false;
+        let rssiValues = [];
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            connectMQTT();
+            addLog('系统初始化完成');
+        });
+
+        // ==================== MQTT 连接 ====================
+        function connectMQTT() {
+            addLog('正在连接 MQTT...');
+            try {
+                mqttClient = mqtt.connect(`ws://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}${MQTT_CONFIG.path}`, {
+                    clientId: MQTT_CONFIG.clientId,
+                    reconnectPeriod: 3000,
+                    connectTimeout: 10000
+                });
+
+                mqttClient.on('connect', () => {
+                    isConnected = true;
+                    updateMqttStatus(true);
+                    mqttClient.subscribe(TOPIC_UPLOAD, () => {
+                        addLog(`已订阅：${TOPIC_UPLOAD}`);
+                    });
+                    addLog('MQTT 连接成功');
+                });
+
+                mqttClient.on('message', (topic, payload) => {
+                    if (topic === TOPIC_UPLOAD) {
+                        parseMessage(payload.toString());
+                    }
+                });
+
+                mqttClient.on('error', (err) => {
+                    addLog('MQTT 错误：' + err.message);
+                });
+
+                mqttClient.on('close', () => {
+                    isConnected = false;
+                    updateMqttStatus(false);
+                    addLog('MQTT 连接已关闭');
+                });
+
+                mqttClient.on('reconnect', () => {
+                    addLog('MQTT 重连中...');
+                });
+            } catch (err) {
+                addLog('MQTT 连接失败：' + err.message);
+            }
+        }
+
+        function disconnectMQTT() {
+            if (mqttClient) {
+                mqttClient.end();
+                mqttClient = null;
+                isConnected = false;
+                updateMqttStatus(false);
+                addLog('已手动断开 MQTT');
+            }
+        }
+
+        function updateMqttStatus(connected) {
+            const dot = document.getElementById('mqttDot');
+            const text = document.getElementById('mqttStatus');
+            if (connected) {
+                dot.className = 'status-dot connected';
+                text.textContent = '已连接';
+            } else {
+                dot.className = 'status-dot disconnected';
+                text.textContent = '未连接';
+            }
+        }
+
+        // ==================== 解析上行数据 ====================
+        // 格式：心率，血氧，体温，跌倒，纬度，经度，SOS，心率上限，血氧下限
+        function parseMessage(message) {
+            const parts = message.split(',');
+            if (parts.length < 9) {
+                addLog('数据格式错误：' + message);
+                return;
+            }
+
+            const now = Date.now();
+            const newData = {
+                heartRate: parseInt(parts[0]) || 0,
+                spo2: parseInt(parts[1]) || 0,
+                bodyTemp: parseFloat(parts[2]) || 0,
+                fall: parseInt(parts[3]) || 0,
+                gpsLat: parseFloat(parts[4]) || 0,
+                gpsLng: parseFloat(parts[5]) || 0,
+                sos: parseInt(parts[6]) || 0,
+                hrThreshold: parseInt(parts[7]) || 120,
+                spo2Threshold: parseInt(parts[8]) || 95
+            };
+
+            // 更新数据（防抖保护）
+            if (newData.heartRate > 0) currentData.heartRate = newData.heartRate;
+            if (newData.spo2 > 0) currentData.spo2 = newData.spo2;
+            if (newData.bodyTemp > 0) currentData.bodyTemp = newData.bodyTemp;
+            if (newData.gpsLat !== 0 || newData.gpsLng !== 0) {
+                currentData.gpsLat = newData.gpsLat;
+                currentData.gpsLng = newData.gpsLng;
+            }
+            currentData.fall = newData.fall;
+            currentData.sos = newData.sos;
+
+            // 阈值更新（带防抖）
+            if (!lastUserSetTime.hr || (now - lastUserSetTime.hr) >= DEBOUNCE_MS) {
+                currentData.hrThreshold = newData.hrThreshold;
+            }
+            if (!lastUserSetTime.spo2 || (now - lastUserSetTime.spo2) >= DEBOUNCE_MS) {
+                currentData.spo2Threshold = newData.spo2Threshold;
+            }
+
+            updateUI();
+            checkAlarms();
+            addLog(`收到：${message}`);
+        }
+
+        // ==================== 更新 UI ====================
+        function updateUI() {
+            // 心率
+            if (currentData.heartRate !== null && currentData.heartRate > 0) {
+                document.getElementById('heartRate').textContent = currentData.heartRate;
+            }
+            // 血氧
+            if (currentData.spo2 !== null && currentData.spo2 > 0) {
+                document.getElementById('spo2').textContent = currentData.spo2;
+            }
+            // 体温（从血氧估算或传感器）
+            if (currentData.bodyTemp !== null) {
+                document.getElementById('bodyTemp').textContent = currentData.bodyTemp.toFixed(1);
+            }
+            // GPS
+            if (currentData.gpsLat !== null && currentData.gpsLat !== 0) {
+                const latStr = currentData.gpsLat > 0 ? 'N' : 'S';
+                const lngStr = currentData.gpsLng > 0 ? 'E' : 'W';
+                document.getElementById('gpsCoord').textContent =
+                    `${latStr}${Math.abs(currentData.gpsLat).toFixed(4)} ${lngStr}${Math.abs(currentData.gpsLng).toFixed(4)}`;
+            } else {
+                document.getElementById('gpsCoord').textContent = '定位中...';
+            }
+            // 跌倒状态
+            const fallEl = document.getElementById('fallStatus');
+            fallEl.textContent = currentData.fall === 1 ? '跌倒！' : '正常';
+            if (currentData.fall === 1) {
+                fallEl.style.color = 'var(--alarm)';
+            } else {
+                fallEl.style.color = 'var(--text)';
+            }
+
+            // 阈值显示
+            if (currentData.hrThreshold !== null) {
+                document.getElementById('hrThresholdDisplay').textContent = currentData.hrThreshold;
+            }
+            if (currentData.spo2Threshold !== null) {
+                document.getElementById('spo2ThresholdDisplay').textContent = currentData.spo2Threshold;
+            }
+        }
+
+        // ==================== 报警判断 ====================
+        function checkAlarms() {
+            const alarms = [];
+            const alarmStatus = document.getElementById('alarmStatus');
+
+            // 心率超限
+            if (currentData.heartRate !== null && currentData.heartRate >= 120) {
+                alarms.push('心率超限');
+            }
+            // 血氧过低
+            if (currentData.spo2 !== null && currentData.spo2 <= 95) {
+                alarms.push('血氧过低');
+            }
+            // 跌倒检测
+            if (currentData.fall === 1) {
+                alarms.push('跌倒检测');
+            }
+            // SOS
+            if (currentData.sos === 1) {
+                alarms.push('SOS');
+            }
+
+            if (alarms.length === 0) {
+                alarmStatus.className = 'alarm-status normal';
+                alarmStatus.innerHTML = '运行正常 ✓';
+            } else {
+                alarmStatus.className = 'alarm-status warning';
+                alarmStatus.innerHTML = alarms.map(a => `<span class="alarm-item">${a}</span>`).join('');
+            }
+
+            // 高亮数据
+            document.getElementById('hrValue').classList.toggle('alarm', currentData.heartRate !== null && currentData.heartRate >= 120);
+            document.getElementById('spo2Value').classList.toggle('alarm', currentData.spo2 !== null && currentData.spo2 <= 95);
+        }
+
+        // ==================== 发送指令 ====================
+        function sendCmd(cmd) {
+            if (mqttClient && isConnected) {
+                mqttClient.publish(TOPIC_CMD, cmd);
+                addLog(`发送指令：${cmd}`);
+            } else {
+                addLog('MQTT 未连接，无法发送指令');
+            }
+        }
+
+        function sendClearAlarm() {
+            sendCmd('01');
+        }
+
+        function setHrThreshold() {
+            const val = document.getElementById('hrThresholdInput').value;
+            if (!val || val < 60 || val > 150) {
+                alert('请输入有效的心率上限 (60-150)');
+                return;
+            }
+            lastUserSetTime.hr = Date.now();
+            sendCmd(`02,${val}`);
+            // 乐观更新
+            currentData.hrThreshold = parseInt(val);
+            updateUI();
+        }
+
+        function setSpo2Threshold() {
+            const val = document.getElementById('spo2ThresholdInput').value;
+            if (!val || val < 90 || val > 99) {
+                alert('请输入有效的血氧下限 (90-99)');
+                return;
+            }
+            lastUserSetTime.spo2 = Date.now();
+            sendCmd(`03,${val}`);
+            // 乐观更新
+            currentData.spo2Threshold = parseInt(val);
+            updateUI();
+        }
+
+        // ==================== 日志 ====================
+        function addLog(message) {
+            const timestamp = new Date().toLocaleTimeString('zh-CN');
+            logs.unshift(`[${timestamp}] ${message}`);
+            if (logs.length > 50) logs.pop();
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const wrap = document.getElementById('logWrap');
+            wrap.innerHTML = logs.map(log => `<div class="log-item">${escapeHtml(log)}</div>`).join('');
+        }
+
+        function toggleLog() {
+            const wrap = document.getElementById('logWrap');
+            wrap.classList.toggle('collapsed');
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // ==================== 蓝牙功能（模拟 RSSI） ====================
+        function connectBluetooth() {
+            if (isBluetoothConnected) {
+                disconnectBluetooth();
+                return;
+            }
+
+            addLog('正在连接蓝牙...');
+            document.getElementById('btDebug').textContent = '正在扫描设备...';
+
+            // 模拟蓝牙连接（实际使用需要 Android WebView 调用原生 API）
+            setTimeout(() => {
+                isBluetoothConnected = true;
+                updateBluetoothStatus(true);
+                document.getElementById('btDebug').textContent = '已连接到 JDY-31';
+                addLog('蓝牙连接成功');
+
+                // 模拟 RSSI 数据
+                simulateRssi();
+            }, 1500);
+        }
+
+        function disconnectBluetooth() {
+            isBluetoothConnected = false;
+            updateBluetoothStatus(false);
+            document.getElementById('btDebug').textContent = '已断开连接';
+            document.getElementById('rssiBar').style.width = '0%';
+            document.getElementById('rssiValue').textContent = '--';
+            document.getElementById('rssiDistance').textContent = '--';
+            addLog('蓝牙已断开');
+        }
+
+        function updateBluetoothStatus(connected) {
+            const dot = document.getElementById('btDot');
+            const text = document.getElementById('btStatus');
+            if (connected) {
+                dot.className = 'status-dot bluetooth';
+                text.textContent = '已连接';
+            } else {
+                dot.className = 'status-dot disconnected';
+                text.textContent = '未连接';
+            }
+        }
+
+        function simulateRssi() {
+            if (!isBluetoothConnected) return;
+
+            // 模拟 RSSI 变化 (-30 到 -90 dBm)
+            const rssi = Math.floor(-30 - Math.random() * 60);
+            updateRssiDisplay(rssi);
+            rssiValues.push(rssi);
+            if (rssiValues.length > 10) rssiValues.shift();
+
+            setTimeout(simulateRssi, 2000);
+        }
+
+        function updateRssiDisplay(rssi) {
+            document.getElementById('rssiValue').textContent = rssi;
+
+            // 计算信号强度条 (0-100%)
+            // RSSI 范围：-30 (很强) 到 -90 (很弱)
+            const percentage = Math.max(0, Math.min(100, ((rssi + 90) / 60) * 100));
+            document.getElementById('rssiBar').style.width = percentage + '%';
+
+            // 距离估算
+            let distance = '';
+            if (rssi > -50) {
+                distance = '很近 (<1m)';
+            } else if (rssi > -65) {
+                distance = '近 (1-3m)';
+            } else if (rssi > -75) {
+                distance = '中等 (3-5m)';
+            } else {
+                distance = '远 (>5m)';
+            }
+            document.getElementById('rssiDistance').textContent = distance;
+        }
+
+        // ==================== Android WebView 接口 ====================
+        // 如果运行在 Android WebView 中，可以通过这个接口调用原生功能
+        window.AndroidBridge = {
+            onBluetoothData: function(data) {
+                // 接收蓝牙数据
+                try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.rssi !== undefined) {
+                        updateRssiDisplay(parsed.rssi);
+                    }
+                } catch (e) {}
+            },
+            onAlarm: function(data) {
+                // 接收报警通知
+                addLog('收到报警：' + data);
+            }
+        };
+
+        // 如果 WebView 提供了原生接口
+        if (window.Android) {
+            window.Android.onAlarm = function(data) {
+                addLog('原生报警：' + data);
+            };
+        }
+    </script>
+</body>
+</html>
