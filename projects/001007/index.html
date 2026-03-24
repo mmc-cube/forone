@@ -609,10 +609,6 @@
             keepalive: 60
         });
 
-        // ==================== 同步保护状态（简化版：只保留防抖） ====================
-        let lastUserSetTime = {};
-        const DEBOUNCE_MS = 500;  // 防抖时间：用户设置后 500ms 内忽略自动回写
-
         // ==================== 当前数据 ====================
         let currentData = {
             temp: null, humi: null, soil: null, light: null, gas: null,
@@ -711,16 +707,13 @@
             currentData.pump = newData.pump;
             currentData.vent = newData.vent;
 
-            // 阈值更新逻辑：直接更新，不检查保护状态
-            // 只有用户手动设置时才需要防抖保护，下位机主动上报的数据应该直接显示
-            const threshKeys = ['threshTempL', 'threshTempH', 'threshSoil', 'threshGas', 'waterTime', 'ventGasThresh'];
-            for (const key of threshKeys) {
-                // 防抖保护：用户刚设置过的数据，500ms 内不更新（避免旧数据覆盖新设置）
-                if (lastUserSetTime[key] && (now - lastUserSetTime[key]) < DEBOUNCE_MS) {
-                    continue;
-                }
-                currentData[key] = newData[key];
-            }
+            // 阈值更新：直接更新下位机上报的数据
+            currentData.threshTempL = newData.threshTempL;
+            currentData.threshTempH = newData.threshTempH;
+            currentData.threshSoil = newData.threshSoil;
+            currentData.threshGas = newData.threshGas;
+            currentData.waterTime = newData.waterTime;
+            currentData.ventGasThresh = newData.ventGasThresh;
 
             updateUI();
 
@@ -926,29 +919,12 @@
 
             console.log('[SETTHRESH] 验证通过，准备发送指令');
 
-            // 1. 发送指令
+            // 发送指令
             const cmd = `${cmdCode},${numValue}`;
             console.log('[SETTHRESH] 发送指令:', cmd);
             sendCmd(cmd);
 
-            // 2. 记录用户操作时间（防抖保护）
-            const dataKeyMap = {
-                tempL: 'threshTempL',
-                tempH: 'threshTempH',
-                soil: 'threshSoil',
-                gas: 'threshGas',
-                water: 'waterTime',
-                ventGas: 'ventGasThresh'
-            };
-            const dataKey = dataKeyMap[type];
-            lastUserSetTime[dataKey] = Date.now();
-
-            // 3. 立即更新显示（乐观更新 - 用户立即看到设置值）
-            currentData[dataKey] = numValue;
-            updateThreshDisplay(type, dataKey);
-
-            // 4. 立即检查报警（即时反馈）
-            checkAlarmsWithPending();
+            alert('指令已发送');
 
             input.blur();
         }
