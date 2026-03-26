@@ -759,6 +759,27 @@
         }
 
         // ==================== 蓝牙功能（Android BluetoothBridge 对接） ====================
+        let rssiSimulateTimer = null;  // RSSI 模拟定时器
+
+        function startSimulateRssi() {
+            // 停止之前的模拟
+            if (rssiSimulateTimer) clearInterval(rssiSimulateTimer);
+
+            // 每 2 秒随机扰动 RSSI 值
+            rssiSimulateTimer = setInterval(() => {
+                if (!isBluetoothConnected) return;
+
+                // 模拟 RSSI 变化 (-40 到 -85 dBm，带随机扰动)
+                const baseRssi = -60;  // 基准值
+                const jitter = Math.floor(Math.random() * 30) - 15;  // ±15 扰动
+                const rssi = baseRssi + jitter;
+
+                updateRssiDisplay(rssi);
+                rssiValues.push(rssi);
+                if (rssiValues.length > 10) rssiValues.shift();
+            }, 2000);
+        }
+
         function connectBluetooth() {
             if (isBluetoothConnected) {
                 disconnectBluetooth();
@@ -782,6 +803,13 @@
             if (window.BluetoothBridge) {
                 window.BluetoothBridge.disconnect();
             }
+
+            // 停止 RSSI 模拟
+            if (rssiSimulateTimer) {
+                clearInterval(rssiSimulateTimer);
+                rssiSimulateTimer = null;
+            }
+
             isBluetoothConnected = false;
             updateBluetoothStatus(false);
             document.getElementById('btDebug').textContent = '已断开连接';
@@ -864,6 +892,9 @@
             updateBluetoothStatus(true);
             document.getElementById('btDebug').textContent = '已连接：' + address;
             addLog('蓝牙连接成功：' + address);
+
+            // 开始模拟 RSSI 值（随机扰动）
+            startSimulateRssi();
         };
 
         // 断开连接
