@@ -349,7 +349,7 @@
         <div class="threshold-row">
             <span class="data-label">心率上限</span>
             <div>
-                <input type="number" class="threshold-input" id="hrThresholdMaxInput" value="90">
+                <input type="number" class="threshold-input" id="hrThresholdMaxInput" value="130">
                 <button class="btn-small" onclick="setHrThresholdMax()">发送</button>
             </div>
         </div>
@@ -365,6 +365,20 @@
             <div>
                 <input type="number" class="threshold-input" id="spo2ThresholdInput" value="95">
                 <button class="btn-small" onclick="setSpo2Threshold()">发送</button>
+            </div>
+        </div>
+        <div class="threshold-row">
+            <span class="data-label">体温上限</span>
+            <div>
+                <input type="number" class="threshold-input" id="tempThresholdMaxInput" value="25.0" step="0.1" min="20" max="42">
+                <button class="btn-small" onclick="setTempThresholdMax()">发送</button>
+            </div>
+        </div>
+        <div class="threshold-row">
+            <span class="data-label">体温下限</span>
+            <div>
+                <input type="number" class="threshold-input" id="tempThresholdMinInput" value="20.0" step="0.1" min="10" max="30">
+                <button class="btn-small" onclick="setTempThresholdMin()">发送</button>
             </div>
         </div>
     </div>
@@ -391,6 +405,20 @@
             <div class="data-value">
                 <span class="data-number" style="font-size:20px" id="spo2ThresholdDisplay">--</span>
                 <span class="data-unit">%</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">体温上限</span>
+            <div class="data-value">
+                <span class="data-number" style="font-size:20px" id="tempThresholdMaxDisplay">--</span>
+                <span class="data-unit">°C</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">体温下限</span>
+            <div class="data-value">
+                <span class="data-number" style="font-size:20px" id="tempThresholdMinDisplay">--</span>
+                <span class="data-unit">°C</span>
             </div>
         </div>
     </div>
@@ -426,15 +454,17 @@
             gpsLat: null,
             gpsLng: null,
             fall: 0,
-            manualAlarm: 0,  // 新增手动报警字段
+            manualAlarm: 0,
             sos: 0,
-            hrThresholdMax: null,  // 心率上限
-            hrThresholdMin: null,  // 心率下限
-            spo2Threshold: null
+            hrThresholdMax: null,  /* 心率上限 */
+            hrThresholdMin: null,  /* 心率下限 */
+            spo2Threshold: null,   /* 血氧下限 */
+            tempThresholdMax: null, /* 体温上限 */
+            tempThresholdMin: null  /* 体温下限 */
         };
 
         // 防抖保护
-        let lastUserSetTime = { hrMax: 0, hrMin: 0, spo2: 0 };
+        let lastUserSetTime = { hrMax: 0, hrMin: 0, spo2: 0, tempMax: 0, tempMin: 0 };
         const DEBOUNCE_MS = 500;
 
         // 蓝牙状态
@@ -513,10 +543,10 @@
         }
 
         // ==================== 解析上行数据 ====================
-        // 格式：心率，血氧，体温，跌倒，手动报警，纬度，经度，SOS，心率上限，心率下限，血氧下限
+        // 格式：心率，血氧，体温，跌倒，手动报警，纬度，经度，SOS，心率上限，心率下限，血氧下限，体温上限，体温下限
         function parseMessage(message) {
             const parts = message.split(',');
-            if (parts.length < 11) {
+            if (parts.length < 13) {
                 addLog('数据格式错误：' + message);
                 return;
             }
@@ -527,13 +557,15 @@
                 spo2: parseInt(parts[1]) || 0,
                 bodyTemp: parseFloat(parts[2]) || 0,
                 fall: parseInt(parts[3]) || 0,
-                manualAlarm: parseInt(parts[4]) || 0,  // 新增手动报警字段
+                manualAlarm: parseInt(parts[4]) || 0,
                 gpsLat: parseFloat(parts[5]) || 0,
                 gpsLng: parseFloat(parts[6]) || 0,
                 sos: parseInt(parts[7]) || 0,
-                hrThresholdMax: parseInt(parts[8]) || 90,    // 心率上限
-                hrThresholdMin: parseInt(parts[9]) || 60,    // 心率下限
-                spo2Threshold: parseInt(parts[10]) || 95
+                hrThresholdMax: parseInt(parts[8]) || 130,
+                hrThresholdMin: parseInt(parts[9]) || 60,
+                spo2Threshold: parseInt(parts[10]) || 95,
+                tempThresholdMax: parseFloat(parts[11]) || 25.0,
+                tempThresholdMin: parseFloat(parts[12]) || 20.0
             };
 
             // 更新数据（防抖保护）- 0 值也更新，表示数据无效
@@ -545,7 +577,7 @@
                 currentData.gpsLng = newData.gpsLng;
             }
             currentData.fall = newData.fall;
-            currentData.manualAlarm = newData.manualAlarm;  // 更新手动报警
+            currentData.manualAlarm = newData.manualAlarm;
             currentData.sos = newData.sos;
 
             // 阈值更新（带防抖）
@@ -557,6 +589,12 @@
             }
             if (!lastUserSetTime.spo2 || (now - lastUserSetTime.spo2) >= DEBOUNCE_MS) {
                 currentData.spo2Threshold = newData.spo2Threshold;
+            }
+            if (!lastUserSetTime.tempMax || (now - lastUserSetTime.tempMax) >= DEBOUNCE_MS) {
+                currentData.tempThresholdMax = newData.tempThresholdMax;
+            }
+            if (!lastUserSetTime.tempMin || (now - lastUserSetTime.tempMin) >= DEBOUNCE_MS) {
+                currentData.tempThresholdMin = newData.tempThresholdMin;
             }
 
             updateUI();
@@ -613,6 +651,12 @@
             if (currentData.spo2Threshold !== null) {
                 document.getElementById('spo2ThresholdDisplay').textContent = currentData.spo2Threshold;
             }
+            if (currentData.tempThresholdMax !== null) {
+                document.getElementById('tempThresholdMaxDisplay').textContent = currentData.tempThresholdMax.toFixed(1);
+            }
+            if (currentData.tempThresholdMin !== null) {
+                document.getElementById('tempThresholdMinDisplay').textContent = currentData.tempThresholdMin.toFixed(1);
+            }
         }
 
         // ==================== 报警判断 ====================
@@ -650,6 +694,20 @@
                 }
             }
 
+            // 体温过高（使用动态阈值）- 0 值不报警
+            if (currentData.bodyTemp !== null && currentData.bodyTemp > 0 && currentData.tempThresholdMax !== null) {
+                if (currentData.bodyTemp >= currentData.tempThresholdMax) {
+                    alarms.push('体温过高');
+                }
+            }
+
+            // 体温过低（使用动态阈值）- 0 值不报警
+            if (currentData.bodyTemp !== null && currentData.bodyTemp > 0 && currentData.tempThresholdMin !== null) {
+                if (currentData.bodyTemp <= currentData.tempThresholdMin) {
+                    alarms.push('体温过低');
+                }
+            }
+
             // SOS
             if (currentData.sos === 1) {
                 alarms.push('SOS');
@@ -673,9 +731,28 @@
             const spo2Alarm = (currentData.spo2 !== null && currentData.spo2 > 0 &&
                               currentData.spo2Threshold !== null &&
                               currentData.spo2 < currentData.spo2Threshold);
+            const tempHighAlarm = (currentData.bodyTemp !== null && currentData.bodyTemp > 0 &&
+                                  currentData.tempThresholdMax !== null &&
+                                  currentData.bodyTemp >= currentData.tempThresholdMax);
+            const tempLowAlarm = (currentData.bodyTemp !== null && currentData.bodyTemp > 0 &&
+                                 currentData.tempThresholdMin !== null &&
+                                 currentData.bodyTemp <= currentData.tempThresholdMin);
 
             document.getElementById('hrValue').classList.toggle('alarm', hrHighAlarm || hrLowAlarm);
             document.getElementById('spo2Value').classList.toggle('alarm', spo2Alarm);
+            document.getElementById('tempValue').classList.toggle('alarm', tempHighAlarm || tempLowAlarm);
+
+            // 调用原生通知（如果有报警）
+            if (alarms.length > 0) {
+                sendAlarmToNative({
+                    which: 'multi',
+                    alarms: alarms,
+                    heartRate: currentData.heartRate,
+                    spo2: currentData.spo2,
+                    bodyTemp: currentData.bodyTemp,
+                    fall: currentData.fall
+                });
+            }
         }
 
         // ==================== 发送指令 ====================
@@ -728,6 +805,42 @@
             sendCmd(`04,${val}`);
             // 乐观更新
             currentData.spo2Threshold = parseInt(val);
+            updateUI();
+        }
+
+        function setTempThresholdMax() {
+            const val = document.getElementById('tempThresholdMaxInput').value;
+            if (!val) {
+                alert('请输入温度上限');
+                return;
+            }
+            const numVal = parseFloat(val);
+            if (numVal < 20 || numVal > 42) {
+                alert('温度上限范围：20-42°C');
+                return;
+            }
+            lastUserSetTime.tempMax = Date.now();
+            sendCmd(`05,${val}`);
+            // 乐观更新
+            currentData.tempThresholdMax = numVal;
+            updateUI();
+        }
+
+        function setTempThresholdMin() {
+            const val = document.getElementById('tempThresholdMinInput').value;
+            if (!val) {
+                alert('请输入温度下限');
+                return;
+            }
+            const numVal = parseFloat(val);
+            if (numVal < 10 || numVal > 30) {
+                alert('温度下限范围：10-30°C');
+                return;
+            }
+            lastUserSetTime.tempMin = Date.now();
+            sendCmd(`06,${val}`);
+            // 乐观更新
+            currentData.tempThresholdMin = numVal;
             updateUI();
         }
 
