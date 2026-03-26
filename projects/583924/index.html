@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>井盖异常检测系统</title>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --warn: #FF9800;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 12px;
+            padding-top: 44px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .status-dot.connected { background: var(--ok); }
+        .status-dot.disconnected { background: var(--alarm); }
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 13px; color: var(--sub); }
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+        .data-value.alarm { color: var(--alarm); }
+        .alarm-card {
+            background: var(--ok);
+            color: white;
+            text-align: center;
+            padding: 20px;
+            border-radius: var(--radius);
+        }
+        .alarm-card.warning {
+            background: var(--alarm);
+        }
+        .alarm-card .status-text {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .alarm-card .status-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+        .btn {
+            width: 100%;
+            height: 52px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-primary:active { background: #1976D2; }
+        .btn-danger {
+            background: var(--alarm);
+            color: white;
+        }
+        .btn-danger:active { background: #D32F2F; }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .threshold-row:last-child { margin-bottom: 0; }
+        .threshold-label {
+            font-size: 14px;
+            flex: 1;
+        }
+        .threshold-input {
+            width: 80px;
+            height: 40px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .threshold-input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+        .btn-send {
+            width: 70px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .btn-send:active { background: #1976D2; }
+        .threshold-display {
+            font-size: 16px;
+            color: var(--text);
+            padding: 8px 12px;
+            background: #f0f0f0;
+            border-radius: 8px;
+        }
+        .log-toggle {
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            font-size: 14px;
+            color: var(--sub);
+            cursor: pointer;
+            padding: 8px 0;
+        }
+        .log-content {
+            display: none;
+            margin-top: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .log-content.show { display: block; }
+        .log-item {
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+            word-break: break-all;
+        }
+        .log-item:last-child { border-bottom: none; }
+        .location-text {
+            font-size: 14px;
+            color: var(--text);
+        }
+        .gps-coords {
+            font-size: 12px;
+            color: var(--sub);
+            margin-top: 4px;
+        }
+        .config-btn {
+            background: none;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .config-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .config-modal.show { display: flex; }
+        .config-content {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 320px;
+        }
+        .config-content h3 {
+            margin-bottom: 16px;
+            font-size: 18px;
+        }
+        .config-input {
+            width: 100%;
+            height: 44px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 0 12px;
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+        .config-input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+        .config-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .config-actions .btn { flex: 1; }
+    </style>
+</head>
+<body>
+    <!-- 状态栏 -->
+    <div class="card">
+        <div class="status-bar">
+            <div style="display:flex;align-items:center;">
+                <span class="status-dot disconnected" id="statusDot"></span>
+                <span id="statusText">未连接</span>
+            </div>
+            <div style="font-size:12px;color:var(--sub);">
+                更新: <span id="lastUpdate">--</span>
+            </div>
+            <button class="config-btn" onclick="showConfig()">⚙ 配置</button>
+        </div>
+    </div>
+
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">📊 实时数据</div>
+        <div class="data-row">
+            <span class="data-label">井盖编号</span>
+            <span class="data-value" id="manholeId" style="font-size:20px;">---</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">Roll 横滚角</span>
+            <div>
+                <span class="data-value" id="rollValue">--</span>
+                <span class="data-unit">°</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">Pitch 俯仰角</span>
+            <div>
+                <span class="data-value" id="pitchValue">--</span>
+                <span class="data-unit">°</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">GPS 位置</span>
+            <div style="text-align:right;">
+                <div class="location-text" id="locationText">定位中...</div>
+                <div class="gps-coords" id="gpsCoords">--</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card">
+        <div class="card-title">🚨 状态监控</div>
+        <div class="alarm-card" id="alarmCard">
+            <div class="status-icon">✓</div>
+            <div class="status-text" id="statusDisplay">正常</div>
+        </div>
+    </div>
+
+    <!-- 控制卡 -->
+    <div class="card">
+        <div class="card-title">🎮 远程控制</div>
+        <button class="btn btn-danger" id="muteBtn" onclick="sendMute()" disabled>
+            🔇 消警
+        </button>
+    </div>
+
+    <!-- 阈值显示卡 -->
+    <div class="card">
+        <div class="card-title">📏 当前阈值（只读）</div>
+        <div class="threshold-row">
+            <span class="threshold-label">移位角度阈值</span>
+            <span class="threshold-display" id="thresholdDisplay">-- °</span>
+        </div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">⚙ 阈值设置</div>
+        <div class="threshold-row">
+            <span class="threshold-label">移位角度（5~45°）</span>
+            <input type="number" class="threshold-input" id="thresholdInput" min="5" max="45" value="15">
+            <button class="btn-send" onclick="setThreshold()">发送</button>
+        </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card">
+        <button class="log-toggle" onclick="toggleLog()">
+            📋 原始数据日志 <span id="logArrow">▼</span>
+        </button>
+        <div class="log-content" id="logContent"></div>
+    </div>
+
+    <!-- 配置弹窗 -->
+    <div class="config-modal" id="configModal">
+        <div class="config-content">
+            <h3>⚙ Topic 配置</h3>
+            <div style="font-size:12px;color:var(--sub);margin-bottom:12px;">
+                当前 Topic: <span id="currentTopic">583924/471605</span>
+            </div>
+            <input type="text" class="config-input" id="configNum1" placeholder="数字1（如 583924）">
+            <input type="text" class="config-input" id="configNum2" placeholder="数字2（如 471605）">
+            <div class="config-actions">
+                <button class="btn" style="background:#ddd;color:#333;" onclick="hideConfig()">取消</button>
+                <button class="btn btn-primary" onclick="saveConfig()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="mqtt.min.js"></script>
+    <script>
+        // ==================== 配置 ====================
+        let TOPIC_NUM1 = localStorage.getItem('topic_num1') || '583924';
+        let TOPIC_NUM2 = localStorage.getItem('topic_num2') || '471605';
+        const TOPIC_PREFIX = 'jinggaijiance';
+
+        let UPLOAD_TOPIC = `${TOPIC_NUM1}/${TOPIC_NUM2}/${TOPIC_PREFIX}/upload`;
+        let CMD_TOPIC = `${TOPIC_NUM1}/${TOPIC_NUM2}/${TOPIC_PREFIX}/cmd`;
+
+        // ==================== 状态变量 ====================
+        let client = null;
+        let currentData = {
+            id: '---',
+            roll: null,
+            pitch: null,
+            status: 0,
+            lat: 0,
+            lon: 0,
+            threshold: null
+        };
+
+        // 同步保护状态
+        let waitingSync = { threshold: false };
+        let pendingValue = { threshold: null };
+        let syncTimeoutTimer = { threshold: null };
+        let lastUserSetTime = { threshold: 0 };
+
+        const DEBOUNCE_MS = 500;
+        const SYNC_TIMEOUT_MS = 5000;
+
+        // ==================== MQTT 连接 ====================
+        function connectMQTT() {
+            updateStatus(false, '连接中...');
+
+            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+                clientId: 'webview_' + Math.random().toString(36).substr(2, 8),
+                reconnectPeriod: 3000
+            });
+
+            client.on('connect', () => {
+                console.log('MQTT Connected');
+                updateStatus(true, '已连接');
+                client.subscribe(UPLOAD_TOPIC, (err) => {
+                    if (err) console.error('Subscribe error:', err);
+                });
+            });
+
+            client.on('message', (topic, payload) => {
+                const message = payload.toString();
+                console.log('Received:', message);
+                parseMessage(message);
+            });
+
+            client.on('close', () => {
+                updateStatus(false, '已断开');
+            });
+
+            client.on('error', (err) => {
+                console.error('MQTT Error:', err);
+                updateStatus(false, '连接错误');
+            });
+        }
+
+        // ==================== 消息解析 ====================
+        function parseMessage(message) {
+            const parts = message.split(',');
+            if (parts.length < 7) return;
+
+            const now = Date.now();
+
+            const newData = {
+                id: parts[0],
+                roll: parseFloat(parts[1]),
+                pitch: parseFloat(parts[2]),
+                status: parseInt(parts[3]),
+                lat: parseFloat(parts[4]),
+                lon: parseFloat(parts[5]),
+                threshold: parseInt(parts[6])
+            };
+
+            // 传感器值始终更新
+            currentData.id = newData.id;
+            currentData.roll = newData.roll;
+            currentData.pitch = newData.pitch;
+            currentData.status = newData.status;
+            currentData.lat = newData.lat;
+            currentData.lon = newData.lon;
+
+            // 检查阈值同步确认
+            if (waitingSync.threshold) {
+                const expectedValue = pendingValue.threshold;
+                const receivedValue = newData.threshold;
+
+                if (expectedValue !== null && Math.abs(receivedValue - expectedValue) < 1) {
+                    console.log('Threshold sync confirmed:', receivedValue);
+
+                    if (syncTimeoutTimer.threshold) {
+                        clearTimeout(syncTimeoutTimer.threshold);
+                        syncTimeoutTimer.threshold = null;
+                    }
+
+                    waitingSync.threshold = false;
+                    pendingValue.threshold = null;
+                    lastUserSetTime.threshold = 0;
+                }
+            }
+
+            // 阈值更新逻辑（三重保护）
+            if (!lastUserSetTime.threshold || (now - lastUserSetTime.threshold) >= DEBOUNCE_MS) {
+                if (!waitingSync.threshold) {
+                    currentData.threshold = newData.threshold;
+                }
+            }
+
+            updateUI();
+            checkAlarms();
+            addLog(message);
+            updateLastTime();
+        }
+
+        // ==================== UI 更新 ====================
+        function updateUI() {
+            document.getElementById('manholeId').textContent = currentData.id || '---';
+
+            if (currentData.roll !== null) {
+                document.getElementById('rollValue').textContent = currentData.roll.toFixed(2);
+            }
+            if (currentData.pitch !== null) {
+                document.getElementById('pitchValue').textContent = currentData.pitch.toFixed(2);
+            }
+
+            // GPS 显示
+            if (currentData.lat !== 0 && currentData.lon !== 0) {
+                document.getElementById('locationText').textContent = '已定位';
+                document.getElementById('gpsCoords').textContent =
+                    `${currentData.lat.toFixed(4)}, ${currentData.lon.toFixed(4)}`;
+            } else {
+                document.getElementById('locationText').textContent = '定位中...';
+                document.getElementById('gpsCoords').textContent = '--';
+            }
+
+            // 阈值显示（等待期间显示预测值）
+            if (currentData.threshold !== null) {
+                const displayValue = waitingSync.threshold ?
+                    pendingValue.threshold : currentData.threshold;
+                document.getElementById('thresholdDisplay').textContent = displayValue + ' °';
+            }
+        }
+
+        function updateStatus(connected, text) {
+            const dot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const muteBtn = document.getElementById('muteBtn');
+
+            dot.className = 'status-dot ' + (connected ? 'connected' : 'disconnected');
+            statusText.textContent = text;
+            muteBtn.disabled = !connected;
+        }
+
+        function updateLastTime() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent =
+                now.toLocaleTimeString('zh-CN', { hour12: false });
+        }
+
+        // ==================== 报警判断 ====================
+        function checkAlarms() {
+            const card = document.getElementById('alarmCard');
+            const display = document.getElementById('statusDisplay');
+            const icon = card.querySelector('.status-icon');
+
+            switch (currentData.status) {
+                case 0:
+                    card.className = 'alarm-card';
+                    card.style.background = 'var(--ok)';
+                    icon.textContent = '✓';
+                    display.textContent = '正常';
+                    break;
+                case 1:
+                    card.className = 'alarm-card warning';
+                    card.style.background = 'var(--alarm)';
+                    icon.textContent = '⚠';
+                    display.textContent = '移位报警';
+                    sendAlarmToNative('displaced');
+                    break;
+                case 2:
+                    card.className = 'alarm-card warning';
+                    card.style.background = 'var(--alarm)';
+                    icon.textContent = '🚨';
+                    display.textContent = '缺失报警';
+                    sendAlarmToNative('missing');
+                    break;
+            }
+        }
+
+        // ==================== 指令发送 ====================
+        function sendCmd(cmd) {
+            if (client && client.connected) {
+                client.publish(CMD_TOPIC, cmd);
+                console.log('Sent:', cmd);
+                addLog('→ ' + cmd);
+            }
+        }
+
+        function sendMute() {
+            sendCmd('01');
+        }
+
+        function setThreshold() {
+            const input = document.getElementById('thresholdInput');
+            const value = parseInt(input.value);
+
+            if (isNaN(value) || value < 5 || value > 45) {
+                alert('请输入 5~45 之间的整数');
+                return;
+            }
+
+            if (waitingSync.threshold) {
+                console.log('Already waiting sync');
+                return;
+            }
+
+            // 1. 设置等待同步状态
+            waitingSync.threshold = true;
+            pendingValue.threshold = value;
+
+            // 2. 发送指令
+            sendCmd('02,' + value);
+
+            // 3. 记录用户操作时间
+            lastUserSetTime.threshold = Date.now();
+
+            // 4. 立即更新显示（预测状态）
+            currentData.threshold = value;
+            updateUI();
+
+            // 5. 立即检查报警
+            checkAlarms();
+
+            // 6. 设置超时保护
+            syncTimeoutTimer.threshold = setTimeout(() => {
+                if (waitingSync.threshold) {
+                    console.warn('Sync timeout, releasing protection');
+                    waitingSync.threshold = false;
+                    pendingValue.threshold = null;
+                    syncTimeoutTimer.threshold = null;
+                }
+            }, SYNC_TIMEOUT_MS);
+
+            input.blur();
+        }
+
+        // ==================== 逆地理编码 ====================
+        async function reverseGeocode(lat, lon) {
+            try {
+                const response = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`,
+                    { headers: { 'User-Agent': 'ManholeMonitor/1.0' } }
+                );
+                const data = await response.json();
+                if (data.address) {
+                    const addr = data.address;
+                    const location = addr.town || addr.village || addr.suburb || addr.city || addr.county || '未知位置';
+                    document.getElementById('locationText').textContent = location;
+                }
+            } catch (e) {
+                console.error('Geocode error:', e);
+                document.getElementById('locationText').textContent = '位置解析失败';
+            }
+        }
+
+        // ==================== 日志 ====================
+        let logs = [];
+        const MAX_LOGS = 20;
+
+        function addLog(msg) {
+            const now = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            logs.unshift(`[${now}] ${msg}`);
+            if (logs.length > MAX_LOGS) logs.pop();
+
+            const container = document.getElementById('logContent');
+            container.innerHTML = logs.map(l => `<div class="log-item">${l}</div>`).join('');
+        }
+
+        function toggleLog() {
+            const content = document.getElementById('logContent');
+            const arrow = document.getElementById('logArrow');
+            content.classList.toggle('show');
+            arrow.textContent = content.classList.contains('show') ? '▲' : '▼';
+        }
+
+        // ==================== 配置 ====================
+        function showConfig() {
+            document.getElementById('configNum1').value = TOPIC_NUM1;
+            document.getElementById('configNum2').value = TOPIC_NUM2;
+            document.getElementById('currentTopic').textContent = `${TOPIC_NUM1}/${TOPIC_NUM2}`;
+            document.getElementById('configModal').classList.add('show');
+        }
+
+        function hideConfig() {
+            document.getElementById('configModal').classList.remove('show');
+        }
+
+        function saveConfig() {
+            const num1 = document.getElementById('configNum1').value.trim();
+            const num2 = document.getElementById('configNum2').value.trim();
+
+            if (!num1 || !num2) {
+                alert('请填写完整配置');
+                return;
+            }
+
+            TOPIC_NUM1 = num1;
+            TOPIC_NUM2 = num2;
+
+            localStorage.setItem('topic_num1', num1);
+            localStorage.setItem('topic_num2', num2);
+
+            UPLOAD_TOPIC = `${TOPIC_NUM1}/${TOPIC_NUM2}/${TOPIC_PREFIX}/upload`;
+            CMD_TOPIC = `${TOPIC_NUM1}/${TOPIC_NUM2}/${TOPIC_PREFIX}/cmd`;
+
+            hideConfig();
+
+            // 重连 MQTT
+            if (client) {
+                client.end();
+            }
+            connectMQTT();
+        }
+
+        // ==================== Android WebView 通知 ====================
+        function sendAlarmToNative(type) {
+            if (window.Android && window.Android.onAlarm) {
+                window.Android.onAlarm(JSON.stringify({
+                    type: type,
+                    id: currentData.id,
+                    status: currentData.status,
+                    roll: currentData.roll,
+                    pitch: currentData.pitch,
+                    threshold: currentData.threshold
+                }));
+            }
+        }
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            connectMQTT();
+        });
+    </script>
+</body>
+</html>
