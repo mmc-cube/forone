@@ -454,7 +454,7 @@
         function connectMQTT() {
             addLog('正在连接 MQTT...');
             try {
-                mqttClient = mqtt.connect(`ws://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}${MQTT_CONFIG.path}`, {
+                mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
                     clientId: MQTT_CONFIG.clientId,
                     reconnectPeriod: 3000,
                     connectTimeout: 10000
