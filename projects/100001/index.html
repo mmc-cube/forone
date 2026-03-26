@@ -694,8 +694,8 @@
 
         function setHrThresholdMax() {
             const val = document.getElementById('hrThresholdMaxInput').value;
-            if (!val || val < 85 || val > 120) {
-                alert('请输入有效的心率上限 (85-120)');
+            if (!val) {
+                alert('请输入心率上限');
                 return;
             }
             lastUserSetTime.hrMax = Date.now();
@@ -707,8 +707,8 @@
 
         function setHrThresholdMin() {
             const val = document.getElementById('hrThresholdMinInput').value;
-            if (!val || val < 50 || val > 80) {
-                alert('请输入有效的心率下限 (50-80)');
+            if (!val) {
+                alert('请输入心率下限');
                 return;
             }
             lastUserSetTime.hrMin = Date.now();
@@ -720,8 +720,8 @@
 
         function setSpo2Threshold() {
             const val = document.getElementById('spo2ThresholdInput').value;
-            if (!val || val < 90 || val > 99) {
-                alert('请输入有效的血氧下限 (90-99)');
+            if (!val) {
+                alert('请输入血氧下限');
                 return;
             }
             lastUserSetTime.spo2 = Date.now();
