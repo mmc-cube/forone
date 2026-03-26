@@ -494,10 +494,6 @@
                     <span class="threshold-display-value" id="light_threshold_display">--</span>
                 </div>
                 <div class="data-row">
-                    <span class="data-label">投喂间隔</span>
-                    <span class="threshold-display-value" id="feed_interval_display">--</span>
-                </div>
-                <div class="data-row">
                     <span class="data-label">水位阈值</span>
                     <span class="threshold-display-value" id="water_threshold_display">--</span>
                 </div>
@@ -538,13 +534,6 @@
                     <div class="threshold-setting">
                         <input type="number" class="threshold-input" id="light_threshold_input" placeholder="0-65535">
                         <button class="btn btn-primary btn-small" onclick="setThreshold('light', '04')">发送</button>
-                    </div>
-                </div>
-                <div class="threshold-row">
-                    <span class="threshold-label">投喂 (分)</span>
-                    <div class="threshold-setting">
-                        <input type="number" class="threshold-input" id="feed_interval_input" placeholder="1-1440">
-                        <button class="btn btn-primary btn-small" onclick="setThreshold('feed', '05')">发送</button>
                     </div>
                 </div>
                 <div class="threshold-row">
@@ -696,13 +685,13 @@
             temp: null, humidity: null, gas_adc: null, lux: null, water_level: null,
             wind_state: null, light_state: null, feed_state: null, water_state: null,
             temp_threshold: null, gas_threshold: null, light_threshold: null,
-            feed_interval: null, water_threshold: null
+            water_threshold: null
         };
 
-        let waitingSync = { temp: false, gas: false, light: false, feed: false, water: false };
-        let pendingValue = { temp: null, gas: null, light: null, feed: null, water: null };
-        let syncTimeoutTimer = { temp: null, gas: null, light: null, feed: null, water: null };
-        let lastUserSetTime = { temp_threshold: 0, gas_threshold: 0, light_threshold: 0, feed_interval: 0, water_threshold: 0 };
+        let waitingSync = { temp: false, gas: false, light: false, water: false };
+        let pendingValue = { temp: null, gas: null, light: null, water: null };
+        let syncTimeoutTimer = { temp: null, gas: null, light: null, water: null };
+        let lastUserSetTime = { temp_threshold: 0, gas_threshold: 0, light_threshold: 0, water_threshold: 0 };
 
         // 投喂定时管理
         let feedSchedule = [];  // 投喂时间列表，如 ["08:00", "12:00", "18:00"]
@@ -774,8 +763,7 @@
                 wind_state: parseInt(parts[5]), light_state: parseInt(parts[6]),
                 feed_state: parseInt(parts[7]), water_state: parseInt(parts[8]),
                 temp_threshold: parseInt(parts[9]), gas_threshold: parseInt(parts[10]),
-                light_threshold: parseInt(parts[11]), feed_interval: parseInt(parts[12]),
-                water_threshold: parseInt(parts[13])
+                light_threshold: parseInt(parts[11]), water_threshold: parseInt(parts[12])
             };
 
             currentData = { ...currentData, ...newData };
@@ -823,7 +811,7 @@
                     const receivedKey = key === 'temp' ? 'temp_threshold' :
                                        key === 'gas' ? 'gas_threshold' :
                                        key === 'light' ? 'light_threshold' :
-                                       key === 'feed' ? 'feed_interval' : 'water_threshold';
+                                       'water_threshold';
                     if (pendingValue[key] !== null && Math.abs(newData[receivedKey] - pendingValue[key]) < 0.5) {
                         if (syncTimeoutTimer[key]) clearTimeout(syncTimeoutTimer[key]);
                         waitingSync[key] = false; pendingValue[key] = null;
@@ -833,9 +821,9 @@
             }
 
             // 阈值更新
-            const thresholdKeys = ['temp_threshold', 'gas_threshold', 'light_threshold', 'feed_interval', 'water_threshold'];
+            const thresholdKeys = ['temp_threshold', 'gas_threshold', 'light_threshold', 'water_threshold'];
             for (const threshKey of thresholdKeys) {
-                const typeKey = threshKey.replace('_threshold', '').replace('_interval', '');
+                const typeKey = threshKey.replace('_threshold', '');
                 if (!lastUserSetTime[threshKey] || (now - lastUserSetTime[threshKey]) >= DEBOUNCE_MS) {
                     if (!waitingSync[typeKey]) currentData[threshKey] = newData[threshKey];
                 }
@@ -1121,11 +1109,11 @@
                 el.className = 'state-badge ' + (currentData[id] === 1 ? 'state-on' : 'state-off');
             });
 
-            ['temp_threshold', 'gas_threshold', 'light_threshold', 'feed_interval', 'water_threshold'].forEach(key => {
+            ['temp_threshold', 'gas_threshold', 'light_threshold', 'water_threshold'].forEach(key => {
                 const displayKey = key + '_display';
                 const el = document.getElementById(displayKey);
                 if (el && currentData[key] !== null) {
-                    const typeKey = key.replace('_threshold', '').replace('_interval', '');
+                    const typeKey = key.replace('_threshold', '');
                     el.textContent = waitingSync[typeKey] ? pendingValue[typeKey] : currentData[key];
                 }
             });
@@ -1177,7 +1165,7 @@
 
             const ranges = {
                 temp: [0, 100], gas: [0, 4095], light: [0, 65535],
-                feed: [1, 1440], water: [0, 100]
+                water: [0, 100]
             };
             const [min, max] = ranges[type];
             if (numValue < min || numValue > max) {
