@@ -750,7 +750,7 @@
 
         function connectMQTT() {
             const clientId = 'web_' + Math.random().toString(36).substr(2, 6);
-            client = mqtt.connect('ws://broker.emqx.io:8083/mqtt', {
+            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
                 clientId: clientId, reconnectPeriod: 3000, connectTimeout: 10000
             });
 
