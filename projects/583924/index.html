@@ -303,11 +303,24 @@
         </div>
     </div>
 
+    <!-- 紧急报警卡 -->
+    <div class="card" id="emergencyCard" style="display:none;">
+        <div class="card-title" style="color:var(--alarm);">🆘 紧急报警</div>
+        <div class="alarm-card warning" style="background:#9C27B0;">
+            <div class="status-icon">🆘</div>
+            <div class="status-text">紧急报警！</div>
+            <div style="font-size:12px;margin-top:8px;opacity:0.9;">KEY4 长按触发</div>
+        </div>
+    </div>
+
     <!-- 控制卡 -->
     <div class="card">
         <div class="card-title">🎮 远程控制</div>
         <button class="btn btn-danger" id="muteBtn" onclick="sendMute()" disabled>
             🔇 消警
+        </button>
+        <button class="btn" id="clearEmergencyBtn" style="background:#9C27B0;color:white;margin-top:12px;display:none;" onclick="clearEmergency()" disabled>
+            🆘 清除紧急报警
         </button>
     </div>
 
@@ -373,7 +386,8 @@
             status: 0,
             lat: 0,
             lon: 0,
-            threshold: null
+            threshold: null,
+            emergency: 0
         };
 
         // 同步保护状态
@@ -432,7 +446,8 @@
                 status: parseInt(parts[3]),
                 lat: parseFloat(parts[4]),
                 lon: parseFloat(parts[5]),
-                threshold: parseInt(parts[6])
+                threshold: parseInt(parts[6]),
+                emergency: parts.length >= 8 ? parseInt(parts[7]) : 0
             };
 
             // 传感器值始终更新
@@ -442,6 +457,7 @@
             currentData.status = newData.status;
             currentData.lat = newData.lat;
             currentData.lon = newData.lon;
+            currentData.emergency = newData.emergency;
 
             // 检查阈值同步确认
             if (waitingSync.threshold) {
@@ -508,10 +524,12 @@
             const dot = document.getElementById('statusDot');
             const statusText = document.getElementById('statusText');
             const muteBtn = document.getElementById('muteBtn');
+            const clearEmergencyBtn = document.getElementById('clearEmergencyBtn');
 
             dot.className = 'status-dot ' + (connected ? 'connected' : 'disconnected');
             statusText.textContent = text;
             muteBtn.disabled = !connected;
+            clearEmergencyBtn.disabled = !connected;
         }
 
         function updateLastTime() {
@@ -525,6 +543,18 @@
             const card = document.getElementById('alarmCard');
             const display = document.getElementById('statusDisplay');
             const icon = card.querySelector('.status-icon');
+            const emergencyCard = document.getElementById('emergencyCard');
+            const clearEmergencyBtn = document.getElementById('clearEmergencyBtn');
+
+            // 紧急报警处理
+            if (currentData.emergency === 1) {
+                emergencyCard.style.display = 'block';
+                clearEmergencyBtn.style.display = 'flex';
+                sendAlarmToNative('emergency');
+            } else {
+                emergencyCard.style.display = 'none';
+                clearEmergencyBtn.style.display = 'none';
+            }
 
             switch (currentData.status) {
                 case 0:
@@ -561,6 +591,10 @@
 
         function sendMute() {
             sendCmd('01');
+        }
+
+        function clearEmergency() {
+            sendCmd('03');
         }
 
         function setThreshold() {
