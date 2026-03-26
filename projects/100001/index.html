@@ -459,6 +459,8 @@
                     reconnectPeriod: 3000,
                     connectTimeout: 10000
                 });
+                    connectTimeout: 10000
+                });
 
                 mqttClient.on('connect', () => {
                     isConnected = true;
@@ -758,14 +760,9 @@
             return div.innerHTML;
         }
 
-        // ==================== 蓝牙功能（对接 Android APP） ====================
-        // 蓝牙状态
-        let isBtConnected = false;
-        let rssiValues = [];
-
-        // ==================== 蓝牙控制函数 ====================
+        // ==================== 蓝牙功能（Android BluetoothBridge 对接） ====================
         function connectBluetooth() {
-            if (isBtConnected) {
+            if (isBluetoothConnected) {
                 disconnectBluetooth();
                 return;
             }
@@ -787,23 +784,13 @@
             if (window.BluetoothBridge) {
                 window.BluetoothBridge.disconnect();
             }
-            isBtConnected = false;
+            isBluetoothConnected = false;
             updateBluetoothStatus(false);
             document.getElementById('btDebug').textContent = '已断开连接';
             document.getElementById('rssiBar').style.width = '0%';
             document.getElementById('rssiValue').textContent = '--';
             document.getElementById('rssiDistance').textContent = '--';
             addLog('蓝牙已断开');
-        }
-
-        function sendViaBt(cmd) {
-            if (!isBtConnected) {
-                addLog('蓝牙未连接，无法发送');
-                return;
-            }
-            if (window.BluetoothBridge) {
-                window.BluetoothBridge.send(cmd);
-            }
         }
 
         function updateBluetoothStatus(connected) {
@@ -819,7 +806,7 @@
         }
 
         function simulateRssi() {
-            if (!isBtConnected) return;
+            if (!isBluetoothConnected) return;
 
             // 模拟 RSSI 变化 (-30 到 -90 dBm)
             const rssi = Math.floor(-30 - Math.random() * 60);
@@ -875,7 +862,7 @@
 
         // 连接成功
         window.onBtConnected = function(address) {
-            isBtConnected = true;
+            isBluetoothConnected = true;
             updateBluetoothStatus(true);
             document.getElementById('btDebug').textContent = '已连接：' + address;
             addLog('蓝牙连接成功：' + address);
@@ -883,16 +870,16 @@
 
         // 断开连接
         window.onBtDisconnected = function() {
-            isBtConnected = false;
+            isBluetoothConnected = false;
             updateBluetoothStatus(false);
-            document.getElementById('btDebug').textContent = '已断开';
-            addLog('蓝牙已断开连接');
+            document.getElementById('btDebug').textContent = '已断开连接';
+            addLog('蓝牙已断开');
         };
 
         // 错误通知
         window.onBtError = function(errMsg) {
             addLog('蓝牙错误：' + errMsg);
-            isBtConnected = false;
+            isBluetoothConnected = false;
             updateBluetoothStatus(false);
         };
 
@@ -915,6 +902,15 @@
                 }
             }
         };
+
+        // ==================== 报警通知（Android WebView 接口） ====================
+        function sendAlarmToNative(data) {
+            if (window.Android) {
+                window.Android.onAlarm(JSON.stringify(data));
+            } else if (window.Notification && Notification.permission === 'granted') {
+                new Notification('告警', { body: JSON.stringify(data) });
+            }
+        }
     </script>
 </body>
 </html>
