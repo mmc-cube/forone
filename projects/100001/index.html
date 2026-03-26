@@ -765,19 +765,17 @@
             // 停止之前的模拟
             if (rssiSimulateTimer) clearInterval(rssiSimulateTimer);
 
-            // 每 2 秒随机扰动 RSSI 值
+            // 每 1 秒大幅度随机晃动 RSSI 值
             rssiSimulateTimer = setInterval(() => {
                 if (!isBluetoothConnected) return;
 
-                // 模拟 RSSI 变化 (-40 到 -85 dBm，带随机扰动)
-                const baseRssi = -60;  // 基准值
-                const jitter = Math.floor(Math.random() * 30) - 15;  // ±15 扰动
-                const rssi = baseRssi + jitter;
+                // 模拟 RSSI 大幅度随机跳动 (-35 到 -90 dBm，无规律大幅变化)
+                const rssi = Math.floor(-35 - Math.random() * 55);  // -35 ~ -90 随机
 
                 updateRssiDisplay(rssi);
                 rssiValues.push(rssi);
                 if (rssiValues.length > 10) rssiValues.shift();
-            }, 2000);
+            }, 800);  // 每 0.8 秒就变一次，看起来很飘
         }
 
         function connectBluetooth() {
