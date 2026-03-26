@@ -758,36 +758,52 @@
             return div.innerHTML;
         }
 
-        // ==================== 蓝牙功能（模拟 RSSI） ====================
+        // ==================== 蓝牙功能（对接 Android APP） ====================
+        // 蓝牙状态
+        let isBtConnected = false;
+        let rssiValues = [];
+
+        // ==================== 蓝牙控制函数 ====================
         function connectBluetooth() {
-            if (isBluetoothConnected) {
+            if (isBtConnected) {
                 disconnectBluetooth();
                 return;
             }
 
-            addLog('正在连接蓝牙...');
+            addLog('正在扫描蓝牙设备...');
             document.getElementById('btDebug').textContent = '正在扫描设备...';
 
-            // 模拟蓝牙连接（实际使用需要 Android WebView 调用原生 API）
-            setTimeout(() => {
-                isBluetoothConnected = true;
-                updateBluetoothStatus(true);
-                document.getElementById('btDebug').textContent = '已连接到 JDY-31';
-                addLog('蓝牙连接成功');
-
-                // 模拟 RSSI 数据
+            // 调用 Android 原生蓝牙扫描
+            if (window.BluetoothBridge) {
+                window.BluetoothBridge.getPairedDevices();
+            } else {
+                // 降级：非 Android 环境使用模拟数据
+                addLog('未检测到 Android 环境，使用模拟数据');
                 simulateRssi();
-            }, 1500);
+            }
         }
 
         function disconnectBluetooth() {
-            isBluetoothConnected = false;
+            if (window.BluetoothBridge) {
+                window.BluetoothBridge.disconnect();
+            }
+            isBtConnected = false;
             updateBluetoothStatus(false);
             document.getElementById('btDebug').textContent = '已断开连接';
             document.getElementById('rssiBar').style.width = '0%';
             document.getElementById('rssiValue').textContent = '--';
             document.getElementById('rssiDistance').textContent = '--';
             addLog('蓝牙已断开');
+        }
+
+        function sendViaBt(cmd) {
+            if (!isBtConnected) {
+                addLog('蓝牙未连接，无法发送');
+                return;
+            }
+            if (window.BluetoothBridge) {
+                window.BluetoothBridge.send(cmd);
+            }
         }
 
         function updateBluetoothStatus(connected) {
@@ -803,7 +819,7 @@
         }
 
         function simulateRssi() {
-            if (!isBluetoothConnected) return;
+            if (!isBtConnected) return;
 
             // 模拟 RSSI 变化 (-30 到 -90 dBm)
             const rssi = Math.floor(-30 - Math.random() * 60);
@@ -836,30 +852,69 @@
             document.getElementById('rssiDistance').textContent = distance;
         }
 
-        // ==================== Android WebView 接口 ====================
-        // 如果运行在 Android WebView 中，可以通过这个接口调用原生功能
-        window.AndroidBridge = {
-            onBluetoothData: function(data) {
-                // 接收蓝牙数据
-                try {
-                    const parsed = JSON.parse(data);
-                    if (parsed.rssi !== undefined) {
-                        updateRssiDisplay(parsed.rssi);
-                    }
-                } catch (e) {}
-            },
-            onAlarm: function(data) {
-                // 接收报警通知
-                addLog('收到报警：' + data);
+        // ==================== Android 回调函数（BluetoothBridge 调用） ====================
+        // 扫描到设备列表
+        window.onBtDeviceList = function(deviceArray) {
+            addLog('扫描到 ' + deviceArray.length + ' 个设备');
+            // 如果有设备，自动连接第一个 HC-05 或 JDY 开头的
+            const target = deviceArray.find(d =>
+                d.name && (d.name.includes('HC-05') || d.name.includes('JDY'))
+            );
+            if (target) {
+                addLog('发现目标设备：' + target.name);
+                if (window.BluetoothBridge) {
+                    window.BluetoothBridge.connect(target.address);
+                }
+            } else if (deviceArray.length > 0) {
+                // 没有 HC-05/JDY，连接第一个
+                if (window.BluetoothBridge) {
+                    window.BluetoothBridge.connect(deviceArray[0].address);
+                }
             }
         };
 
-        // 如果 WebView 提供了原生接口
-        if (window.Android) {
-            window.Android.onAlarm = function(data) {
-                addLog('原生报警：' + data);
-            };
-        }
+        // 连接成功
+        window.onBtConnected = function(address) {
+            isBtConnected = true;
+            updateBluetoothStatus(true);
+            document.getElementById('btDebug').textContent = '已连接：' + address;
+            addLog('蓝牙连接成功：' + address);
+        };
+
+        // 断开连接
+        window.onBtDisconnected = function() {
+            isBtConnected = false;
+            updateBluetoothStatus(false);
+            document.getElementById('btDebug').textContent = '已断开';
+            addLog('蓝牙已断开连接');
+        };
+
+        // 错误通知
+        window.onBtError = function(errMsg) {
+            addLog('蓝牙错误：' + errMsg);
+            isBtConnected = false;
+            updateBluetoothStatus(false);
+        };
+
+        // 接收数据（透传）
+        window.onBtData = function(line) {
+            // 蓝牙透传数据到达，可以在这里处理 RSSI 或其他数据
+            addLog('蓝牙数据：' + line);
+            try {
+                const parsed = JSON.parse(line);
+                if (parsed.rssi !== undefined) {
+                    updateRssiDisplay(parsed.rssi);
+                    rssiValues.push(parsed.rssi);
+                    if (rssiValues.length > 10) rssiValues.shift();
+                }
+            } catch (e) {
+                // 非 JSON 数据，可能是 RSSI 原始值
+                const rssi = parseInt(line);
+                if (!isNaN(rssi)) {
+                    updateRssiDisplay(rssi);
+                }
+            }
+        };
     </script>
 </body>
 </html>
