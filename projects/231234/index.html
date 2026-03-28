@@ -523,9 +523,9 @@
             </div>
 
             <!-- 季节选择 -->
-            <div class="section-title" style="margin-top:0;">🌤️ 季节延时控制</div>
-            <div style="font-size:11px; color:#aaa; margin-bottom:6px; display:none;">
-                选择季节后点执行，按当前灯状态延时开/关（春30s · 夏50s · 秋80s · 冬100s）
+            <div class="section-title" style="margin-top:0;">🌤️ 季节定时控制</div>
+            <div style="font-size:11px; color:#aaa; margin-bottom:8px;">
+                选择季节后自动启用该季节的定时开关灯时间
             </div>
             <div class="radio-group" style="margin-bottom: 8px;" id="seasonGroup">
                 <button class="radio-btn" onclick="setSeason(1, this)">🌱春</button>
@@ -533,12 +533,18 @@
                 <button class="radio-btn" onclick="setSeason(3, this)">🍂秋</button>
                 <button class="radio-btn" onclick="setSeason(4, this)">❄️冬</button>
             </div>
-            <div class="btn-row" style="margin-bottom:6px;">
-                <button class="btn btn-blue" onclick="startSeasonDelay()">▶ 执行</button>
-                <button class="btn btn-gray" onclick="cancelSeasonDelay()">✕ 取消</button>
+            <!-- 定时时间配置 -->
+            <div id="seasonTimeConfig" style="background:#f5f5f5; border-radius:8px; padding:10px; margin-bottom:8px;">
+                <div class="input-row">
+                    <span class="input-label">开灯时间</span>
+                    <input type="time" id="seasonOnTime" value="18:30" onchange="saveSeasonTime()">
+                    <span class="input-label" style="min-width:45px;">关灯时间</span>
+                    <input type="time" id="seasonOffTime" value="06:00" onchange="saveSeasonTime()">
+                </div>
+                <div style="font-size:11px; color:#999; margin-top:6px; font-family:monospace;">
+                    ⏰ <span id="timerStatus">当前：-- | 开灯：-- | 关灯：-- | 灯：--</span>
+                </div>
             </div>
-            <!-- 倒计时状态 -->
-            <div id="delayStatus" style="font-size:12px; color:#667eea; min-height:18px; margin-bottom:6px;"></div>
 
             <!-- 阈值 -->
             <div class="section-title">⚙️ 阈值设置</div>
@@ -580,12 +586,19 @@
         let client = null;
         let data = {};
         let stat = { mode: 1, season: 2 };
-        let delayTimer = null;
-        let delayCountdown = null;
+        let scheduleTimer = null;    /* 定时任务轮询计时器 */
+        
         let maxBrightTimer = null;   /* 手动全亮 10s 保护计时器 */
 
-        /* 各季节延时秒数：春30 夏50 秋80 冬100 */
-        const SEASON_DELAY = { 1: 30, 2: 50, 3: 80, 4: 100 };
+        /* 季节定时配置：每个季节的开灯/关灯时间 (小时：分钟)
+         * 默认值：春 (18:30/06:00) 夏 (19:00/05:30) 秋 (18:00/06:30) 冬 (17:30/07:00)
+         */
+        const DEFAULT_SEASON_TIME = {
+            1: { on: '18:30', off: '06:00' },  // 春
+            2: { on: '19:00', off: '05:30' },  // 夏
+            3: { on: '18:00', off: '06:30' },  // 秋
+            4: { on: '17:30', off: '07:00' }   // 冬
+        };
 
         /* MQTT 配置（与 STM32 端 app_esp8266.h 保持一致）
          * Broker:     broker.emqx.io:8083 (WebSocket)
@@ -712,48 +725,82 @@
             document.getElementById('brightnessControl').classList.toggle('show', m === 0);
         }
 
+        /* 获取当前季节的时间配置（从 localStorage 或默认值） */
+        function getSeasonTime(season) {
+            const key = 'seasonTime_' + season;
+            const saved = localStorage.getItem(key);
+            if (saved) {
+                return JSON.parse(saved);
+            }
+            return DEFAULT_SEASON_TIME[season] || DEFAULT_SEASON_TIME[2];
+        }
+
+        /* 保存当前季节的时间配置 */
+        function saveSeasonTime() {
+            const onTime = document.getElementById('seasonOnTime').value;
+            const offTime = document.getElementById('seasonOffTime').value;
+            const config = { on: onTime, off: offTime };
+            localStorage.setItem('seasonTime_' + stat.season, JSON.stringify(config));
+            toast('已保存');
+        }
+
+        /* 加载指定季节的时间配置到 UI */
+        function loadSeasonTime(season) {
+            const config = getSeasonTime(season);
+            document.getElementById('seasonOnTime').value = config.on;
+            document.getElementById('seasonOffTime').value = config.off;
+        }
+
         function setSeason(s, el) {
-            /* 季节是纯上位机逻辑，只更新本地状态和高亮，不下发指令 */
             stat.season = s;
-            document.querySelectorAll('.radio-group')[1].querySelectorAll('.radio-btn').forEach(b => b.classList.remove('active'));
-            el.classList.add('active');
+            /* 更新按钮高亮 */
+            document.querySelectorAll('#seasonGroup .radio-btn').forEach((b, i) => {
+                b.classList.toggle('active', i + 1 === s);
+            });
+            /* 加载新季节的时间配置 */
+            loadSeasonTime(s);
+            /* 重启定时任务轮询 */
+            startScheduleTimer();
         }
 
-        function startSeasonDelay() {
-            const sec = SEASON_DELAY[stat.season] || 30;
-            const turnOn = !data.lamp;   /* 灯关 → 延时开；灯开 → 延时关 */
-            const action = turnOn ? '开灯' : '关灯';
-
-            clearTimeout(delayTimer);
-            clearInterval(delayCountdown);
-
-            let remain = sec;
-            const statusEl = document.getElementById('delayStatus');
-            statusEl.textContent = `⏱ ${remain}s 后${action}`;
-
-            delayCountdown = setInterval(() => {
-                remain--;
-                if (remain <= 0) {
-                    clearInterval(delayCountdown);
-                } else {
-                    statusEl.textContent = `⏱ ${remain}s 后${action}`;
-                }
-            }, 1000);
-
-            delayTimer = setTimeout(() => {
-                clearInterval(delayCountdown);
-                setLight(turnOn ? 1 : 0);
-                statusEl.textContent = `✓ 已${action}`;
-                setTimeout(() => { statusEl.textContent = ''; }, 3000);
-            }, sec * 1000);
+        /* 定时任务轮询：每 5 秒检查一次是否到设定时间 */
+        function startScheduleTimer() {
+            clearInterval(scheduleTimer);
+            scheduleTimer = setInterval(checkSchedule, 5000);
+            checkSchedule(); // 立即检查一次
         }
 
-        function cancelSeasonDelay() {
-            clearTimeout(delayTimer);
-            clearInterval(delayCountdown);
-            const statusEl = document.getElementById('delayStatus');
-            statusEl.textContent = '已取消';
-            setTimeout(() => { statusEl.textContent = ''; }, 2000);
+        /* 标志位：记录当前是否已触发开灯/关灯 */
+        let triggeredOn = false;   // 开灯标志位
+        let triggeredOff = false;  // 关灯标志位
+
+        /* 检查是否到设定时间 - 使用标志位确保每分钟只触发一次 */
+        function checkSchedule() {
+            const config = getSeasonTime(stat.season);
+            const now = new Date();
+            const curTime = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            
+            // 调试输出
+            console.log('[定时任务] 当前时间:', curTime, '| 设定开灯:', config.on, '| 设定关灯:', config.off, '| 灯状态:', data.lamp);
+            
+            // 检查开灯时间
+            if (curTime === config.on && !data.lamp && !triggeredOn) {
+                console.log('[定时任务] 触发开灯!');
+                sendCmd('04,1'); // 开灯
+                toast('定时开灯');
+                triggeredOn = true;  // 拉高标志位
+            }
+            // 检查关灯时间
+            if (curTime === config.off && data.lamp && !triggeredOff) {
+                console.log('[定时任务] 触发关灯!');
+                sendCmd('04,0'); // 关灯
+                toast('定时关灯');
+                triggeredOff = true;  // 拉高标志位
+            }
+            
+            // 如果当前时间不在目标分钟内，重置标志位
+            if (curTime !== config.on) triggeredOn = false;
+            if (curTime !== config.off) triggeredOff = false;
         }
 
         function updateBrightness(v) {
@@ -825,9 +872,28 @@
             setTimeout(() => el.remove(), 2000);
         }
 
+        /* 更新定时任务状态显示 */
+        function updateTimerStatus() {
+            const config = getSeasonTime(stat.season);
+            const now = new Date();
+            const curTime = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            const el = document.getElementById('timerStatus');
+            if (el) {
+                const lampState = data.lamp ? '开' : '关';
+                const markOn = curTime === config.on ? ' ←' : '';
+                const markOff = curTime === config.off ? ' ←' : '';
+                el.textContent = `当前：${curTime} | 开灯：${config.on}${markOn} | 关灯：${config.off}${markOff} | 灯：${lampState}`;
+            }
+        }
+
         window.addEventListener('load', () => {
             setTimeout(() => initMQTT(), 500);
             setInterval(() => Object.keys(data).length && updateUI(), 500);
+            setInterval(updateTimerStatus, 1000); // 每秒更新状态显示
+
+            // 加载当前季节的时间配置并启动定时任务
+            loadSeasonTime(stat.season);
+            startScheduleTimer();
 
             let clicks = 0;
             document.getElementById('title').addEventListener('click', () => {
