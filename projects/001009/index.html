@@ -119,6 +119,25 @@
             font-weight: normal;
         }
 
+        .data-status {
+            font-size: 12px;
+            color: var(--sub);
+            margin-top: 4px;
+            display: block;
+        }
+
+        .data-status.high {
+            color: #FF9800;
+        }
+
+        .data-status.low {
+            color: #2196F3;
+        }
+
+        .data-status.normal {
+            color: var(--ok);
+        }
+
         .data-item.alarm .data-value {
             color: var(--alarm);
         }
@@ -407,6 +426,7 @@
             <div class="data-item" id="data-temp">
                 <span class="data-label">水温</span>
                 <span class="data-value"><span id="val-temp">--</span><span class="data-unit">°C</span></span>
+                <span class="data-status" id="status-temp"></span>
             </div>
             <div class="data-item" id="data-humidity">
                 <span class="data-label">空气湿度</span>
@@ -415,6 +435,7 @@
             <div class="data-item" id="data-light">
                 <span class="data-label">光照强度</span>
                 <span class="data-value"><span id="val-light">--</span><span class="data-unit">mV</span></span>
+                <span class="data-status" id="status-light"></span>
             </div>
             <div class="data-item" id="data-co2">
                 <span class="data-label">CO₂浓度</span>
@@ -892,6 +913,10 @@
                     water_l: currentData.water_l
                 });
             }
+
+            // 更新水温和光照状态（不报警，只显示提示）
+            updateTempStatus();
+            updateLightStatus();
         }
 
         function checkAlarmsWithPending() {
@@ -949,6 +974,10 @@
                     water_l: waterL
                 });
             }
+
+            // 更新水温和光照状态（不报警，只显示提示）
+            updateTempStatus();
+            updateLightStatus();
         }
 
         function renderAlarms(alarms) {
@@ -963,6 +992,51 @@
                 alarmStatusEl.innerHTML = '<div class="alarm-list">' +
                     alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('') +
                     '</div>';
+            }
+        }
+
+        // ==================== 阈值状态提示（不报警） ====================
+        function updateTempStatus() {
+            const statusEl = document.getElementById('status-temp');
+            if (!statusEl) return;
+
+            if (currentData.temp === null || currentData.temp_l === null || currentData.temp_h === null) {
+                statusEl.textContent = '';
+                statusEl.className = 'data-status';
+                return;
+            }
+
+            if (currentData.temp < currentData.temp_l) {
+                statusEl.textContent = '⬇ 低于下限';
+                statusEl.className = 'data-status low';
+            } else if (currentData.temp > currentData.temp_h) {
+                statusEl.textContent = '⬆ 高于上限';
+                statusEl.className = 'data-status high';
+            } else {
+                statusEl.textContent = '✓ 正常';
+                statusEl.className = 'data-status normal';
+            }
+        }
+
+        function updateLightStatus() {
+            const statusEl = document.getElementById('status-light');
+            if (!statusEl) return;
+
+            if (currentData.light === null || currentData.light_l === null || currentData.light_h === null) {
+                statusEl.textContent = '';
+                statusEl.className = 'data-status';
+                return;
+            }
+
+            if (currentData.light < currentData.light_l) {
+                statusEl.textContent = '⬇ 低于下限';
+                statusEl.className = 'data-status low';
+            } else if (currentData.light > currentData.light_h) {
+                statusEl.textContent = '⬆ 高于上限';
+                statusEl.className = 'data-status high';
+            } else {
+                statusEl.textContent = '✓ 正常';
+                statusEl.className = 'data-status normal';
             }
         }
 
