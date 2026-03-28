@@ -175,6 +175,76 @@
             font-weight: 500;
         }
 
+        /* ===== 设备状态卡 ===== */
+        .device-status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .device-status-item {
+            background: #F5F5F5;
+            padding: 10px 12px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .device-status-label {
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        .device-status-value {
+            font-size: 18px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .device-status-value.off {
+            background: #E0E0E0;
+            color: #757575;
+        }
+
+        .device-status-value.on {
+            background: #4CAF50;
+            color: #fff;
+        }
+
+        .device-mode-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #E0E0E0;
+        }
+
+        .mode-badge {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #4CAF50, #45A049);
+            color: #fff;
+        }
+
+        .mode-badge.manual {
+            background: linear-gradient(135deg, #FF9800, #F57C00);
+        }
+
+        .mode-tip {
+            font-size: 11px;
+            color: var(--sub);
+            flex: 1;
+            text-align: right;
+        }
+
         /* ===== 控制卡 ===== */
         .control-grid {
             display: grid;
@@ -468,6 +538,37 @@
         </div>
     </div>
 
+    <!-- 设备状态卡 -->
+    <div class="card">
+        <div class="card-title">设备状态</div>
+        <div class="device-status-grid">
+            <div class="device-status-item" id="device-fan">
+                <span class="device-status-label">🌀 风扇</span>
+                <span class="device-status-value off" id="status-fan">OFF</span>
+            </div>
+            <div class="device-status-item" id="device-heater">
+                <span class="device-status-label">🔥 加热棒</span>
+                <span class="device-status-value off" id="status-heater">OFF</span>
+            </div>
+            <div class="device-status-item" id="device-pump">
+                <span class="device-status-label">💧 水泵</span>
+                <span class="device-status-value off" id="status-pump">OFF</span>
+            </div>
+            <div class="device-status-item" id="device-curtain">
+                <span class="device-status-label">🌑 遮阳帘</span>
+                <span class="device-status-value off" id="status-curtain">OFF</span>
+            </div>
+            <div class="device-status-item" id="device-light">
+                <span class="device-status-label">💡 补光灯</span>
+                <span class="device-status-value off" id="status-light-dev">OFF</span>
+            </div>
+        </div>
+        <div class="device-mode-info">
+            <span class="mode-badge" id="modeBadge">自动模式</span>
+            <span class="mode-tip" id="modeTip">根据阈值自动控制</span>
+        </div>
+    </div>
+
     <!-- 阈值显示卡 -->
     <div class="card">
         <div class="card-title">当前阈值</div>
@@ -723,11 +824,52 @@
                     const message = payload.toString();
                     console.log('[MQTT 原始数据] 字段数:', message.split(',').length, 'message:', message);
                     parseMessage(message);
+                } else if (topic === TOPIC_CMD) {
+                    // 截获下行指令，更新 MANUAL 模式下的设备状态
+                    const cmd = payload.toString().trim();
+                    console.log('[下行指令]', cmd);
+                    handleDownlinkCommand(cmd);
                 }
             });
         }
 
         // ==================== 消息解析 ====================
+        function parseMessage(message) {
+
+// ==================== 下行指令处理 ====================
+        function handleDownlinkCommand(cmd) {
+            // 只处理 MANUAL 模式下的设备控制指令
+            if (systemMode !== 'MANUAL') return;
+
+            // 设备控制指令 (0A-13)
+            const cmdUpper = cmd.toUpperCase();
+
+            // 风扇
+            if (cmdUpper === '0A') { setDeviceStateManual('fan', true); }
+            else if (cmdUpper === '0B') { setDeviceStateManual('fan', false); }
+            // 加热棒
+            else if (cmdUpper === '0C') { setDeviceStateManual('heater', true); }
+            else if (cmdUpper === '0D') { setDeviceStateManual('heater', false); }
+            // 水泵
+            else if (cmdUpper === '0E') { setDeviceStateManual('pump', true); }
+            else if (cmdUpper === '0F') { setDeviceStateManual('pump', false); }
+            // 遮阳帘
+            else if (cmdUpper === '10') { setDeviceStateManual('curtain', true); }
+            else if (cmdUpper === '11') { setDeviceStateManual('curtain', false); }
+            // 补光灯
+            else if (cmdUpper === '12') { setDeviceStateManual('light', true); }
+            else if (cmdUpper === '13') { setDeviceStateManual('light', false); }
+            // 模式切换
+            else if (cmdUpper === '14') {
+                systemMode = 'AUTO';
+                updateModeDisplay();
+            }
+            else if (cmdUpper === '15') {
+                systemMode = 'MANUAL';
+                updateModeDisplay();
+            }
+        }
+
         function parseMessage(message) {
             const parts = message.split(',');
             if (parts.length < 18) {
@@ -978,6 +1120,9 @@
             // 更新水温和光照状态（不报警，只显示提示）
             updateTempStatus();
             updateLightStatus();
+
+            // 更新设备状态（AUTO 模式根据阈值判断）
+            updateDeviceStatesAuto();
         }
 
         function renderAlarms(alarms) {
@@ -1037,6 +1182,125 @@
             } else {
                 statusEl.textContent = '✓ 正常';
                 statusEl.className = 'data-status normal';
+            }
+        }
+
+        // ==================== 设备状态更新 ====================
+        // AUTO 模式：根据阈值自动判断设备状态
+        function updateDeviceStatesAuto() {
+            if (systemMode !== 'AUTO') return;
+
+            // 风扇：水温 > TempH 开启，水温 < TempL 关闭
+            if (currentData.temp !== null && currentData.temp_h !== null && currentData.temp_l !== null) {
+                if (currentData.temp > currentData.temp_h) {
+                    deviceState.fan = true;
+                } else if (currentData.temp < currentData.temp_l) {
+                    deviceState.fan = false;
+                }
+            }
+
+            // 加热棒：水温 < TempL 开启，水温 > TempH 关闭
+            if (currentData.temp !== null && currentData.temp_h !== null && currentData.temp_l !== null) {
+                if (currentData.temp < currentData.temp_l) {
+                    deviceState.heater = true;
+                } else if (currentData.temp > currentData.temp_h) {
+                    deviceState.heater = false;
+                }
+            }
+
+            // 水泵：水位 < WaterL 开启
+            if (currentData.water_level !== null && currentData.water_l !== null) {
+                deviceState.pump = currentData.water_level < currentData.water_l;
+            }
+
+            // 遮阳帘：光照 > LightH 开启，光照 < LightL 关闭
+            if (currentData.light !== null && currentData.light_h !== null && currentData.light_l !== null) {
+                if (currentData.light > currentData.light_h) {
+                    deviceState.curtain = true;
+                } else if (currentData.light < currentData.light_l) {
+                    deviceState.curtain = false;
+                }
+            }
+
+            // 补光灯：光照 < LightL 开启，光照 > LightH 关闭
+            if (currentData.light !== null && currentData.light_h !== null && currentData.light_l !== null) {
+                if (currentData.light < currentData.light_l) {
+                    deviceState.light = true;
+                } else if (currentData.light > currentData.light_h) {
+                    deviceState.light = false;
+                }
+            }
+
+            // 更新 UI 显示
+            updateDeviceStateUI();
+        }
+
+        // MANUAL 模式：直接设置设备状态
+        function setDeviceStateManual(device, state) {
+            deviceState[device] = state;
+            updateDeviceStateUI();
+        }
+
+        // 更新设备状态 UI 显示
+        function updateDeviceStateUI() {
+            const devices = {
+                fan: 'status-fan',
+                heater: 'status-heater',
+                pump: 'status-pump',
+                curtain: 'status-curtain',
+                light: 'status-light-dev'
+            };
+
+            for (const [device, elementId] of Object.entries(devices)) {
+                const el = document.getElementById(elementId);
+                if (el) {
+                    if (deviceState[device]) {
+                        el.textContent = 'ON';
+                        el.className = 'device-status-value on';
+                    } else {
+                        el.textContent = 'OFF';
+                        el.className = 'device-status-value off';
+                    }
+                }
+            }
+
+            // 更新控制按钮文字
+            updateControlButtons();
+        }
+
+        // 更新控制按钮文字
+        function updateControlButtons() {
+            const btnFan = document.getElementById('btn-fan');
+            if (btnFan) btnFan.textContent = '🌀 风扇 ' + (deviceState.fan ? 'ON' : 'OFF');
+
+            const btnHeater = document.getElementById('btn-heater');
+            if (btnHeater) btnHeater.textContent = '🔥 加热棒 ' + (deviceState.heater ? 'ON' : 'OFF');
+
+            const btnPump = document.getElementById('btn-pump');
+            if (btnPump) btnPump.textContent = '💧 水泵 ' + (deviceState.pump ? 'ON' : 'OFF');
+
+            const btnCurtain = document.getElementById('btn-curtain');
+            if (btnCurtain) btnCurtain.textContent = '🌑 遮阳帘 ' + (deviceState.curtain ? 'ON' : 'OFF');
+
+            const btnLight = document.getElementById('btn-light');
+            if (btnLight) btnLight.textContent = '💡 补光灯 ' + (deviceState.light ? 'ON' : 'OFF');
+        }
+
+        // 更新模式显示
+        function updateModeDisplay() {
+            const modeBadge = document.getElementById('modeBadge');
+            const modeTip = document.getElementById('modeTip');
+
+            if (!modeBadge || !modeTip) return;
+
+            if (systemMode === 'AUTO') {
+                modeBadge.textContent = '自动模式';
+                modeBadge.className = 'mode-badge';
+                modeTip.textContent = '根据阈值自动控制';
+            } else {
+                modeBadge.textContent = '手动模式';
+                modeBadge.className = 'mode-badge manual';
+                modeTip.textContent = 'APP 或按键手动控制';
             }
         }
 
@@ -1193,34 +1457,9 @@
             const cmd = isOn ? cmdOff : cmdOn;
             sendCmd(cmd);
 
-            // 乐观更新状态
+            // 乐观更新状态（立即更新 UI，不等下位机确认）
             deviceState[device] = !isOn;
-            updateDeviceButton(device);
-        }
-
-        function updateDeviceButton(device) {
-            const btn = document.getElementById('btn-' + device);
-            if (!btn) return;
-
-            const icons = {
-                fan: '🌀',
-                heater: '🔥',
-                pump: '💧',
-                curtain: '🌑',
-                light: '💡'
-            };
-
-            const names = {
-                fan: '风扇',
-                heater: '加热棒',
-                pump: '水泵',
-                curtain: '遮阳帘',
-                light: '补光灯'
-            };
-
-            const isOn = deviceState[device];
-            btn.textContent = `${icons[device]} ${names[device]} ${isOn ? 'ON' : 'OFF'}`;
-            btn.className = 'control-btn' + (isOn ? '' : ' off');
+            updateDeviceStateUI();
         }
 
         // ==================== 连接状态 ====================
@@ -1280,6 +1519,10 @@
         // ==================== 初始化 ====================
         window.addEventListener('DOMContentLoaded', () => {
             connectMQTT();
+
+            // 初始化模式显示和设备状态
+            updateModeDisplay();
+            updateDeviceStateUI();
 
             // 请求通知权限
             if ('Notification' in window && Notification.permission === 'default') {
