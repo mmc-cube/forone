@@ -1210,49 +1210,35 @@
         }
 
         // ==================== 设备状态更新 ====================
-        // AUTO 模式：根据阈值自动判断设备状态
+        // AUTO 模式：根据阈值自动判断设备状态（与下位机 app_tasks.c 逻辑一致）
         function updateDeviceStatesAuto() {
             if (systemMode !== 'AUTO') return;
 
-            // 风扇：水温 > TempH 开启，水温 < TempL 关闭
-            if (currentData.temp !== null && currentData.temp_h !== null && currentData.temp_l !== null) {
-                if (currentData.temp > currentData.temp_h) {
-                    deviceState.fan = true;
-                } else if (currentData.temp < currentData.temp_l) {
-                    deviceState.fan = false;
-                }
+            // 风扇：水温 > TempH 开启，否则关闭
+            if (currentData.temp !== null && currentData.temp_h !== null) {
+                deviceState.fan = currentData.temp > currentData.temp_h;
             }
 
-            // 加热棒：水温 < TempL 开启，水温 > TempH 关闭
-            if (currentData.temp !== null && currentData.temp_h !== null && currentData.temp_l !== null) {
-                if (currentData.temp < currentData.temp_l) {
-                    deviceState.heater = true;
-                } else if (currentData.temp > currentData.temp_h) {
-                    deviceState.heater = false;
-                }
+            // 加热棒：水温 < TempL 开启，否则关闭
+            if (currentData.temp !== null && currentData.temp_l !== null) {
+                deviceState.heater = currentData.temp < currentData.temp_l;
             }
 
-            // 水泵：水位 < WaterL 开启
+            // 水泵：水位低开启 (ADC 值 < 水位下限),否则关闭
+            // 下位机逻辑：g_water_level == 0 (水位低) 时开启
+            // 水位传感器：ADC 值越小水位越低，g_water_level=0 表示水位低
             if (currentData.water_level !== null && currentData.water_l !== null) {
                 deviceState.pump = currentData.water_level < currentData.water_l;
             }
 
-            // 遮阳帘：光照 > LightH 开启，光照 < LightL 关闭
-            if (currentData.light !== null && currentData.light_h !== null && currentData.light_l !== null) {
-                if (currentData.light > currentData.light_h) {
-                    deviceState.curtain = true;
-                } else if (currentData.light < currentData.light_l) {
-                    deviceState.curtain = false;
-                }
+            // 遮阳帘：光照 > LightH 开启，否则关闭
+            if (currentData.light !== null && currentData.light_h !== null) {
+                deviceState.curtain = currentData.light > currentData.light_h;
             }
 
-            // 补光灯：光照 < LightL 开启，光照 > LightH 关闭
-            if (currentData.light !== null && currentData.light_h !== null && currentData.light_l !== null) {
-                if (currentData.light < currentData.light_l) {
-                    deviceState.light = true;
-                } else if (currentData.light > currentData.light_h) {
-                    deviceState.light = false;
-                }
+            // 补光灯：光照 < LightL 开启，否则关闭
+            if (currentData.light !== null && currentData.light_l !== null) {
+                deviceState.light = currentData.light < currentData.light_l;
             }
 
             // 更新 UI 显示
