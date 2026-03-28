@@ -703,17 +703,21 @@
         const MQTT_CONFIG = {
             host: 'wss://broker.emqx.io:8084/mqtt',
             clientId: 'crab_' + Math.random().toString(36).substr(2, 6),
-            reconnectPeriod: 3000
+            reconnectPeriod: 3000,
+            connectTimeout: 10000
         };
 
         const TOPIC_UPLOAD = '753284/401657/caiyehuangyuejiankong/upload';
         const TOPIC_CMD = '753284/401657/caiyehuangyuejiankong/cmd';
 
-        // ==================== 状态变量 ====================
-        let client = null;
-        let isConnected = false;
+        // ==================== MQTT 客户端（全局直接创建） ====================
+        const client = mqtt.connect(MQTT_CONFIG.host, {
+            clientId: MQTT_CONFIG.clientId,
+            reconnectPeriod: MQTT_CONFIG.reconnectPeriod,
+            connectTimeout: MQTT_CONFIG.connectTimeout
+        });
 
-        // 当前数据
+        // ==================== 状态变量 ====================
         let currentData = {
             temp: null,
             humidity: null,
@@ -791,50 +795,70 @@
         let logs = [];
         const MAX_LOGS = 20;
 
-        // ==================== MQTT 连接 ====================
-        function connectMQTT() {
-            client = mqtt.connect(MQTT_CONFIG.host, {
-                clientId: MQTT_CONFIG.clientId,
-                reconnectPeriod: MQTT_CONFIG.reconnectPeriod
-            });
-
-            client.on('connect', () => {
-                console.log('MQTT 已连接');
-                setIsConnected(true);
-                client.subscribe(TOPIC_UPLOAD, (err) => {
-                    if (err) {
-                        console.error('订阅失败:', err);
-                    } else {
-                        console.log('已订阅:', TOPIC_UPLOAD);
-                    }
-                });
-            });
-
-            client.on('reconnect', () => {
-                console.log('正在重连...');
-                setIsConnected(false);
-            });
-
-            client.on('error', (err) => {
-                console.error('MQTT 错误:', err);
-            });
-
-            client.on('message', (topic, payload) => {
-                if (topic === TOPIC_UPLOAD) {
-                    const message = payload.toString();
-                    console.log('[MQTT 原始数据] 字段数:', message.split(',').length, 'message:', message);
-                    parseMessage(message);
-                } else if (topic === TOPIC_CMD) {
-                    // 截获下行指令，更新 MANUAL 模式下的设备状态
-                    const cmd = payload.toString().trim();
-                    console.log('[下行指令]', cmd);
-                    handleDownlinkCommand(cmd);
+        // ==================== MQTT 连接事件 ====================
+        client.on('connect', () => {
+            console.log('[MQTT] 连接成功');
+            setConnState('connected');
+            client.subscribe(TOPIC_UPLOAD, (err) => {
+                if (err) {
+                    console.error('[MQTT] 订阅失败:', err);
+                } else {
+                    console.log('[MQTT] 已订阅:', TOPIC_UPLOAD);
                 }
             });
-        }
+            client.subscribe(TOPIC_CMD);  // 订阅下行指令
+        });
 
-        // ==================== 消息解析 ====================
-        function parseMessage(message) {
+        client.on('reconnect', () => {
+            console.log('[MQTT] 正在重连...');
+            setConnState('connecting');
+        });
+
+        client.on('offline', () => {
+            console.log('[MQTT] 离线');
+            setConnState('disconnected');
+        });
+
+        client.on('error', (err) => {
+            console.error('[MQTT] 错误:', err);
+            setConnState('disconnected');
+        });
+
+        client.on('close', () => {
+            console.log('[MQTT] 连接关闭');
+            setConnState('disconnected');
+        });
+
+        client.on('message', (topic, payload) => {
+            if (topic === TOPIC_UPLOAD) {
+                const message = payload.toString();
+                console.log('[MQTT 原始数据] 字段数:', message.split(',').length, 'message:', message);
+                parseMessage(message);
+            } else if (topic === TOPIC_CMD) {
+                // 截获下行指令，更新 MANUAL 模式下的设备状态
+                const cmd = payload.toString().trim();
+                console.log('[下行指令]', cmd);
+                handleDownlinkCommand(cmd);
+            }
+        });
+
+        // ==================== 连接状态显示 ====================
+        function setConnState(state) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            if (!dot || !text) return;
+
+            if (state === 'connected') {
+                dot.className = 'status-dot connected';
+                text.textContent = '已连接';
+            } else if (state === 'connecting') {
+                dot.className = 'status-dot connecting';
+                text.textContent = '连接中...';
+            } else {
+                dot.className = 'status-dot disconnected';
+                text.textContent = '未连接';
+            }
+        }
 
 // ==================== 下行指令处理 ====================
         function handleDownlinkCommand(cmd) {
@@ -1315,7 +1339,7 @@
 
         // ==================== 发送指令 ====================
         function sendCmd(cmd) {
-            if (!isConnected) {
+            if (!client.connected) {
                 alert('MQTT 未连接');
                 return;
             }
@@ -1462,21 +1486,6 @@
             updateDeviceStateUI();
         }
 
-        // ==================== 连接状态 ====================
-        function setIsConnected(connected) {
-            isConnected = connected;
-            const dot = document.getElementById('statusDot');
-            const text = document.getElementById('statusText');
-
-            if (connected) {
-                dot.className = 'status-dot connected';
-                text.textContent = '已连接';
-            } else {
-                dot.className = 'status-dot disconnected';
-                text.textContent = '未连接';
-            }
-        }
-
         // ==================== 日志 ====================
         function addLog(message) {
             logs.unshift({
@@ -1518,8 +1527,6 @@
 
         // ==================== 初始化 ====================
         window.addEventListener('DOMContentLoaded', () => {
-            connectMQTT();
-
             // 初始化模式显示和设备状态
             updateModeDisplay();
             updateDeviceStateUI();
