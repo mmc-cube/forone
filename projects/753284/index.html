@@ -2,14 +2,15 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智能鸡舍环境监控与自动控制系统</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水质检测与智能控制系统</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+
         :root {
             --bg: #F5F5F5;
             --card: #FFFFFF;
@@ -21,1412 +22,958 @@
             --shadow: 0 2px 8px rgba(0,0,0,0.08);
             --radius: 12px;
         }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg);
             color: var(--text);
             max-width: 420px;
             margin: 0 auto;
-            padding-bottom: 20px;
+            padding: 0 12px 20px;
         }
+
         .topbar {
             padding: 44px 16px 10px;
-            background: var(--card);
             position: sticky;
             top: 0;
             z-index: 100;
-            box-shadow: var(--shadow);
+            background: var(--bg);
         }
+
         .status-bar {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            padding: 10px 16px;
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
         }
+
         .status-item {
             display: flex;
             align-items: center;
-            gap: 6px;
-            font-size: 14px;
+            gap: 8px;
+            font-size: 13px;
             color: var(--sub);
         }
+
         .status-dot {
-            width: 10px;
-            height: 10px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             background: var(--sub);
         }
-        .status-dot.connected { background: var(--ok); }
-        .status-dot.disconnected { background: var(--alarm); }
-        .nav-tabs {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-            padding: 4px;
-            background: #eee;
-            border-radius: 10px;
+
+        .status-dot.connected {
+            background: var(--ok);
         }
-        .nav-tab {
-            flex: 1;
-            padding: 10px 8px;
-            border: none;
-            background: transparent;
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--sub);
-            cursor: pointer;
-            border-radius: 8px;
-            transition: all 0.2s;
+
+        .status-dot.disconnected {
+            background: var(--alarm);
         }
-        .nav-tab.active {
-            background: var(--card);
-            color: var(--primary);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .container { padding: 12px; }
-        .page { display: none; }
-        .page.active { display: block; }
+
         .card {
             background: var(--card);
             border-radius: var(--radius);
-            padding: 16px;
-            margin-bottom: 12px;
             box-shadow: var(--shadow);
+            padding: 16px;
+            margin-top: 12px;
         }
+
         .card-title {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
-            color: var(--text);
+            color: var(--sub);
             margin-bottom: 12px;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .card-title::before {
-            content: '';
-            width: 4px;
-            height: 18px;
-            background: var(--primary);
-            border-radius: 2px;
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
         }
-        .data-row {
+
+        .data-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .data-label {
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+
+        .data-value.alarm {
+            color: var(--alarm);
+        }
+
+        .data-unit {
+            font-size: 13px;
+            color: var(--sub);
+            font-weight: normal;
+        }
+
+        .alarm-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .alarm-item {
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+            color: var(--alarm);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .alarm-normal {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            color: var(--ok);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .control-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .control-label {
+            font-size: 14px;
+            color: var(--text);
+            flex: 1;
+        }
+
+        .control-btn {
+            height: 48px;
+            min-width: 80px;
+            padding: 0 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .control-btn.primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .control-btn.primary:active {
+            background: #1976D2;
+        }
+
+        .control-btn.alarm {
+            background: var(--alarm);
+            color: white;
+        }
+
+        .control-btn.alarm:active {
+            background: #D32F2F;
+        }
+
+        .control-btn.mode {
+            background: var(--ok);
+            color: white;
+        }
+
+        .control-btn.mode:active {
+            background: #388E3C;
+        }
+
+        .threshold-display-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .threshold-display-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 0;
+            padding: 10px 0;
             border-bottom: 1px solid #eee;
         }
-        .data-row:last-child { border-bottom: none; }
-        .data-label { font-size: 14px; color: var(--sub); }
-        .data-value { font-size: 28px; font-weight: bold; color: var(--text); }
-        .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
-        .data-warning {
-            font-size: 16px;
-            margin-left: 6px;
-            color: var(--alarm);
-            font-weight: bold;
-            display: inline-block;
-            min-width: 20px;
+
+        .threshold-display-item:last-child {
+            border-bottom: none;
         }
-        .data-warning.hidden { display: none; }
-        .alarm-card { background: var(--alarm); color: white; }
-        .alarm-card .card-title::before { background: white; }
-        .alarm-item {
-            background: rgba(255,255,255,0.2);
-            padding: 10px 14px;
+
+        .threshold-display-label {
+            font-size: 14px;
+            color: var(--text);
+        }
+
+        .threshold-display-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .threshold-setting-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .threshold-setting-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .threshold-setting-label {
+            font-size: 14px;
+            color: var(--text);
+            min-width: 70px;
+        }
+
+        .threshold-setting-input {
+            width: 80px;
+            height: 44px;
+            padding: 0 12px;
+            border: 1px solid #ddd;
             border-radius: 8px;
-            margin-bottom: 8px;
-            font-weight: 500;
+            font-size: 16px;
+            text-align: center;
         }
-        .state-badge {
+
+        .threshold-setting-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .threshold-setting-btn {
+            height: 44px;
+            padding: 0 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            background: var(--primary);
+            color: white;
+            transition: all 0.2s;
+        }
+
+        .threshold-setting-btn:active {
+            background: #1976D2;
+        }
+
+        .log-card {
+            cursor: pointer;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-toggle {
+            font-size: 18px;
+            color: var(--sub);
+            transition: transform 0.3s;
+        }
+
+        .log-toggle.expanded {
+            transform: rotate(180deg);
+        }
+
+        .log-list {
+            margin-top: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .log-list.expanded {
+            display: block;
+        }
+
+        .log-item {
+            font-family: monospace;
+            font-size: 12px;
+            color: var(--sub);
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        .mode-display {
             display: inline-block;
             padding: 4px 12px;
             border-radius: 20px;
             font-size: 12px;
-            font-weight: 500;
-        }
-        .state-on { background: var(--ok); color: white; }
-        .state-off { background: #e0e0e0; color: var(--sub); }
-        .btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-        .btn {
-            height: 48px;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn:active { transform: scale(0.97); }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-danger { background: var(--alarm); color: white; }
-        .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
-        .btn-small { width: 60px; height: 38px; font-size: 13px; }
-        .threshold-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid #eee;
-        }
-        .threshold-row:last-child { border-bottom: none; }
-        .threshold-label { font-size: 13px; color: var(--sub); flex: 1; }
-        .threshold-setting { display: flex; align-items: center; gap: 8px; }
-        .threshold-input {
-            width: 70px;
-            height: 38px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 15px;
-            text-align: center;
-            outline: none;
-        }
-        .threshold-input:focus { border-color: var(--primary); }
-        .threshold-display-value { font-size: 18px; font-weight: 600; color: var(--text); min-width: 70px; text-align: right; }
-        .mode-indicator {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 12px;
             font-weight: 600;
-            margin-left: 8px;
-        }
-        .mode-auto { background: var(--ok); color: white; }
-        .mode-manual { background: var(--alarm); color: white; }
-        .btn-group { display: flex; gap: 8px; margin-top: 12px; }
-        .btn-group .btn { flex: 1; }
-
-        /* 历史数据列表 */
-        .history-controls {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-        .filter-btn {
-            padding: 6px 12px;
-            font-size: 13px;
-            border: 1px solid #ddd;
-            background: white;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-        .filter-btn.active {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-        .history-timeline {
-            position: relative;
-            padding-left: 20px;
-        }
-        .history-item {
-            position: relative;
-            padding: 12px;
-            background: #f9f9f9;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            border-left: 3px solid var(--primary);
-        }
-        .history-item.alarm { border-left-color: var(--alarm); background: #fff5f5; }
-        .history-item.feed { border-left-color: var(--ok); background: #f5fff5; }
-        .history-time {
-            font-size: 12px;
-            color: var(--sub);
-            margin-bottom: 6px;
-        }
-        .history-data {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-        }
-        .history-data-item {
-            font-size: 13px;
-        }
-        .history-data-value {
-            font-weight: 600;
-            color: var(--text);
-        }
-        .history-data-label {
-            font-size: 11px;
-            color: var(--sub);
         }
 
-        /* 统计卡片 */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-bottom: 16px;
-        }
-        .stat-card {
-            background: #f9f9f9;
-            padding: 12px;
-            border-radius: 10px;
-            text-align: center;
-        }
-        .stat-label {
-            font-size: 12px;
-            color: var(--sub);
-            margin-bottom: 6px;
-        }
-        .stat-value {
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--text);
-        }
-        .stat-unit {
-            font-size: 11px;
-            color: var(--sub);
-        }
-        .stat-card.highlight {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        .stat-card.highlight .stat-label,
-        .stat-card.highlight .stat-unit {
-            color: rgba(255,255,255,0.8);
+        .mode-display.auto {
+            background: #E3F2FD;
+            color: #1976D2;
         }
 
-        /* 基准判断 */
-        .baseline-indicator {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            margin-top: 4px;
+        .mode-display.manual {
+            background: #FFF3E0;
+            color: #F57C00;
         }
-        .baseline-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-        }
-        .baseline-normal { background: var(--ok); }
-        .baseline-warning { background: #FF9800; }
-        .baseline-danger { background: var(--alarm); }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--sub);
-        }
-        .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 12px;
-        }
-        .clear-btn { width: 100%; margin-top: 12px; }
-        .log-card { cursor: pointer; }
-        .log-header { display: flex; justify-content: space-between; align-items: center; }
-        .log-toggle { font-size: 12px; color: var(--sub); }
-        .log-content { max-height: 0; overflow: hidden; transition: max-height 0.3s; }
-        .log-content.expanded { max-height: 400px; overflow-y: auto; }
-        .log-item {
-            font-size: 12px;
-            color: var(--sub);
-            padding: 6px 0;
-            border-bottom: 1px solid #f0f0f0;
-            font-family: monospace;
-        }
-        .threshold-display-card .data-row { padding: 10px 0; }
-        .threshold-display-card .data-label { font-size: 13px; }
-        .threshold-display-card .threshold-display-value { font-size: 16px; }
-
-        /* 投喂设置样式 */
-        .feed-setting {
-            margin-bottom: 16px;
-        }
-        .feed-label {
-            display: block;
-            font-size: 13px;
-            color: var(--sub);
-            margin-bottom: 8px;
-        }
-        .feed-input {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-            outline: none;
-        }
-        .feed-input:focus {
-            border-color: var(--primary);
-        }
-        .feed-info {
-            background: #f9f9f9;
-            padding: 12px;
-            border-radius: 8px;
-            margin-top: 12px;
-        }
-        .feed-info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 6px 0;
-            font-size: 13px;
-        }
-        .feed-info-label {
-            color: var(--sub);
-        }
-        .feed-info-value {
-            color: var(--text);
-            font-weight: 500;
-        }
-
-        .record-item {
-            padding: 12px;
-            background: #f9f9f9;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            border-left: 4px solid var(--primary);
-        }
-        .record-item.alarm { border-left-color: var(--alarm); background: #fff5f5; }
-        .record-item.feed { border-left-color: var(--ok); background: #f5fff5; }
-        .record-time { font-size: 12px; color: var(--sub); margin-bottom: 4px; }
-        .record-content { font-size: 14px; color: var(--text); }
-        .record-detail { font-size: 13px; color: var(--sub); margin-top: 4px; }
     </style>
 </head>
 <body>
     <div class="topbar">
         <div class="status-bar">
             <div class="status-item">
-                <div class="status-dot" id="mqttStatus"></div>
-                <span id="mqttStatusText">未连接</span>
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">未连接</span>
             </div>
             <div class="status-item">
-                <span id="currentTime"></span>
+                <span class="mode-display auto" id="modeDisplay">AUTO</span>
             </div>
-        </div>
-        <div class="nav-tabs">
-            <button class="nav-tab active" onclick="switchPage('monitor')">实时监控</button>
-            <button class="nav-tab" onclick="switchPage('control')">控制面板</button>
-            <button class="nav-tab" onclick="switchPage('history')">历史分析</button>
-            <button class="nav-tab" onclick="switchPage('records')">记录</button>
         </div>
     </div>
 
-    <div class="container">
-        <!-- 页面 1：实时监控 -->
-        <div class="page active" id="page-monitor">
-            <div class="card">
-                <div class="card-title">
-                    实时数据
-                    <span class="mode-indicator mode-auto" id="modeIndicator">AUTO</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">温度</span>
-                    <div>
-                        <span class="data-value" id="temp">--</span>
-                        <span class="data-unit">°C</span>
-                        <span class="data-warning" id="temp_warning"></span>
-                    </div>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">湿度</span>
-                    <div>
-                        <span class="data-value" id="humidity">--</span>
-                        <span class="data-unit">%</span>
-                        <span class="data-warning" id="humidity_warning"></span>
-                    </div>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">气体浓度</span>
-                    <div>
-                        <span class="data-value" id="gas_adc">--</span>
-                        <span class="data-unit">ADC</span>
-                        <span class="data-warning" id="gas_adc_warning"></span>
-                    </div>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">光照强度</span>
-                    <div>
-                        <span class="data-value" id="lux">--</span>
-                        <span class="data-unit">Lux</span>
-                        <span class="data-warning" id="lux_warning"></span>
-                    </div>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">水位</span>
-                    <div>
-                        <span class="data-value" id="water_level">--</span>
-                        <span class="data-unit">%</span>
-                        <span class="data-warning" id="water_level_warning"></span>
-                    </div>
-                </div>
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">📊 实时数据</div>
+        <div class="data-grid">
+            <div class="data-item">
+                <span class="data-label">PH 值</span>
+                <span class="data-value" id="ph">--<span class="data-unit"></span></span>
             </div>
-
-            <div class="card">
-                <div class="card-title">执行器状态</div>
-                <div class="data-row">
-                    <span class="data-label">风扇</span>
-                    <span class="state-badge state-off" id="wind_state">OFF</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">补光灯 (LED)</span>
-                    <span class="state-badge state-off" id="light_state">OFF</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">投喂机</span>
-                    <span class="state-badge state-off" id="feed_state">OFF</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">水泵</span>
-                    <span class="state-badge state-off" id="water_state">OFF</span>
-                </div>
+            <div class="data-item">
+                <span class="data-label">浊度</span>
+                <span class="data-value" id="turb">--<span class="data-unit"></span></span>
             </div>
-
-            <div class="card alarm-card" id="alarmCard" style="display: none;">
-                <div class="card-title">报警状态</div>
-                <div id="alarmList"></div>
+            <div class="data-item">
+                <span class="data-label">温度</span>
+                <span class="data-value" id="temp">--<span class="data-unit">℃</span></span>
             </div>
-
-            <div class="card threshold-display-card">
-                <div class="card-title">当前阈值</div>
-                <div class="data-row">
-                    <span class="data-label">温度阈值</span>
-                    <span class="threshold-display-value" id="temp_threshold_display">--</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">气体阈值</span>
-                    <span class="threshold-display-value" id="gas_threshold_display">--</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">光照阈值</span>
-                    <span class="threshold-display-value" id="light_threshold_display">--</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">水位阈值</span>
-                    <span class="threshold-display-value" id="water_threshold_display">--</span>
-                </div>
-            </div>
-
-            <div class="card log-card" onclick="toggleLog()">
-                <div class="log-header">
-                    <div class="card-title" style="margin-bottom: 0;">数据日志</div>
-                    <span class="log-toggle" id="logToggle">点击展开</span>
-                </div>
-                <div class="log-content" id="logContent">
-                    <div id="logList"></div>
-                </div>
+            <div class="data-item">
+                <span class="data-label">湿度</span>
+                <span class="data-value" id="humi">--<span class="data-unit">%</span></span>
             </div>
         </div>
+    </div>
 
-        <!-- 页面 2：控制面板 -->
-        <div class="page" id="page-control">
-            <!-- 阈值设置 -->
-            <div class="card">
-                <div class="card-title">阈值设置</div>
-                <div class="threshold-row">
-                    <span class="threshold-label">温度 (°C)</span>
-                    <div class="threshold-setting">
-                        <input type="number" class="threshold-input" id="temp_threshold_input" placeholder="0-100">
-                        <button class="btn btn-primary btn-small" onclick="setThreshold('temp', '02')">发送</button>
-                    </div>
-                </div>
-                <div class="threshold-row">
-                    <span class="threshold-label">气体 (ADC)</span>
-                    <div class="threshold-setting">
-                        <input type="number" class="threshold-input" id="gas_threshold_input" placeholder="0-4095">
-                        <button class="btn btn-primary btn-small" onclick="setThreshold('gas', '03')">发送</button>
-                    </div>
-                </div>
-                <div class="threshold-row">
-                    <span class="threshold-label">光照 (Lux)</span>
-                    <div class="threshold-setting">
-                        <input type="number" class="threshold-input" id="light_threshold_input" placeholder="0-65535">
-                        <button class="btn btn-primary btn-small" onclick="setThreshold('light', '04')">发送</button>
-                    </div>
-                </div>
-                <div class="threshold-row">
-                    <span class="threshold-label">水位 (%)</span>
-                    <div class="threshold-setting">
-                        <input type="number" class="threshold-input" id="water_threshold_input" placeholder="0-100">
-                        <button class="btn btn-primary btn-small" onclick="setThreshold('water', '07')">发送</button>
-                    </div>
-                </div>
+    <!-- 报警状态卡 -->
+    <div class="card" id="alarmCard">
+        <div class="card-title">🚨 报警状态</div>
+        <div class="alarm-list" id="alarmList">
+            <div class="alarm-normal">运行正常 ✓</div>
+        </div>
+        <button class="control-btn alarm" id="silenceBtn" style="width:100%;margin-top:12px;display:none;" onclick="sendSilence()">🔇 消警</button>
+    </div>
+
+    <!-- 控制卡 -->
+    <div class="card">
+        <div class="card-title">🎮 设备控制</div>
+        <div class="control-grid">
+            <div class="control-row">
+                <span class="control-label">模式切换</span>
+                <button class="control-btn mode" onclick="sendModeToggle()">🔄 切换</button>
             </div>
-
-            <!-- 远程控制 -->
-            <div class="card">
-                <div class="card-title">远程控制</div>
-                <div class="btn-grid">
-                    <button class="btn btn-outline" onclick="controlDevice(1, 1)">风扇 ON</button>
-                    <button class="btn btn-outline" onclick="controlDevice(1, 0)">风扇 OFF</button>
-                    <button class="btn btn-outline" onclick="controlDevice(3, 1)">补光灯 ON</button>
-                    <button class="btn btn-outline" onclick="controlDevice(3, 0)">补光灯 OFF</button>
-                </div>
-                <div class="btn-group">
-                    <button class="btn btn-outline" onclick="setMode('AUTO')">AUTO 模式</button>
-                    <button class="btn btn-outline" onclick="setMode('MANUAL')">MANUAL 模式</button>
-                </div>
-                <div style="margin-top: 12px;">
-                    <button class="btn btn-danger" style="width: 100%;" onclick="sendCmd('01')">消警</button>
-                </div>
+            <div class="control-row">
+                <span class="control-label">加热器</span>
+                <button class="control-btn primary" id="relay1Btn" onclick="sendRelay(1)">开启</button>
             </div>
-
-            <!-- 自动投喂设置 -->
-            <div class="card">
-                <div class="card-title">⏰ 自动投喂设置</div>
-                <div class="feed-setting">
-                    <label class="feed-label">投喂时间（24 小时制，逗号分隔）</label>
-                    <input type="text" class="feed-input" id="feedTimesInput" placeholder="例：08:00,12:00,18:00" />
-                    <button class="btn btn-primary" style="width:100%;margin-top:10px;" onclick="saveFeedSchedule()">保存设置</button>
-                </div>
-                <div class="feed-info">
-                    <div class="feed-info-row">
-                        <span class="feed-info-label">当前设置：</span>
-                        <span class="feed-info-value" id="currentFeedTimes">未设置</span>
-                    </div>
-                    <div class="feed-info-row">
-                        <span class="feed-info-label">下次投喂：</span>
-                        <span class="feed-info-value" id="nextFeedTime">--</span>
-                    </div>
-                    <button class="btn btn-outline" style="width:100%;margin-top:10px;" onclick="triggerFeed()">🍗 立即投喂</button>
-                </div>
+            <div class="control-row">
+                <span class="control-label">消毒装置</span>
+                <button class="control-btn primary" id="relay2Btn" onclick="sendRelay(2)">开启</button>
+            </div>
+            <div class="control-row">
+                <span class="control-label">通风设备</span>
+                <button class="control-btn primary" id="relay3Btn" onclick="sendRelay(3)">开启</button>
             </div>
         </div>
+    </div>
 
-        <!-- 页面 3：历史分析 -->
-        <div class="page" id="page-history">
-            <div class="card">
-                <div class="card-title">数据统计分析</div>
-                <div class="history-controls">
-                    <button class="filter-btn active" onclick="setStatType('temp')">温度</button>
-                    <button class="filter-btn" onclick="setStatType('humidity')">湿度</button>
-                    <button class="filter-btn" onclick="setStatType('gas')">气体</button>
-                    <button class="filter-btn" onclick="setStatType('lux')">光照</button>
-                    <button class="filter-btn" onclick="setStatType('water')">水位</button>
-                </div>
-                <div class="stats-grid">
-                    <div class="stat-card highlight">
-                        <div class="stat-label">当前值</div>
-                        <div class="stat-value" id="stat_current">--</div>
-                        <div class="stat-unit" id="stat_current_unit">--</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">平均值</div>
-                        <div class="stat-value" id="stat_avg">--</div>
-                        <div class="stat-unit" id="stat_avg_unit">--</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">最大值</div>
-                        <div class="stat-value" id="stat_max">--</div>
-                        <div class="stat-unit" id="stat_max_unit">--</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">最小值</div>
-                        <div class="stat-value" id="stat_min">--</div>
-                        <div class="stat-unit" id="stat_min_unit">--</div>
-                    </div>
-                </div>
-                <div class="baseline-indicator">
-                    <div class="baseline-dot baseline-normal" id="baselineDot"></div>
-                    <span id="baselineText">基准判断：正常</span>
-                </div>
+    <!-- 阈值显示卡 -->
+    <div class="card">
+        <div class="card-title">📋 当前阈值</div>
+        <div class="threshold-display-list">
+            <div class="threshold-display-item">
+                <span class="threshold-display-label">PH 上限</span>
+                <span class="threshold-display-value" id="phh_display">--</span>
             </div>
-
-            <div class="card">
-                <div class="card-title">
-                    历史数据列表
-                    <span style="font-size: 12px; color: var(--sub); font-weight: normal; margin-left: 8px;">(最近 50 条)</span>
-                </div>
-                <div class="history-controls">
-                    <button class="filter-btn active" onclick="setHistoryRange('10m')">10 分钟</button>
-                    <button class="filter-btn" onclick="setHistoryRange('30m')">30 分钟</button>
-                    <button class="filter-btn" onclick="setHistoryRange('1h')">1 小时</button>
-                    <button class="filter-btn" onclick="setHistoryRange('all')">全部</button>
-                </div>
-                <div class="history-timeline" id="historyTimeline">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">📊</div>
-                        <div>暂无历史数据</div>
-                    </div>
-                </div>
-                <button class="btn btn-outline clear-btn" onclick="clearHistoryData()">清空历史数据</button>
+            <div class="threshold-display-item">
+                <span class="threshold-display-label">浊度上限</span>
+                <span class="threshold-display-value" id="turbh_display">--</span>
+            </div>
+            <div class="threshold-display-item">
+                <span class="threshold-display-label">温度上限</span>
+                <span class="threshold-display-value" id="temph_display">--</span>
+            </div>
+            <div class="threshold-display-item">
+                <span class="threshold-display-label">温度下限</span>
+                <span class="threshold-display-value" id="templ_display">--</span>
+            </div>
+            <div class="threshold-display-item">
+                <span class="threshold-display-label">湿度上限</span>
+                <span class="threshold-display-value" id="humih_display">--</span>
             </div>
         </div>
+    </div>
 
-        <!-- 页面 4：记录 -->
-        <div class="page" id="page-records">
-            <div class="card">
-                <div class="card-title">喂食饮水记录</div>
-                <div id="feedRecordList"></div>
-                <div class="empty-state" id="feedEmptyState" style="display: none;">
-                    <div class="empty-state-icon">📝</div>
-                    <div>暂无喂食记录</div>
-                </div>
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">⚙ 阈值设置</div>
+        <div class="threshold-setting-list">
+            <div class="threshold-setting-row">
+                <span class="threshold-setting-label">PH 上限</span>
+                <input type="number" class="threshold-setting-input" id="phh_input" placeholder="0.0-14.0" step="0.1">
+                <button class="threshold-setting-btn" onclick="setThreshold('phh', '02')">发送</button>
             </div>
-
-            <div class="card">
-                <div class="card-title">报警记录</div>
-                <div id="alarmRecordList"></div>
-                <div class="empty-state" id="alarmRecordEmptyState" style="display: none;">
-                    <div class="empty-state-icon">🔔</div>
-                    <div>暂无报警记录</div>
-                </div>
-                <button class="btn btn-outline clear-btn" onclick="clearAlarmRecords()">清空报警记录</button>
+            <div class="threshold-setting-row">
+                <span class="threshold-setting-label">浊度上限</span>
+                <input type="number" class="threshold-setting-input" id="turbh_input" placeholder="0-4095" step="1">
+                <button class="threshold-setting-btn" onclick="setThreshold('turbh', '03')">发送</button>
+            </div>
+            <div class="threshold-setting-row">
+                <span class="threshold-setting-label">温度上限</span>
+                <input type="number" class="threshold-setting-input" id="temph_input" placeholder="0-100" step="1">
+                <button class="threshold-setting-btn" onclick="setThreshold('temph', '04')">发送</button>
+            </div>
+            <div class="threshold-setting-row">
+                <span class="threshold-setting-label">温度下限</span>
+                <input type="number" class="threshold-setting-input" id="templ_input" placeholder="0-100" step="1">
+                <button class="threshold-setting-btn" onclick="setThreshold('templ', '05')">发送</button>
+            </div>
+            <div class="threshold-setting-row">
+                <span class="threshold-setting-label">湿度上限</span>
+                <input type="number" class="threshold-setting-input" id="humih_input" placeholder="0-100" step="1">
+                <button class="threshold-setting-btn" onclick="setThreshold('humih', '06')">发送</button>
             </div>
         </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card log-card" onclick="toggleLog()">
+        <div class="log-header">
+            <div class="card-title" style="margin-bottom:0;">📝 数据日志</div>
+            <span class="log-toggle" id="logToggle">▼</span>
+        </div>
+        <div class="log-list" id="logList"></div>
     </div>
 
     <script src="mqtt.min.js"></script>
     <script>
-        // ==================== 配置 ====================
-        const UPLOAD_TOPIC = '753284/401657/zhineng_jishe/upload';
-        const CMD_TOPIC = '753284/401657/zhineng_jishe/cmd';
+        // ==================== MQTT 配置 ====================
+        const UPLOAD_TOPIC = '753284/401657/shuizhijiance/upload';
+        const CMD_TOPIC = '753284/401657/shuizhijiance/cmd';
 
-        // ==================== 状态变量 ====================
-        let client = null;
-        let isConnected = false;
-        let logExpanded = false;
-        let logs = [];
-        let currentMode = 'AUTO';
+        // ==================== 同步保护状态（核心改进） ====================
+        let waitingSync = {
+            phh: false,
+            turbh: false,
+            temph: false,
+            templ: false,
+            humih: false
+        };
+        let pendingValue = {
+            phh: null,
+            turbh: null,
+            temph: null,
+            templ: null,
+            humih: null
+        };
+        let syncTimeoutTimer = {
+            phh: null,
+            turbh: null,
+            temph: null,
+            templ: null,
+            humih: null
+        };
 
+        // 防抖动保护
+        let lastUserSetTime = {
+            phh: 0,
+            turbh: 0,
+            temph: 0,
+            templ: 0,
+            humih: 0
+        };
+
+        const DEBOUNCE_MS = 500;
+        const SYNC_TIMEOUT_MS = 5000;
+
+        // ==================== 当前数据状态 ====================
         let currentData = {
-            temp: null, humidity: null, gas_adc: null, lux: null, water_level: null,
-            wind_state: null, light_state: null, feed_state: null, water_state: null,
-            temp_threshold: null, gas_threshold: null, light_threshold: null,
-            water_threshold: null
+            ph: null,
+            turb: null,
+            temp: null,
+            humi: null,
+            relay1: null,
+            relay2: null,
+            relay3: null,
+            mode: 'AUTO',
+            phh: null,
+            turbh: null,
+            temph: null,
+            templ: null,
+            humih: null
         };
 
-        let waitingSync = { temp: false, gas: false, light: false, water: false };
-        let pendingValue = { temp: null, gas: null, light: null, water: null };
-        let syncTimeoutTimer = { temp: null, gas: null, light: null, water: null };
-        let lastUserSetTime = { temp_threshold: 0, gas_threshold: 0, light_threshold: 0, water_threshold: 0 };
+        let isConnected = false;
+        let logEntries = [];
+        let logExpanded = false;
 
-        // 投喂定时管理
-        let feedSchedule = [];  // 投喂时间列表，如 ["08:00", "12:00", "18:00"]
-        let feedTimer = null;
-        let lastFeedDate = null;  // 上次投喂日期
-        let lastTriggeredTime = null;  // 上次触发投喂的时间（防止重复）
+        // ==================== MQTT 客户端初始化 ====================
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+            reconnectPeriod: 3000,
+            clean: true
+        });
 
-        // 历史数据
-        let historyData = {
-            timestamps: [], temp: [], humidity: [], gas_adc: [], lux: [], water_level: []
-        };
-        let currentStatType = 'temp';
-        let currentHistoryRange = '10m';
+        client.on('connect', () => {
+            console.log('MQTT Connected');
+            isConnected = true;
+            updateConnectionStatus();
+            client.subscribe(UPLOAD_TOPIC);
+        });
 
-        // 记录
-        let feedRecords = [], alarmRecords = [];
-        let lastFeedState = null, lastWaterState = null, lastAlarmState = null;
+        client.on('disconnect', () => {
+            console.log('MQTT Disconnected');
+            isConnected = false;
+            updateConnectionStatus();
+        });
 
-        const DEBOUNCE_MS = 500, SYNC_TIMEOUT_MS = 5000, MAX_HISTORY_POINTS = 500;
-        const HISTORY_STORAGE_KEY = 'chicken_coop_history';
-        const FEED_RECORDS_KEY = 'chicken_coop_feed_records';
-        const ALARM_RECORDS_KEY = 'chicken_coop_alarm_records';
+        client.on('reconnect', () => {
+            console.log('MQTT Reconnecting...');
+            isConnected = false;
+            updateConnectionStatus();
+        });
 
-        // 基准范围
-        const BASELINE = {
-            temp: { min: 15, max: 35, unit: '°C' },
-            humidity: { min: 40, max: 80, unit: '%' },
-            gas_adc: { min: 0, max: 500, unit: 'ADC' },
-            lux: { min: 100, max: 1000, unit: 'Lux' },
-            water_level: { min: 30, max: 100, unit: '%' }
-        };
+        client.on('message', (topic, payload) => {
+            console.log('Received message on topic:', topic);
+            console.log('Expected topic:', UPLOAD_TOPIC);
+            console.log('Topic match:', topic === UPLOAD_TOPIC);
+            if (topic === UPLOAD_TOPIC) {
+                const message = payload.toString();
+                console.log('Message content:', message);
+                parseMessage(message);
+            }
+        });
 
-        function switchPage(pageName) {
-            document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
-            document.getElementById('page-' + pageName).classList.add('active');
-            if (pageName === 'history') { updateStats(); renderHistoryTimeline(); }
-            else if (pageName === 'records') { renderRecords(); }
+        // ==================== 连接状态更新 ====================
+        function updateConnectionStatus() {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            if (isConnected) {
+                dot.className = 'status-dot connected';
+                text.textContent = '已连接';
+            } else {
+                dot.className = 'status-dot disconnected';
+                text.textContent = '未连接';
+            }
         }
 
-        function connectMQTT() {
-            const clientId = 'web_' + Math.random().toString(36).substr(2, 6);
-            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-                clientId: clientId, reconnectPeriod: 3000, connectTimeout: 10000
-            });
-
-            client.on('connect', () => {
-                isConnected = true; updateConnectionStatus();
-                client.subscribe(UPLOAD_TOPIC);
-            });
-            client.on('reconnect', () => { isConnected = false; updateConnectionStatus(); });
-            client.on('error', (err) => console.error('MQTT Error:', err));
-            client.on('message', (topic, payload) => {
-                if (topic === UPLOAD_TOPIC) parseMessage(payload.toString());
-            });
-            client.on('close', () => { isConnected = false; updateConnectionStatus(); });
-        }
-
+        // ==================== 解析消息并更新 UI ====================
         function parseMessage(message) {
             const parts = message.split(',');
-            if (parts.length < 14) return;
+            if (parts.length < 13) return;
 
             const now = Date.now();
+
             const newData = {
-                temp: parseFloat(parts[0]), humidity: parseFloat(parts[1]),
-                gas_adc: parseInt(parts[2]), lux: parseFloat(parts[3]),
-                water_level: parseFloat(parts[4]),
-                wind_state: parseInt(parts[5]), light_state: parseInt(parts[6]),
-                feed_state: parseInt(parts[7]), water_state: parseInt(parts[8]),
-                temp_threshold: parseInt(parts[9]), gas_threshold: parseInt(parts[10]),
-                light_threshold: parseInt(parts[11]), water_threshold: parseInt(parts[12])
+                ph: parseFloat(parts[0]),
+                turb: parseInt(parts[1]),
+                temp: parseFloat(parts[2]),
+                humi: parseInt(parts[3]),
+                relay1: parseInt(parts[4]),
+                relay2: parseInt(parts[5]),
+                relay3: parseInt(parts[6]),
+                mode: parts[7],
+                phh: parseFloat(parts[8]),
+                turbh: parseInt(parts[9]),
+                temph: parseInt(parts[10]),
+                templ: parseInt(parts[11]),
+                humih: parseInt(parts[12])
             };
 
-            currentData = { ...currentData, ...newData };
+            // 传感器值始终更新
+            currentData.ph = newData.ph;
+            currentData.turb = newData.turb;
+            currentData.temp = newData.temp;
+            currentData.humi = newData.humi;
+            currentData.relay1 = newData.relay1;
+            currentData.relay2 = newData.relay2;
+            currentData.relay3 = newData.relay3;
+            currentData.mode = newData.mode;
 
-            // AUTO 模式下：根据传感器数据和阈值本地计算执行器状态（不依赖下位机回传）
-            if (currentMode === 'AUTO') {
-                // 风扇：温度>阈值 或 气体>阈值 时开启
-                if (currentData.temp !== null && currentData.temp_threshold !== null &&
-                    currentData.temp > currentData.temp_threshold) {
-                    currentData.wind_state = 1;
-                } else if (currentData.gas_adc !== null && currentData.gas_threshold !== null &&
-                           currentData.gas_adc > currentData.gas_threshold) {
-                    currentData.wind_state = 1;
-                } else {
-                    currentData.wind_state = 0;
-                }
-
-                // 补光灯 (LED)：光照<阈值 时开启
-                if (currentData.lux !== null && currentData.light_threshold !== null &&
-                    currentData.lux < currentData.light_threshold) {
-                    currentData.light_state = 1;
-                } else {
-                    currentData.light_state = 0;
-                }
-
-                // 投喂机和水泵：只在 MANUAL 模式下由下位机控制，AUTO 模式下保持 OFF
-                // （投喂由定时器控制，不实时上报）
-                currentData.feed_state = 0;
-                currentData.water_state = 0;
-            } else {
-                // MANUAL 模式：使用下位机回传的状态
-                currentData.wind_state = newData.wind_state;
-                currentData.light_state = newData.light_state;
-                currentData.feed_state = newData.feed_state;
-                currentData.water_state = newData.water_state;
-            }
-
-            checkFeedAction(newData);
-
-            // 阈值同步检查
+            // 检查是否有正在等待同步的阈值
             let hasPendingSync = false;
             for (const [key, isWaiting] of Object.entries(waitingSync)) {
                 if (isWaiting) {
                     hasPendingSync = true;
-                    const receivedKey = key === 'temp' ? 'temp_threshold' :
-                                       key === 'gas' ? 'gas_threshold' :
-                                       key === 'light' ? 'light_threshold' :
-                                       'water_threshold';
-                    if (pendingValue[key] !== null && Math.abs(newData[receivedKey] - pendingValue[key]) < 0.5) {
-                        if (syncTimeoutTimer[key]) clearTimeout(syncTimeoutTimer[key]);
-                        waitingSync[key] = false; pendingValue[key] = null;
-                        lastUserSetTime[receivedKey] = 0;
+                    const expectedValue = pendingValue[key];
+                    const receivedValue = newData[key];
+
+                    // 检查下位机是否确认了新值（允许小范围误差）
+                    if (expectedValue !== null && Math.abs(receivedValue - expectedValue) < 0.5) {
+                        console.log(`Sync confirmed for ${key}: ${receivedValue}`);
+
+                        // 同步成功，清除定时器
+                        if (syncTimeoutTimer[key]) {
+                            clearTimeout(syncTimeoutTimer[key]);
+                            syncTimeoutTimer[key] = null;
+                        }
+
+                        // 释放保护状态
+                        waitingSync[key] = false;
+                        pendingValue[key] = null;
+                        lastUserSetTime[key] = 0;
                     }
                 }
             }
 
-            // 阈值更新
-            const thresholdKeys = ['temp_threshold', 'gas_threshold', 'light_threshold', 'water_threshold'];
-            for (const threshKey of thresholdKeys) {
-                const typeKey = threshKey.replace('_threshold', '');
-                if (!lastUserSetTime[threshKey] || (now - lastUserSetTime[threshKey]) >= DEBOUNCE_MS) {
-                    if (!waitingSync[typeKey]) currentData[threshKey] = newData[threshKey];
+            // 阈值更新逻辑（三重保护）
+            for (const key of ['phh', 'turbh', 'temph', 'templ', 'humih']) {
+                if (!lastUserSetTime[key] || (now - lastUserSetTime[key]) >= DEBOUNCE_MS) {
+                    if (!waitingSync[key]) {
+                        currentData[key] = newData[key];
+                    }
                 }
             }
 
-            addToHistory(newData);
             updateUI();
+
+            // 等待确认期间使用预测值进行报警判断
+            if (hasPendingSync) {
+                checkAlarmsWithPending();
+            } else {
+                checkAlarms();
+            }
+
             addLog(message);
-
-            const alarmState = checkAlarms();
-            checkAlarmChange(alarmState);
         }
 
-        // ==================== 历史数据管理 ====================
-        function loadHistoryData() {
-            try {
-                const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
-                if (stored) historyData = JSON.parse(stored);
-            } catch (e) { console.error('Load history failed:', e); }
-        }
-
-        function saveHistoryData() {
-            while (historyData.timestamps.length > MAX_HISTORY_POINTS) {
-                for (const key in historyData) historyData[key].shift();
-            }
-            try { localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyData)); }
-            catch (e) { console.error('Save history failed:', e); }
-        }
-
-        function addToHistory(data) {
-            const now = Date.now();
-            historyData.timestamps.push(now);
-            historyData.temp.push(data.temp);
-            historyData.humidity.push(data.humidity);
-            historyData.gas_adc.push(data.gas_adc);
-            historyData.lux.push(data.lux);
-            historyData.water_level.push(data.water_level);
-            saveHistoryData();
-        }
-
-        function clearHistoryData() {
-            if (confirm('确认清空所有历史数据吗？')) {
-                historyData = { timestamps: [], temp: [], humidity: [], gas_adc: [], lux: [], water_level: [] };
-                localStorage.removeItem(HISTORY_STORAGE_KEY);
-                updateStats(); renderHistoryTimeline();
-            }
-        }
-
-        // ==================== 统计分析 ====================
-        function setStatType(type) {
-            currentStatType = type;
-            document.querySelectorAll('#page-history .filter-btn').forEach((btn, i) => {
-                btn.classList.toggle('active', i < 5 && [
-                    'temp', 'humidity', 'gas', 'lux', 'water'
-                ].indexOf(type) === i);
-            });
-            updateStats();
-        }
-
-        function setHistoryRange(range) {
-            currentHistoryRange = range;
-            document.querySelectorAll('#page-history .history-controls .filter-btn').forEach((btn, i) => {
-                btn.classList.toggle('active', i >= 5 && [
-                    '10m', '30m', '1h', 'all'
-                ].indexOf(range) === i - 5);
-            });
-            renderHistoryTimeline();
-        }
-
-        function calculateStats(data) {
-            if (data.length === 0) return { avg: null, max: null, min: null };
-            const sum = data.reduce((a, b) => a + b, 0);
-            return {
-                avg: (sum / data.length).toFixed(1),
-                max: Math.max(...data).toFixed(1),
-                min: Math.min(...data).toFixed(1)
-            };
-        }
-
-        function updateStats() {
-            const typeMap = {
-                temp: { data: historyData.temp, key: 'temp', unit: '°C' },
-                humidity: { data: historyData.humidity, key: 'humidity', unit: '%' },
-                gas: { data: historyData.gas_adc, key: 'gas_adc', unit: 'ADC' },
-                lux: { data: historyData.lux, key: 'lux', unit: 'Lux' },
-                water: { data: historyData.water_level, key: 'water_level', unit: '%' }
-            };
-
-            const config = typeMap[currentStatType];
-            const stats = calculateStats(config.data);
-            const baseline = BASELINE[currentStatType];
-
-            const currentVal = currentData[config.key];
-            document.getElementById('stat_current').textContent = currentVal !== null && currentVal !== undefined ? currentVal.toFixed(1) : '--';
-            document.getElementById('stat_current_unit').textContent = config.unit;
-            document.getElementById('stat_avg').textContent = stats.avg !== null ? stats.avg : '--';
-            document.getElementById('stat_avg_unit').textContent = config.unit;
-            document.getElementById('stat_max').textContent = stats.max !== null ? stats.max : '--';
-            document.getElementById('stat_max_unit').textContent = config.unit;
-            document.getElementById('stat_min').textContent = stats.min !== null ? stats.min : '--';
-            document.getElementById('stat_min_unit').textContent = config.unit;
-
-            // 基准判断
-            const dot = document.getElementById('baselineDot');
-            const text = document.getElementById('baselineText');
-
-            if (currentVal === null || currentVal === undefined) {
-                text.textContent = '基准判断：--';
-                dot.className = 'baseline-dot';
-            } else if (currentVal >= baseline.min && currentVal <= baseline.max) {
-                text.textContent = `基准判断：正常 (${baseline.min}-${baseline.max} ${baseline.unit})`;
-                dot.className = 'baseline-dot baseline-normal';
-            } else if (currentVal < baseline.min * 0.8 || currentVal > baseline.max * 1.2) {
-                text.textContent = `基准判断：异常 (${baseline.min}-${baseline.max} ${baseline.unit})`;
-                dot.className = 'baseline-dot baseline-danger';
-            } else {
-                text.textContent = `基准判断：注意 (${baseline.min}-${baseline.max} ${baseline.unit})`;
-                dot.className = 'baseline-dot baseline-warning';
-            }
-        }
-
-        function renderHistoryTimeline() {
-            const container = document.getElementById('historyTimeline');
-            const now = Date.now();
-            const rangeMs = currentHistoryRange === '10m' ? 10 * 60 * 1000 :
-                           currentHistoryRange === '30m' ? 30 * 60 * 1000 :
-                           currentHistoryRange === '1h' ? 60 * 60 * 1000 : Infinity;
-            const cutoff = currentHistoryRange === 'all' ? 0 : now - rangeMs;
-
-            const items = [];
-            const typeMap = {
-                temp: { key: 'temp', unit: '°C' },
-                humidity: { key: 'humidity', unit: '%' },
-                gas: { key: 'gas_adc', unit: 'ADC' },
-                lux: { key: 'lux', unit: 'Lux' },
-                water: { key: 'water_level', unit: '%' }
-            };
-            const config = typeMap[currentStatType];
-
-            for (let i = historyData.timestamps.length - 1; i >= 0 && items.length < 50; i--) {
-                if (historyData.timestamps[i] >= cutoff) {
-                    const date = new Date(historyData.timestamps[i]);
-                    const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    const val = historyData[config.key][i];
-                    const baseline = BASELINE[currentStatType];
-                    const isAlarm = val !== null && val !== undefined && (val < baseline.min || val > baseline.max);
-
-                    items.push(`
-                        <div class="history-item ${isAlarm ? 'alarm' : ''}">
-                            <div class="history-time">${timeStr}</div>
-                            <div class="history-data">
-                                <div class="history-data-item">
-                                    <div class="history-data-value">${val !== null && val !== undefined ? val.toFixed(1) : '--'}</div>
-                                    <div class="history-data-label">${config.unit}</div>
-                                </div>
-                                <div class="history-data-item">
-                                    <div class="history-data-value">${currentData.temp_threshold !== null ? currentData.temp_threshold : '--'}</div>
-                                    <div class="history-data-label">阈值 (°C)</div>
-                                </div>
-                                <div class="history-data-item">
-                                    <div class="history-data-value">${currentData.humidity !== null ? currentData.humidity.toFixed(0) : '--'}</div>
-                                    <div class="history-data-label">湿度 (%)</div>
-                                </div>
-                            </div>
-                        </div>
-                    `);
-                }
-            }
-
-            if (items.length === 0) {
-                container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📊</div><div>暂无历史数据</div></div>`;
-            } else {
-                container.innerHTML = items.join('');
-            }
-        }
-
-        // ==================== 记录管理 ====================
-        function loadRecords() {
-            try {
-                const feedStored = localStorage.getItem(FEED_RECORDS_KEY);
-                if (feedStored) feedRecords = JSON.parse(feedStored);
-            } catch (e) { feedRecords = []; }
-            try {
-                const alarmStored = localStorage.getItem(ALARM_RECORDS_KEY);
-                if (alarmStored) alarmRecords = JSON.parse(alarmStored);
-            } catch (e) { alarmRecords = []; }
-        }
-
-        function saveFeedRecords() {
-            while (feedRecords.length > 100) feedRecords.shift();
-            localStorage.setItem(FEED_RECORDS_KEY, JSON.stringify(feedRecords));
-        }
-
-        function saveAlarmRecords() {
-            while (alarmRecords.length > 100) alarmRecords.shift();
-            localStorage.setItem(ALARM_RECORDS_KEY, JSON.stringify(alarmRecords));
-        }
-
-        function checkFeedAction(data) {
-            const now = new Date();
-            const timeStr = now.toLocaleString('zh-CN');
-
-            if (lastFeedState === 0 && data.feed_state === 1) {
-                feedRecords.unshift({ type: 'feed', time: timeStr, detail: '执行投喂操作' });
-                saveFeedRecords();
-            }
-            lastFeedState = data.feed_state;
-
-            if (lastWaterState === 0 && data.water_state === 1) {
-                feedRecords.unshift({ type: 'water', time: timeStr, detail: '执行喂水操作' });
-                saveFeedRecords();
-            }
-            lastWaterState = data.water_state;
-        }
-
-        function checkAlarmChange(alarmState) {
-            const now = new Date();
-            const timeStr = now.toLocaleString('zh-CN');
-
-            if ((!lastAlarmState || lastAlarmState.length === 0) && alarmState && alarmState.length > 0) {
-                alarmRecords.unshift({
-                    type: 'alarm', time: timeStr, alarms: alarmState, data: { ...currentData }
-                });
-                saveAlarmRecords();
-            }
-            lastAlarmState = alarmState;
-        }
-
-        function clearAlarmRecords() {
-            if (confirm('确认清空所有报警记录吗？')) {
-                alarmRecords = [];
-                localStorage.removeItem(ALARM_RECORDS_KEY);
-                renderRecords();
-            }
-        }
-
-        function renderRecords() {
-            const feedList = document.getElementById('feedRecordList');
-            const feedEmpty = document.getElementById('feedEmptyState');
-            if (feedRecords.length === 0) {
-                feedList.innerHTML = '';
-                feedEmpty.style.display = 'block';
-            } else {
-                feedEmpty.style.display = 'none';
-                feedList.innerHTML = feedRecords.slice(0, 20).map(r => `
-                    <div class="record-item feed">
-                        <div class="record-time">${r.time}</div>
-                        <div class="record-content">${r.type === 'feed' ? '🍽️ 投喂' : '💧 喂水'}</div>
-                        <div class="record-detail">${r.detail}</div>
-                    </div>
-                `).join('');
-            }
-
-            const alarmList = document.getElementById('alarmRecordList');
-            const alarmEmpty = document.getElementById('alarmRecordEmptyState');
-            if (alarmRecords.length === 0) {
-                alarmList.innerHTML = '';
-                alarmEmpty.style.display = 'block';
-            } else {
-                alarmEmpty.style.display = 'none';
-                alarmList.innerHTML = alarmRecords.slice(0, 20).map(r => `
-                    <div class="record-item alarm">
-                        <div class="record-time">${r.time}</div>
-                        <div class="record-content">🚨 报警</div>
-                        <div class="record-detail">${r.alarms.join('、')}</div>
-                        <div class="record-detail">T:${r.data.temp}°C G:${r.data.gas_adc} W:${r.data.water_level}%</div>
-                    </div>
-                `).join('');
-            }
-        }
-
-        // ==================== UI 更新 ====================
+        // ==================== UI 更新函数 ====================
         function updateUI() {
-            if (currentData.temp !== null) document.getElementById('temp').textContent = currentData.temp.toFixed(1);
-            if (currentData.humidity !== null) document.getElementById('humidity').textContent = currentData.humidity.toFixed(0);
-            if (currentData.gas_adc !== null) document.getElementById('gas_adc').textContent = currentData.gas_adc;
-            if (currentData.lux !== null) document.getElementById('lux').textContent = currentData.lux.toFixed(0);
-            if (currentData.water_level !== null) document.getElementById('water_level').textContent = currentData.water_level.toFixed(0);
+            // 传感器数值
+            if (currentData.ph !== null) {
+                document.getElementById('ph').textContent = currentData.ph.toFixed(1);
+            }
+            if (currentData.turb !== null) {
+                document.getElementById('turb').textContent = currentData.turb;
+            }
+            if (currentData.temp !== null) {
+                document.getElementById('temp').textContent = currentData.temp.toFixed(1);
+            }
+            if (currentData.humi !== null) {
+                document.getElementById('humi').textContent = currentData.humi;
+            }
 
-            ['wind_state', 'light_state', 'feed_state', 'water_state'].forEach(id => {
-                const el = document.getElementById(id);
-                el.textContent = currentData[id] === 1 ? 'ON' : 'OFF';
-                el.className = 'state-badge ' + (currentData[id] === 1 ? 'state-on' : 'state-off');
-            });
+            // 继电器按钮状态
+            updateRelayButton(1, currentData.relay1);
+            updateRelayButton(2, currentData.relay2);
+            updateRelayButton(3, currentData.relay3);
 
-            ['temp_threshold', 'gas_threshold', 'light_threshold', 'water_threshold'].forEach(key => {
-                const displayKey = key + '_display';
-                const el = document.getElementById(displayKey);
-                if (el && currentData[key] !== null) {
-                    const typeKey = key.replace('_threshold', '');
-                    el.textContent = waitingSync[typeKey] ? pendingValue[typeKey] : currentData[key];
-                }
-            });
+            // 模式显示
+            const modeDisplay = document.getElementById('modeDisplay');
+            modeDisplay.textContent = currentData.mode;
+            modeDisplay.className = 'mode-display ' + currentData.mode.toLowerCase();
 
-            if (currentStatType) updateStats();
+            // 阈值显示（关键：等待期间显示预测值，否则显示下位机上报值）
+            if (currentData.phh !== null) {
+                document.getElementById('phh_display').textContent = waitingSync.phh ? pendingValue.phh : currentData.phh.toFixed(1);
+            }
+            if (currentData.turbh !== null) {
+                document.getElementById('turbh_display').textContent = waitingSync.turbh ? pendingValue.turbh : currentData.turbh;
+            }
+            if (currentData.temph !== null) {
+                document.getElementById('temph_display').textContent = waitingSync.temph ? pendingValue.temph : currentData.temph.toFixed(1);
+            }
+            if (currentData.templ !== null) {
+                document.getElementById('templ_display').textContent = waitingSync.templ ? pendingValue.templ : currentData.templ.toFixed(1);
+            }
+            if (currentData.humih !== null) {
+                document.getElementById('humih_display').textContent = waitingSync.humih ? pendingValue.humih : currentData.humih;
+            }
         }
 
-        function updateConnectionStatus() {
-            const dot = document.getElementById('mqttStatus');
-            const text = document.getElementById('mqttStatusText');
-            dot.className = 'status-dot ' + (isConnected ? 'connected' : 'disconnected');
-            text.textContent = isConnected ? '已连接' : '未连接';
+        function updateRelayButton(ch, state) {
+            const btn = document.getElementById(`relay${ch}Btn`);
+            if (state === 1) {
+                btn.textContent = '关闭';
+                btn.classList.add('alarm');
+            } else {
+                btn.textContent = '开启';
+                btn.classList.remove('alarm');
+            }
         }
 
+        // ==================== 报警判断函数 ====================
+        function checkAlarms() {
+            const alarms = [];
+
+            if (currentData.ph !== null && currentData.phh !== null && currentData.ph > currentData.phh) {
+                alarms.push('PH 超限报警');
+            }
+            if (currentData.turb !== null && currentData.turbh !== null && currentData.turb > currentData.turbh) {
+                alarms.push('浊度超限报警');
+            }
+            if (currentData.humi !== null && currentData.humih !== null && currentData.humi > currentData.humih) {
+                alarms.push('湿度超限报警');
+            }
+            // 温度上限报警（上传数据已是×10 后的值，无需再乘）
+            if (currentData.temp !== null && currentData.temph !== null && currentData.temp > currentData.temph) {
+                alarms.push('温度上限报警');
+            }
+            // 温度下限报警
+            if (currentData.temp !== null && currentData.templ !== null && currentData.temp < currentData.templ) {
+                alarms.push('温度下限报警');
+            }
+
+            renderAlarms(alarms);
+
+            if (alarms.length > 0) {
+                sendAlarmToNative({
+                    which: 'water_quality',
+                    ph: currentData.ph,
+                    phh: currentData.phh,
+                    turb: currentData.turb,
+                    turbh: currentData.turbh,
+                    humi: currentData.humi,
+                    humih: currentData.humih,
+                    temp: currentData.temp,
+                    temph: currentData.temph,
+                    templ: currentData.templ
+                });
+            }
+        }
+
+        function checkAlarmsWithPending() {
+            const alarms = [];
+
+            // 使用预测值（如果正在等待同步）或当前值
+            const phh = waitingSync.phh ? pendingValue.phh : currentData.phh;
+            const turbh = waitingSync.turbh ? pendingValue.turbh : currentData.turbh;
+            const temph = waitingSync.temph ? pendingValue.temph : currentData.temph;
+            const templ = waitingSync.templ ? pendingValue.templ : currentData.templ;
+            const humih = waitingSync.humih ? pendingValue.humih : currentData.humih;
+
+            if (currentData.ph !== null && phh !== null && currentData.ph > phh) {
+                alarms.push('PH 超限报警');
+            }
+            if (currentData.turb !== null && turbh !== null && currentData.turb > turbh) {
+                alarms.push('浊度超限报警');
+            }
+            if (currentData.humi !== null && humih !== null && currentData.humi > humih) {
+                alarms.push('湿度超限报警');
+            }
+            // 温度上限报警（上传数据已是×10 后的值，无需再乘）
+            if (currentData.temp !== null && temph !== null && currentData.temp > temph) {
+                alarms.push('温度上限报警');
+            }
+            // 温度下限报警
+            if (currentData.temp !== null && templ !== null && currentData.temp < templ) {
+                alarms.push('温度下限报警');
+            }
+
+            renderAlarms(alarms);
+
+            if (alarms.length > 0) {
+                sendAlarmToNative({
+                    which: 'water_quality',
+                    ph: currentData.ph,
+                    phh: phh,
+                    turb: currentData.turb,
+                    turbh: turbh,
+                    humi: currentData.humi,
+                    humih: humih,
+                    temp: currentData.temp,
+                    temph: temph,
+                    templ: templ
+                });
+            }
+        }
+
+        function renderAlarms(alarms) {
+            const alarmList = document.getElementById('alarmList');
+            const silenceBtn = document.getElementById('silenceBtn');
+
+            if (alarms.length === 0) {
+                alarmList.innerHTML = '<div class="alarm-normal">运行正常 ✓</div>';
+                silenceBtn.style.display = 'none';
+            } else {
+                alarmList.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
+                silenceBtn.style.display = 'block';
+            }
+
+            // 数据报警高亮
+            updateDataAlarm();
+        }
+
+        function updateDataAlarm() {
+            const phEl = document.getElementById('ph');
+            const turbEl = document.getElementById('turb');
+            const humiEl = document.getElementById('humi');
+
+            if (currentData.ph !== null && currentData.phh !== null && currentData.ph > currentData.phh) {
+                phEl.classList.add('alarm');
+            } else {
+                phEl.classList.remove('alarm');
+            }
+
+            if (currentData.turb !== null && currentData.turbh !== null && currentData.turb > currentData.turbh) {
+                turbEl.classList.add('alarm');
+            } else {
+                turbEl.classList.remove('alarm');
+            }
+
+            if (currentData.humi !== null && currentData.humih !== null && currentData.humi > currentData.humih) {
+                humiEl.classList.add('alarm');
+            } else {
+                humiEl.classList.remove('alarm');
+            }
+        }
+
+        // ==================== 发送指令函数 ====================
         function sendCmd(cmd) {
-            if (!isConnected) { alert('MQTT 未连接'); return; }
-            client.publish(CMD_TOPIC, cmd);
-        }
-
-        // 远程控制设备（检查模式）
-        function controlDevice(deviceId, state) {
-            if (!isConnected) { alert('MQTT 未连接'); return; }
-
-            // 检查当前模式
-            if (currentMode === 'AUTO') {
-                const deviceNames = { 1: '风扇', 2: '投喂机', 3: '补光灯', 4: '水泵' };
-                alert(`当前为 AUTO 自动模式，无法远程控制${deviceNames[deviceId]}。\n\n请先切换到 MANUAL 手动模式后再操作。`);
+            if (!isConnected) {
+                alert('MQTT 未连接');
                 return;
             }
+            client.publish(CMD_TOPIC, cmd);
+            console.log('Sending cmd:', cmd);
+        }
 
-            // 下发指令
-            sendCmd(`06,${deviceId},${state}`);
+        function sendSilence() {
+            sendCmd('01');
+        }
 
-            // 立即同步更新 UI 状态
-            const stateMap = { 1: 'wind_state', 2: 'feed_state', 3: 'light_state', 4: 'water_state' };
-            const stateKey = stateMap[deviceId];
-            if (stateKey) {
-                currentData[stateKey] = state;
-                updateUI();
-            }
+        function sendModeToggle() {
+            sendCmd('20');
+        }
+
+        function sendRelay(ch) {
+            const cmdCode = 9 + ch;
+            const currentState = currentData[`relay${ch}`];
+            const newState = currentState === 1 ? 0 : 1;
+            sendCmd(`${cmdCode},${newState}`);
         }
 
         function setThreshold(type, cmdCode) {
-            const inputId = type + '_threshold_input';
+            const inputId = `${type}_input`;
             const value = document.getElementById(inputId).value;
-            if (!value) { alert('请输入阈值'); return; }
-            const numValue = parseFloat(value);
-            if (isNaN(numValue)) { alert('请输入有效数字'); return; }
 
-            const ranges = {
-                temp: [0, 100], gas: [0, 4095], light: [0, 65535],
-                water: [0, 100]
-            };
-            const [min, max] = ranges[type];
-            if (numValue < min || numValue > max) {
-                alert(`${type}阈值范围：${min}-${max}`); return;
+            if (!value || value === '') {
+                alert('请输入阈值');
+                return;
             }
 
-            if (waitingSync[type]) return;
+            const numValue = parseFloat(value);
+            if (isNaN(numValue)) {
+                alert('请输入有效数字');
+                return;
+            }
+
+            // 检查是否正在等待同步（防止重复发送）
+            if (waitingSync[type]) {
+                console.log(`Already waiting sync for ${type}`);
+                return;
+            }
+
+            // 1. 设置等待同步状态
             waitingSync[type] = true;
             pendingValue[type] = numValue;
-            sendCmd(`${cmdCode},${numValue}`);
-            lastUserSetTime[type + '_threshold'] = Date.now();
-            currentData[type + '_threshold'] = numValue;
 
+            // 2. 发送指令
+            sendCmd(`${cmdCode},${numValue}`);
+
+            // 3. 记录用户操作时间（防抖）
+            lastUserSetTime[type] = Date.now();
+
+            // 4. 立即更新显示（预测状态）
+            document.getElementById(`${type}_display`).textContent = numValue.toFixed(type === 'phh' || type === 'temph' || type === 'templ' ? 1 : 0);
+
+            // 5. 立即检查报警（即时反馈）
+            checkAlarmsWithPending();
+
+            // 6. 设置超时保护（如果下位机 5 秒内未确认，自动释放保护状态）
             syncTimeoutTimer[type] = setTimeout(() => {
                 if (waitingSync[type]) {
-                    waitingSync[type] = false; pendingValue[type] = null;
+                    console.warn(`Sync timeout for ${type}, releasing protection`);
+                    waitingSync[type] = false;
+                    pendingValue[type] = null;
                     syncTimeoutTimer[type] = null;
                 }
             }, SYNC_TIMEOUT_MS);
 
+            // 关闭输入框焦点
             document.getElementById(inputId).blur();
         }
 
-        function setMode(mode) {
-            sendCmd(`08,${mode === 'AUTO' ? '0' : '1'}`);
-            currentMode = mode;
-            updateModeIndicator();
-        }
-
-        function updateModeIndicator() {
-            const el = document.getElementById('modeIndicator');
-            el.textContent = currentMode;
-            el.className = 'mode-indicator ' + (currentMode === 'AUTO' ? 'mode-auto' : 'mode-manual');
-        }
-
-        function checkAlarms() {
-            const alarms = [];
-
-            // 检查各个传感器是否超限并更新警告标志
-            // 温度：超过阈值显示 ⚠️
-            const tempWarning = document.getElementById('temp_warning');
-            if (currentData.temp !== null && currentData.temp_threshold !== null &&
-                currentData.temp > currentData.temp_threshold) {
-                tempWarning.textContent = '⚠️';
-                tempWarning.classList.remove('hidden');
-                tempWarning.style.color = 'var(--alarm)';
-            } else {
-                tempWarning.classList.add('hidden');
-            }
-
-            // 湿度：超过 85% 或低于 30% 显示 ⚠️
-            const humidityWarning = document.getElementById('humidity_warning');
-            if (currentData.humidity !== null) {
-                if (currentData.humidity > 85 || currentData.humidity < 30) {
-                    humidityWarning.textContent = '⚠️';
-                    humidityWarning.classList.remove('hidden');
-                    humidityWarning.style.color = 'var(--alarm)';
-                } else {
-                    humidityWarning.classList.add('hidden');
-                }
-            }
-
-            // 气体：超过阈值显示 ⚠️ 并加入报警列表
-            const gasWarning = document.getElementById('gas_adc_warning');
-            if (currentData.gas_adc !== null && currentData.gas_threshold !== null &&
-                currentData.gas_adc > currentData.gas_threshold) {
-                gasWarning.textContent = '⚠️';
-                gasWarning.classList.remove('hidden');
-                gasWarning.style.color = 'var(--alarm)';
-                alarms.push('有害气体浓度超标！');
-            } else {
-                gasWarning.classList.add('hidden');
-            }
-
-            // 光照：低于阈值显示 ⚠️
-            const luxWarning = document.getElementById('lux_warning');
-            if (currentData.lux !== null && currentData.light_threshold !== null &&
-                currentData.lux < currentData.light_threshold) {
-                luxWarning.textContent = '⚠️';
-                luxWarning.classList.remove('hidden');
-                luxWarning.style.color = 'var(--alarm)';
-            } else {
-                luxWarning.classList.add('hidden');
-            }
-
-            // 水位：低于阈值显示 ⚠️ 并加入报警列表
-            const waterWarning = document.getElementById('water_level_warning');
-            if (currentData.water_level !== null && currentData.water_threshold !== null &&
-                currentData.water_level < currentData.water_threshold) {
-                waterWarning.textContent = '⚠️';
-                waterWarning.classList.remove('hidden');
-                waterWarning.style.color = 'var(--alarm)';
-                alarms.push('缺水报警！');
-            } else {
-                waterWarning.classList.add('hidden');
-            }
-
-            const alarmCard = document.getElementById('alarmCard');
-            const alarmList = document.getElementById('alarmList');
-            if (alarms.length === 0) {
-                alarmCard.style.display = 'none';
-            } else {
-                alarmCard.style.display = 'block';
-                alarmList.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
-            }
-
-            if (alarms.length > 0 && window.Android) {
-                window.Android.onAlarm(JSON.stringify({
-                    which: 'chicken_coop',
-                    gas_adc: currentData.gas_adc,
-                    gas_threshold: currentData.gas_threshold,
-                    water_level: currentData.water_level,
-                    water_threshold: currentData.water_threshold
-                }));
-            }
-            return alarms;
-        }
-
+        // ==================== 日志函数 ====================
         function addLog(message) {
-            const now = new Date().toLocaleTimeString();
-            logs.unshift(`[${now}] ${message}`);
-            if (logs.length > 20) logs.pop();
-            updateLogDisplay();
-        }
-
-        function updateLogDisplay() {
-            document.getElementById('logList').innerHTML = logs.map(log =>
-                `<div class="log-item">${log}</div>`
-            ).join('');
+            logEntries.unshift(message);
+            if (logEntries.length > 20) {
+                logEntries = logEntries.slice(0, 20);
+            }
+            if (logExpanded) {
+                renderLog();
+            }
         }
 
         function toggleLog() {
-            const logContent = document.getElementById('logContent');
-            const logToggle = document.getElementById('logToggle');
             logExpanded = !logExpanded;
-            logContent.classList.toggle('expanded', logExpanded);
-            logToggle.textContent = logExpanded ? '点击收起' : '点击展开';
-        }
-
-        function updateTime() {
-            document.getElementById('currentTime').textContent = new Date().toLocaleTimeString('zh-CN');
-        }
-
-        // ==================== 投喂管理 ====================
-        // 保存投喂时间设置
-        function saveFeedSchedule() {
-            const input = document.getElementById('feedTimesInput').value;
-            const times = input.split(',')
-                .map(t => t.trim())
-                .filter(t => t.match(/^\d{2}:\d{2}$/));
-
-            if (times.length === 0) {
-                alert('请输入有效的时间格式，如：08:00,12:00,18:00');
-                return;
-            }
-
-            feedSchedule = times;
-            localStorage.setItem('feedSchedule', JSON.stringify(times));
-
-            // 更新显示
-            document.getElementById('currentFeedTimes').textContent = times.join(', ');
-
-            // 启动定时器
-            startFeedTimer();
-            updateNextFeedTime();
-
-            alert('投喂时间已保存！');
-        }
-
-        // 启动定时器检查
-        function startFeedTimer() {
-            if (feedTimer) clearInterval(feedTimer);
-
-            feedTimer = setInterval(() => {
-                const now = new Date();
-                const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                const today = now.toDateString();
-                const timeKey = `${today} ${currentTime}`;
-
-                // 检查是否到达投喂时间且今天未触发过
-                if (feedSchedule.includes(currentTime) && lastTriggeredTime !== timeKey) {
-                    lastTriggeredTime = timeKey;
-                    lastFeedDate = today;
-                    triggerFeed();
-                }
-            }, 30000); // 每 30 秒检查一次
-        }
-
-        // 计算并显示下次投喂时间
-        function updateNextFeedTime() {
-            if (feedSchedule.length === 0) {
-                document.getElementById('nextFeedTime').textContent = '未设置';
-                return;
-            }
-
-            const now = new Date();
-            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-            // 查找下一个投喂时间
-            let nextTime = null;
-            for (const time of feedSchedule) {
-                if (time > currentTime) {
-                    nextTime = time;
-                    break;
-                }
-            }
-
-            // 如果今天没有了，就是明天的第一个时间
-            if (!nextTime) {
-                nextTime = feedSchedule[0];
-            }
-
-            document.getElementById('nextFeedTime').textContent = nextTime;
-        }
-
-        // 触发投喂
-        function triggerFeed() {
-            if (!isConnected) {
-                alert('MQTT 未连接，无法投喂');
-                return;
-            }
-
-            // 添加投喂记录
-            const now = new Date();
-            const timeStr = now.toLocaleString('zh-CN');
-            feedRecords.unshift({ type: 'feed', time: timeStr, detail: '远程触发投喂喂水联动' });
-            saveFeedRecords();
-
-            // 下发指令 09 触发投喂喂水联动
-            client.publish(CMD_TOPIC, '09');
-            addLog('已触发投喂喂水联动');
-
-            // 更新下次投喂时间
-            updateNextFeedTime();
-        }
-
-        // 加载投喂设置
-        function loadFeedSchedule() {
-            const saved = localStorage.getItem('feedSchedule');
-            if (saved) {
-                try {
-                    feedSchedule = JSON.parse(saved);
-                    document.getElementById('feedTimesInput').value = feedSchedule.join(',');
-                    document.getElementById('currentFeedTimes').textContent = feedSchedule.join(', ');
-                    startFeedTimer();
-                    updateNextFeedTime();
-                } catch (e) {
-                    console.error('加载投喂设置失败:', e);
-                }
+            const logList = document.getElementById('logList');
+            const logToggle = document.getElementById('logToggle');
+            if (logExpanded) {
+                logList.classList.add('expanded');
+                logToggle.classList.add('expanded');
+                renderLog();
+            } else {
+                logList.classList.remove('expanded');
+                logToggle.classList.remove('expanded');
             }
         }
 
-        // ==================== 初始化 ====================
-        window.addEventListener('DOMContentLoaded', () => {
-            connectMQTT();
-            updateTime();
-            setInterval(updateTime, 1000);
-            loadHistoryData();
-            loadRecords();
-            loadFeedSchedule();  // 加载投喂设置
-        });
+        function renderLog() {
+            const logList = document.getElementById('logList');
+            logList.innerHTML = logEntries.map(entry => `<div class="log-item">${entry}</div>`).join('');
+        }
+
+        // ==================== JS Bridge 通知接口 ====================
+        function sendAlarmToNative(data) {
+            if (window.Android) {
+                window.Android.onAlarm(JSON.stringify(data));
+            } else if (window.Notification && Notification.permission === 'granted') {
+                new Notification('告警', { body: JSON.stringify(data) });
+            }
+        }
+
+        // 初始化连接状态
+        updateConnectionStatus();
     </script>
 </body>
 </html>
