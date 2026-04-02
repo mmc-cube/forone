@@ -304,9 +304,16 @@
             <span id="btStatus" class="status-text status-disconnected">未连接</span>
         </div>
 
+        <!-- 本设备 MAC 地址 -->
+        <div style="margin: 12px 0; padding: 10px; background: #E3F2FD; border-radius: 8px;">
+            <label style="font-size: 13px; color: #1976D2; font-weight: bold;">设备 MAC 地址：</label>
+            <div style="font-family: monospace; font-size: 16px; color: #0D47A1; margin-top: 4px;">98:5D:AD:01:2E:8A</div>
+            <button onclick="quickConnect()" style="width: 100%; height: 48px; margin-top: 8px; border-radius: 8px; border: none; background: #4CAF50; color: white; font-size: 15px; font-weight: bold; cursor: pointer;">一键连接此设备</button>
+        </div>
+
         <!-- 预设设备 -->
         <div style="margin: 12px 0;">
-            <label style="font-size: 13px; color: var(--sub);">常用设备：</label>
+            <label style="font-size: 13px; color: var(--sub);">或其他设备：</label>
             <select id="presetDevice" class="device-select" style="margin-top: 6px;">
                 <option value="">-- 选择预设设备 --</option>
                 <option value="bkm06a">bkm06a (默认名称)</option>
@@ -315,12 +322,6 @@
                 <option value="J-HM-06">J-HM-06</option>
             </select>
             <button id="btnPreset" onclick="connectPreset()" style="width: 100%; height: 44px; margin-top: 8px; border-radius: 8px; border: none; background: #FF9800; color: white; font-size: 14px; font-weight: bold; cursor: pointer;">连接预设设备</button>
-        </div>
-
-        <div style="margin: 12px 0; border-top: 1px solid #eee; padding-top: 12px;">
-            <label style="font-size: 13px; color: var(--sub);">或手动输入 MAC 地址：</label>
-            <input type="text" id="macInput" placeholder="例如：00:12:10:09:08:07" style="width: 100%; padding: 10px; margin-top: 6px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; font-family: monospace;">
-            <button onclick="connectManual()" style="width: 100%; height: 44px; margin-top: 8px; border-radius: 8px; border: none; background: var(--primary); color: white; font-size: 14px; font-weight: bold; cursor: pointer;">连接指定设备</button>
         </div>
 
         <div style="margin: 12px 0; border-top: 1px solid #eee; padding-top: 12px;">
@@ -413,6 +414,17 @@
         }
 
         // ==================== 蓝牙控制函数 ====================
+        function quickConnect() {
+            // 直接连接预设的 BKM06A 模块（MAC: 98:5D:AD:01:2E:8A）
+            if (window.BluetoothBridge) {
+                addLog('正在连接设备：98:5D:AD:01:2E:8A');
+                window.BluetoothBridge.connect('985DAD012E8A');
+            } else {
+                // 没有 BluetoothBridge 时，提示用户在系统设置中配对
+                alert('请在 Android 系统设置中先配对蓝牙设备\r\n\r\n配对后返回 APP 点击"一键连接此设备"');
+            }
+        }
+
         function scanDevices() {
             if (window.BluetoothBridge) {
                 window.BluetoothBridge.getPairedDevices();
