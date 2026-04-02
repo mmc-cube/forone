@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>蓝牙自动售货机</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 10px 12px;
+            padding-top: 54px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .card h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: var(--text);
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 8px;
+        }
+
+        /* 连接状态卡 - 蓝牙模式专属 */
+        .connect-card {
+            border-left: 4px solid #FF9800;
+        }
+
+        .bt-status-row {
+            margin: 12px 0;
+            font-size: 14px;
+        }
+
+        .status-label {
+            color: var(--sub);
+        }
+
+        .status-text {
+            font-weight: bold;
+            margin-left: 8px;
+        }
+
+        .status-connected {
+            color: var(--ok);
+        }
+
+        .status-disconnected {
+            color: var(--alarm);
+        }
+
+        .device-select {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+        }
+
+        /* 设备状态卡 */
+        .status-card {
+            border-left: 4px solid var(--primary);
+        }
+
+        .status-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .status-value.busy {
+            color: var(--alarm);
+        }
+
+        /* 商品列表卡 */
+        .product-list-card {
+            border-left: 4px solid #4CAF50;
+        }
+
+        .product-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .product-item:last-child {
+            border-bottom: none;
+        }
+
+        .product-info {
+            flex: 1;
+        }
+
+        .product-name {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .product-price {
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        .product-stock {
+            font-size: 14px;
+            color: var(--text);
+            margin-top: 4px;
+        }
+
+        .product-stock.empty {
+            color: var(--alarm);
+        }
+
+        .product-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .sell-btn {
+            width: 80px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .sell-btn:hover {
+            background: #1976D2;
+        }
+
+        .sell-btn:disabled {
+            background: #BDBDBD;
+            cursor: not-allowed;
+        }
+
+        .sell-btn.empty {
+            background: #E0E0E0;
+            color: #9E9E9E;
+        }
+
+        /* 库存复位卡 */
+        .reset-card {
+            border-left: 4px solid #9C27B0;
+        }
+
+        .reset-btn {
+            width: 100%;
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .reset-btn:hover {
+            background: #1976D2;
+        }
+
+        .reset-btn:active {
+            background: #0D47A1;
+        }
+
+        /* 日志卡 */
+        .log-card {
+            border-left: 4px solid #607D8B;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .log-toggle {
+            font-size: 12px;
+            color: var(--sub);
+        }
+
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .log-content.expanded {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            font-family: monospace;
+            font-size: 12px;
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+            color: var(--sub);
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        /* 连接按钮 */
+        #btnScan, #btnConnect, #btnDisconnect {
+            width: 100%;
+            height: 44px;
+            margin-top: 8px;
+            border-radius: 8px;
+            border: none;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #btnScan, #btnConnect {
+            background: var(--primary);
+        }
+
+        #btnDisconnect {
+            background: #FF5722;
+        }
+
+        /* 报警提示 */
+        .alarm-toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--alarm);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 4px 16px rgba(244, 67, 54, 0.4);
+            z-index: 1000;
+            display: none;
+        }
+
+        .alarm-toast.show {
+            display: block;
+        }
+
+        /* 顶栏留白（手机状态栏安全区） */
+        .topbar {
+            padding: 44px 16px 10px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶栏留白 -->
+    <div class="topbar"></div>
+
+    <!-- 连接状态卡（蓝牙模式专属） -->
+    <div class="card connect-card" id="connectCard">
+        <h3>蓝牙连接</h3>
+        <div class="bt-status-row">
+            <span class="status-label">状态：</span>
+            <span id="btStatus" class="status-text status-disconnected">未连接</span>
+        </div>
+        <button id="btnScan" onclick="scanDevices()">扫描设备</button>
+        <select id="deviceList" class="device-select"></select>
+        <button id="btnConnect" onclick="connectSelected()">连接</button>
+        <button id="btnDisconnect" onclick="disconnectBt()" style="display:none">断开</button>
+    </div>
+
+    <!-- 设备状态卡 -->
+    <div class="card status-card">
+        <h3>设备状态</h3>
+        <div id="deviceStatus" class="status-value">选购中</div>
+    </div>
+
+    <!-- 商品列表卡 -->
+    <div class="card product-list-card">
+        <h3>商品列表</h3>
+        <div id="productList">
+            <!-- 商品列表由 JS 动态生成 -->
+        </div>
+    </div>
+
+    <!-- 库存复位卡 -->
+    <div class="card reset-card">
+        <h3>库存复位</h3>
+        <button class="reset-btn" onclick="resetStock()">库存复位</button>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card log-card">
+        <div class="log-header" onclick="toggleLog()">
+            <h3>操作日志</h3>
+            <span class="log-toggle" id="logToggle">点击展开</span>
+        </div>
+        <div class="log-content" id="logContent">
+            <div id="logEntries"></div>
+        </div>
+    </div>
+
+    <!-- 报警提示 -->
+    <div class="alarm-toast" id="alarmToast"></div>
+
+    <script>
+        // ==================== 商品数据 ====================
+        const PRODUCTS = [
+            { id: 1, name: '可乐', shortName: 'COLA', price: 3, stock: 5 },
+            { id: 2, name: '矿泉水', shortName: 'WATER', price: 2, stock: 5 },
+            { id: 3, name: '雪碧', shortName: 'SPRITE', price: 3, stock: 5 },
+            { id: 4, name: '橙汁', shortName: 'ORANGE', price: 4, stock: 5 },
+            { id: 5, name: '绿茶', shortName: 'GREENTEA', price: 3, stock: 5 }
+        ];
+
+        // ==================== 蓝牙通信状态 ====================
+        let isBtConnected = false;
+        let currentDeviceState = 'MAIN'; // MAIN, PAYMENT, DISPENSING
+
+        // ==================== 日志管理 ====================
+        let logEntries = [];
+        const MAX_LOG_ENTRIES = 20;
+
+        function addLog(message) {
+            const now = new Date().toLocaleTimeString();
+            logEntries.unshift(`[${now}] ${message}`);
+            if (logEntries.length > MAX_LOG_ENTRIES) {
+                logEntries.pop();
+            }
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logEntries');
+            container.innerHTML = logEntries.map(entry => `<div class="log-entry">${entry}</div>`).join('');
+        }
+
+        function toggleLog() {
+            const content = document.getElementById('logContent');
+            const toggle = document.getElementById('logToggle');
+            content.classList.toggle('expanded');
+            toggle.textContent = content.classList.contains('expanded') ? '点击收起' : '点击展开';
+        }
+
+        // ==================== 蓝牙控制函数 ====================
+        function scanDevices() {
+            if (window.BluetoothBridge) {
+                window.BluetoothBridge.getPairedDevices();
+                addLog('扫描蓝牙设备...');
+            } else {
+                alert('请在 Android WebView 环境中运行');
+            }
+        }
+
+        function connectSelected() {
+            const addr = document.getElementById('deviceList').value;
+            if (!addr) {
+                alert('请先选择设备');
+                return;
+            }
+            window.BluetoothBridge.connect(addr);
+            addLog(`连接设备：${addr}`);
+        }
+
+        function disconnectBt() {
+            window.BluetoothBridge.disconnect();
+            addLog('断开蓝牙连接');
+        }
+
+        function sendViaBt(cmd) {
+            if (!isBtConnected) {
+                alert('蓝牙未连接，请先连接设备');
+                return;
+            }
+            window.BluetoothBridge.send(cmd + '\n');
+            addLog(`发送：${cmd}`);
+        }
+
+        // ==================== 回调函数（Android 调用） ====================
+        window.onBtDeviceList = function(deviceArray) {
+            const select = document.getElementById('deviceList');
+            select.innerHTML = '';
+            deviceArray.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d.address;
+                opt.textContent = d.name + ' (' + d.address + ')';
+                select.appendChild(opt);
+            });
+            addLog(`发现 ${deviceArray.length} 个设备`);
+        };
+
+        window.onBtConnected = function(address) {
+            isBtConnected = true;
+            document.getElementById('btStatus').textContent = '已连接：' + address;
+            document.getElementById('btStatus').className = 'status-text status-connected';
+            document.getElementById('btnScan').style.display = 'none';
+            document.getElementById('deviceList').disabled = true;
+            document.getElementById('btnConnect').style.display = 'none';
+            document.getElementById('btnDisconnect').style.display = 'block';
+            addLog(`蓝牙已连接：${address}`);
+        };
+
+        window.onBtDisconnected = function() {
+            isBtConnected = false;
+            document.getElementById('btStatus').textContent = '未连接';
+            document.getElementById('btStatus').className = 'status-text status-disconnected';
+            document.getElementById('btnScan').style.display = 'block';
+            document.getElementById('deviceList').disabled = false;
+            document.getElementById('btnConnect').style.display = 'block';
+            document.getElementById('btnDisconnect').style.display = 'none';
+            addLog('蓝牙已断开');
+        };
+
+        window.onBtError = function(errMsg) {
+            alert('蓝牙错误：' + errMsg);
+            isBtConnected = false;
+            window.onBtDisconnected();
+            addLog(`蓝牙错误：${errMsg}`);
+        };
+
+        window.onBtData = function(line) {
+            parseAndUpdate(line.trim());
+        };
+
+        // ==================== 数据解析（按 PRD 上行协议） ====================
+        function parseAndUpdate(message) {
+            addLog(`收到：${message}`);
+
+            // STOCK:可乐，3，矿泉水，5，雪碧，2，橙汁，4，绿茶，1
+            if (message.startsWith('STOCK:')) {
+                parseStock(message.substring(6));
+            }
+            // SOLD:可乐，1,2
+            else if (message.startsWith('SOLD:')) {
+                parseSold(message.substring(5));
+            }
+            // EMPTY:可乐
+            else if (message.startsWith('EMPTY:')) {
+                parseEmpty(message.substring(6));
+            }
+            // STATUS:MAIN / STATUS:PAYMENT / STATUS:DISPENSING
+            else if (message.startsWith('STATUS:')) {
+                parseStatus(message.substring(7));
+            }
+            // BUSY:可乐
+            else if (message.startsWith('BUSY:')) {
+                parseBusy(message.substring(5));
+            }
+        }
+
+        function parseStock(data) {
+            // 解析：可乐，3，矿泉水，5，雪碧，2，橙汁，4，绿茶，1
+            const parts = data.split(',');
+            for (let i = 0; i < parts.length; i += 2) {
+                const name = parts[i];
+                const stock = parseInt(parts[i + 1]);
+                const product = PRODUCTS.find(p => p.name === name);
+                if (product) {
+                    product.stock = stock;
+                }
+            }
+            renderProductList();
+        }
+
+        function parseSold(data) {
+            // 解析：可乐，1,2（商品名，出货数量，剩余库存）
+            const parts = data.split(',');
+            const name = parts[0];
+            const soldQty = parseInt(parts[1]);
+            const remainStock = parseInt(parts[2]);
+            addLog(`出货成功：${name} x${soldQty}，剩余：${remainStock}`);
+        }
+
+        function parseEmpty(name) {
+            // 缺货报警
+            showToast(`${name} 已售罄，请及时补货！`);
+            const product = PRODUCTS.find(p => p.name === name);
+            if (product) {
+                product.stock = 0;
+                renderProductList();
+            }
+        }
+
+        function parseStatus(status) {
+            // 更新设备状态
+            currentDeviceState = status;
+            const statusEl = document.getElementById('deviceStatus');
+            switch (status) {
+                case 'MAIN':
+                    statusEl.textContent = '选购中';
+                    statusEl.className = 'status-value';
+                    break;
+                case 'PAYMENT':
+                    statusEl.textContent = '支付中';
+                    statusEl.className = 'status-value busy';
+                    break;
+                case 'DISPENSING':
+                    statusEl.textContent = '出货中';
+                    statusEl.className = 'status-value busy';
+                    break;
+            }
+            renderProductList(); // 更新按钮可用性
+        }
+
+        function parseBusy(name) {
+            showToast(`设备正在处理交易，请稍后再试`);
+            addLog(`忙碌拒绝：${name}`);
+        }
+
+        // ==================== UI 渲染 ====================
+        function renderProductList() {
+            const container = document.getElementById('productList');
+            const isBusy = currentDeviceState === 'PAYMENT' || currentDeviceState === 'DISPENSING';
+
+            container.innerHTML = PRODUCTS.map(p => {
+                const isBusyOrEmpty = isBusy || p.stock === 0;
+                const btnClass = p.stock === 0 ? 'sell-btn empty' : 'sell-btn';
+                const stockClass = p.stock === 0 ? 'product-stock empty' : 'product-stock';
+                const stockText = p.stock === 0 ? '售罄' : `库存：${p.stock}`;
+
+                return `
+                    <div class="product-item">
+                        <div class="product-info">
+                            <div class="product-name">${p.name}</div>
+                            <div class="product-price">${p.price}CNY</div>
+                            <div class="${stockClass}">${stockText}</div>
+                        </div>
+                        <div class="product-actions">
+                            <button class="${btnClass}"
+                                    ${isBusyOrEmpty ? 'disabled' : ''}
+                                    onclick="sellProduct(${p.id})">
+                                ${p.stock === 0 ? '售罄' : '出货'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAlarms(alarms) {
+            // 预留报警显示逻辑
+        }
+
+        // ==================== 控制函数 ====================
+        function sellProduct(productId) {
+            if (!isBtConnected) {
+                alert('蓝牙未连接，请先连接设备');
+                return;
+            }
+            if (currentDeviceState === 'PAYMENT' || currentDeviceState === 'DISPENSING') {
+                showToast('设备忙碌，请稍后再试');
+                return;
+            }
+            sendViaBt(`SELL:${productId}`);
+        }
+
+        function resetStock() {
+            if (!isBtConnected) {
+                alert('蓝牙未连接，请先连接设备');
+                return;
+            }
+            sendViaBt('RESET');
+            showToast('库存复位成功');
+        }
+
+        // ==================== 报警提示 ====================
+        function showToast(message) {
+            const toast = document.getElementById('alarmToast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // ==================== 初始化 ====================
+        window.onload = function() {
+            renderProductList();
+            addLog('蓝牙自动售货机已启动');
+        };
+    </script>
+</body>
+</html>
