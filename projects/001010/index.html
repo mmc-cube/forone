@@ -303,10 +303,40 @@
             <span class="status-label">状态：</span>
             <span id="btStatus" class="status-text status-disconnected">未连接</span>
         </div>
-        <button id="btnScan" onclick="scanDevices()">扫描设备</button>
-        <select id="deviceList" class="device-select"></select>
-        <button id="btnConnect" onclick="connectSelected()">连接</button>
-        <button id="btnDisconnect" onclick="disconnectBt()" style="display:none">断开</button>
+
+        <!-- 预设设备 -->
+        <div style="margin: 12px 0;">
+            <label style="font-size: 13px; color: var(--sub);">常用设备：</label>
+            <select id="presetDevice" class="device-select" style="margin-top: 6px;">
+                <option value="">-- 选择预设设备 --</option>
+                <option value="bkm06a">bkm06a (默认名称)</option>
+                <option value="HC-05">HC-05</option>
+                <option value="HC-06">HC-06</option>
+                <option value="J-HM-06">J-HM-06</option>
+            </select>
+            <button id="btnPreset" onclick="connectPreset()" style="width: 100%; height: 44px; margin-top: 8px; border-radius: 8px; border: none; background: #FF9800; color: white; font-size: 14px; font-weight: bold; cursor: pointer;">连接预设设备</button>
+        </div>
+
+        <div style="margin: 12px 0; border-top: 1px solid #eee; padding-top: 12px;">
+            <label style="font-size: 13px; color: var(--sub);">或手动输入 MAC 地址：</label>
+            <input type="text" id="macInput" placeholder="例如：00:12:10:09:08:07" style="width: 100%; padding: 10px; margin-top: 6px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; font-family: monospace;">
+            <button onclick="connectManual()" style="width: 100%; height: 44px; margin-top: 8px; border-radius: 8px; border: none; background: var(--primary); color: white; font-size: 14px; font-weight: bold; cursor: pointer;">连接指定设备</button>
+        </div>
+
+        <div style="margin: 12px 0; border-top: 1px solid #eee; padding-top: 12px;">
+            <button id="btnScan" onclick="scanDevices()" style="width: 100%; height: 44px; border-radius: 8px; border: none; background: #607D8B; color: white; font-size: 14px; font-weight: bold; cursor: pointer;">扫描已配对设备</button>
+            <select id="deviceList" class="device-select" style="margin-top: 8px; display: none;"></select>
+            <button id="btnConnect" onclick="connectSelected()" style="width: 100%; height: 44px; margin-top: 8px; border-radius: 8px; border: none; background: var(--primary); color: white; font-size: 14px; font-weight: bold; cursor: pointer; display: none;">连接选中设备</button>
+        </div>
+
+        <button id="btnDisconnect" onclick="disconnectBt()" style="display: none; width: 100%; height: 44px; border-radius: 8px; border: none; background: #FF5722; color: white; font-size: 14px; font-weight: bold; cursor: pointer;">断开连接</button>
+
+        <p style="font-size: 12px; color: var(--sub); margin-top: 12px;">
+            💡 提示：如扫描不到设备，请确保：
+            <br>1. 蓝牙模块已供电（LED 闪烁）
+            <br>2. 已在系统设置中配对
+            <br>3. 定位权限已授予 APP
+        </p>
     </div>
 
     <!-- 设备状态卡 -->
@@ -386,7 +416,8 @@
         function scanDevices() {
             if (window.BluetoothBridge) {
                 window.BluetoothBridge.getPairedDevices();
-                addLog('扫描蓝牙设备...');
+                addLog('扫描已配对设备...');
+                document.getElementById('deviceList').style.display = 'block';
             } else {
                 alert('请在 Android WebView 环境中运行');
             }
@@ -400,6 +431,42 @@
             }
             window.BluetoothBridge.connect(addr);
             addLog(`连接设备：${addr}`);
+        }
+
+        function connectPreset() {
+            const name = document.getElementById('presetDevice').value;
+            if (!name) {
+                showToast('请先选择预设设备');
+                return;
+            }
+            // 尝试通过名称连接（Android 端需支持名称解析）
+            if (window.BluetoothBridge) {
+                addLog(`尝试连接预设设备：${name}`);
+                // 先尝试用名称连接，如失败需用 MAC 地址
+                window.BluetoothBridge.connectByName(name);
+            } else {
+                alert('请在 Android WebView 环境中运行');
+            }
+        }
+
+        function connectManual() {
+            const mac = document.getElementById('macInput').value.trim();
+            if (!mac) {
+                showToast('请输入 MAC 地址');
+                return;
+            }
+            // MAC 地址格式验证
+            const macPattern = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
+            if (!macPattern.test(mac)) {
+                showToast('MAC 地址格式不正确，如：00:12:10:09:08:07');
+                return;
+            }
+            if (window.BluetoothBridge) {
+                window.BluetoothBridge.connect(mac);
+                addLog(`连接设备：${mac}`);
+            } else {
+                alert('请在 Android WebView 环境中运行');
+            }
         }
 
         function disconnectBt() {
@@ -420,13 +487,32 @@
         window.onBtDeviceList = function(deviceArray) {
             const select = document.getElementById('deviceList');
             select.innerHTML = '';
+            select.style.display = 'block';
+            document.getElementById('btnConnect').style.display = 'block';
+
+            if (deviceArray.length === 0) {
+                addLog('未找到已配对的蓝牙设备');
+                showToast('未找到已配对设备，请手动输入 MAC 地址');
+                return;
+            }
+
             deviceArray.forEach(d => {
                 const opt = document.createElement('option');
                 opt.value = d.address;
                 opt.textContent = d.name + ' (' + d.address + ')';
                 select.appendChild(opt);
             });
-            addLog(`发现 ${deviceArray.length} 个设备`);
+            addLog(`发现 ${deviceArray.length} 个已配对设备`);
+
+            // 尝试自动选择 bkm06a 或 HC-05
+            for (let i = 0; i < deviceArray.length; i++) {
+                const name = deviceArray[i].name.toLowerCase();
+                if (name === 'bkm06a' || name === 'hc-05' || name === 'hc-06') {
+                    select.selectedIndex = i;
+                    addLog(`自动选中设备：${deviceArray[i].name}`);
+                    break;
+                }
+            }
         };
 
         window.onBtConnected = function(address) {
