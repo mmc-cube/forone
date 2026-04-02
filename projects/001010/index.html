@@ -451,11 +451,19 @@
                 showToast('请先选择预设设备');
                 return;
             }
-            // 尝试通过名称连接（Android 端需支持名称解析）
+            // 如果选择的是 bkm06a，直接使用 MAC 地址连接
+            if (name === 'bkm06a') {
+                quickConnect();
+                return;
+            }
+            // 其他设备尝试通过名称连接（需要 Android 端支持 connectByName）
             if (window.BluetoothBridge) {
-                addLog(`尝试连接预设设备：${name}`);
-                // 先尝试用名称连接，如失败需用 MAC 地址
-                window.BluetoothBridge.connectByName(name);
+                addLog(`尝试连接设备：${name}`);
+                if (typeof window.BluetoothBridge.connectByName === 'function') {
+                    window.BluetoothBridge.connectByName(name);
+                } else {
+                    showToast('当前环境不支持名称连接，请使用 MAC 地址');
+                }
             } else {
                 alert('请在 Android WebView 环境中运行');
             }
