@@ -5,12 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>蓝牙自动售货机</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
             --bg: #F5F5F5;
             --card: #FFFFFF;
@@ -22,7 +17,6 @@
             --shadow: 0 2px 8px rgba(0,0,0,0.08);
             --radius: 12px;
         }
-
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg);
@@ -30,81 +24,76 @@
             max-width: 420px;
             margin: 0 auto;
             padding: 10px 12px;
-            padding-top: 54px;
         }
 
+        /* 顶栏 */
+        .topbar {
+            background: var(--primary);
+            color: #fff;
+            padding: 44px 16px 12px;
+            margin: -10px -12px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        .topbar h1 { font-size: 17px; font-weight: 600; }
+        .bt-status { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+        .dot { width: 9px; height: 9px; border-radius: 50%; background: #ccc; transition: background 0.3s; }
+        .dot.connected { background: #69F0AE; }
+        .dot.scanning { background: #FFD740; animation: blink 0.8s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        /* 卡片 */
         .card {
             background: var(--card);
             border-radius: var(--radius);
-            padding: 16px;
+            padding: 14px 16px;
             margin-bottom: 12px;
             box-shadow: var(--shadow);
         }
-
-        .card h3 {
-            font-size: 16px;
-            margin-bottom: 12px;
-            color: var(--text);
-            border-bottom: 2px solid var(--primary);
-            padding-bottom: 8px;
-        }
-
-        /* 连接状态卡 - 蓝牙模式专属 */
-        .connect-card {
-            border-left: 4px solid #FF9800;
-        }
-
-        .bt-status-row {
-            margin: 12px 0;
-            font-size: 14px;
-        }
-
-        .status-label {
+        .card-title {
+            font-size: 11px;
             color: var(--sub);
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
         }
 
-        .status-text {
-            font-weight: bold;
-            margin-left: 8px;
+        /* 设备列表 */
+        .device-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+        .device-item {
+            padding: 10px 14px;
+            background: var(--bg);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.15s;
+        }
+        .device-item:active { background: #E3F2FD; }
+        .device-name { font-size: 14px; font-weight: 600; color: var(--text); }
+        .device-addr { font-size: 11px; color: var(--sub); }
+        .device-connect-btn {
+            height: 32px; padding: 0 12px;
+            background: var(--primary); color: #fff;
+            border: none; border-radius: 6px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        .btn-scan {
+            width: 100%; height: 48px; border-radius: 10px; border: none;
+            background: var(--primary); color: #fff;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+        }
+        .btn-disconnect {
+            width: 100%; height: 40px; border-radius: 8px;
+            border: 1px solid #E0E0E0; background: #fff; color: var(--sub);
+            font-size: 14px; cursor: pointer; margin-top: 10px;
         }
 
-        .status-connected {
-            color: var(--ok);
-        }
-
-        .status-disconnected {
-            color: var(--alarm);
-        }
-
-        .device-select {
-            width: 100%;
-            padding: 10px;
-            margin: 8px 0;
-            border-radius: 6px;
-            border: 1px solid #ddd;
-            font-size: 14px;
-        }
-
-        /* 设备状态卡 */
-        .status-card {
-            border-left: 4px solid var(--primary);
-        }
-
-        .status-value {
-            font-size: 18px;
-            font-weight: bold;
-            color: var(--primary);
-        }
-
-        .status-value.busy {
-            color: var(--alarm);
-        }
-
-        /* 商品列表卡 */
-        .product-list-card {
-            border-left: 4px solid #4CAF50;
-        }
-
+        /* 商品列表 */
         .product-item {
             display: flex;
             justify-content: space-between;
@@ -112,786 +101,319 @@
             padding: 12px 0;
             border-bottom: 1px solid #eee;
         }
-
-        .product-item:last-child {
-            border-bottom: none;
-        }
-
-        .product-info {
-            flex: 1;
-        }
-
-        .product-name {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
-
-        .product-price {
-            font-size: 13px;
-            color: var(--sub);
-        }
-
-        .product-stock {
-            font-size: 14px;
-            color: var(--text);
-            margin-top: 4px;
-        }
-
-        .product-stock.empty {
-            color: var(--alarm);
-        }
-
-        .product-actions {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 8px;
-        }
-
+        .product-item:last-child { border-bottom: none; }
+        .product-name { font-size: 16px; font-weight: bold; }
+        .product-price { font-size: 13px; color: var(--sub); margin-top: 2px; }
+        .product-stock { font-size: 13px; color: var(--text); margin-top: 2px; }
+        .product-stock.empty { color: var(--alarm); }
         .sell-btn {
-            width: 80px;
-            height: 40px;
-            border: none;
-            border-radius: 8px;
-            background: var(--primary);
-            color: white;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.2s;
+            width: 72px; height: 36px;
+            border: none; border-radius: 8px;
+            background: var(--primary); color: #fff;
+            font-size: 14px; font-weight: 600; cursor: pointer;
         }
+        .sell-btn:disabled { background: #BDBDBD; cursor: not-allowed; }
 
-        .sell-btn:hover {
-            background: #1976D2;
-        }
-
-        .sell-btn:disabled {
-            background: #BDBDBD;
-            cursor: not-allowed;
-        }
-
-        .sell-btn.empty {
-            background: #E0E0E0;
-            color: #9E9E9E;
-        }
-
-        /* 库存复位卡 */
-        .reset-card {
-            border-left: 4px solid #9C27B0;
-        }
-
-        .reset-btn {
-            width: 100%;
-            height: 48px;
-            border: none;
-            border-radius: 8px;
-            background: var(--primary);
-            color: white;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .reset-btn:hover {
-            background: #1976D2;
-        }
-
-        .reset-btn:active {
-            background: #0D47A1;
-        }
-
-        /* 日志卡 */
-        .log-card {
-            border-left: 4px solid #607D8B;
-        }
-
-        .log-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-        }
-
+        /* 日志 */
         .log-toggle {
-            font-size: 12px;
-            color: var(--sub);
+            width: 100%; background: none; border: none;
+            text-align: left; font-size: 11px; color: var(--sub);
+            font-weight: 700; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
         }
-
-        .log-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
+        .log-toggle .arrow { transition: transform 0.2s; font-size: 10px; }
+        .log-toggle.open .arrow { transform: rotate(180deg); }
+        .log-box {
+            display: none; margin-top: 10px;
+            background: #FAFAFA; border-radius: 8px; padding: 8px 10px;
+            max-height: 200px; overflow-y: auto;
+            font-size: 11px; font-family: monospace; color: #555;
+            line-height: 1.65; white-space: pre-wrap;
         }
+        .log-box.open { display: block; }
 
-        .log-content.expanded {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .log-entry {
-            font-family: monospace;
-            font-size: 12px;
-            padding: 4px 0;
-            border-bottom: 1px solid #eee;
-            color: var(--sub);
-        }
-
-        .log-entry:last-child {
-            border-bottom: none;
-        }
-
-        /* 连接按钮 */
-        #btnScan, #btnConnect, #btnDisconnect {
-            width: 100%;
-            height: 44px;
-            margin-top: 8px;
-            border-radius: 8px;
-            border: none;
-            color: white;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        #btnScan, #btnConnect {
-            background: var(--primary);
-        }
-
-        #btnDisconnect {
-            background: #FF5722;
-        }
-
-        /* 报警提示 */
-        .alarm-toast {
-            position: fixed;
-            top: 50%;
-            left: 50%;
+        /* Toast */
+        .toast {
+            position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            background: var(--alarm);
-            color: white;
-            padding: 16px 24px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            box-shadow: 0 4px 16px rgba(244, 67, 54, 0.4);
-            z-index: 1000;
+            background: rgba(0,0,0,0.8); color: #fff;
+            padding: 12px 24px; border-radius: 8px;
+            font-size: 14px; z-index: 1000;
             display: none;
         }
-
-        .alarm-toast.show {
-            display: block;
-        }
-
-        /* 顶栏留白（手机状态栏安全区） */
-        .topbar {
-            padding: 44px 16px 10px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
+        .toast.show { display: block; }
     </style>
 </head>
 <body>
-    <!-- 顶栏留白 -->
-    <div class="topbar"></div>
 
-    <!-- 连接状态卡（蓝牙模式专属） -->
-    <div class="card connect-card" id="connectCard">
-        <h3>蓝牙连接</h3>
-        <div class="bt-status-row">
-            <span class="status-label">状态：</span>
-            <span id="btStatus" class="status-text status-disconnected">未连接</span>
-        </div>
-
-        <!-- 本设备 MAC 地址 -->
-        <div style="margin: 12px 0; padding: 10px; background: #E3F2FD; border-radius: 8px;">
-            <label style="font-size: 13px; color: #1976D2; font-weight: bold;">设备 MAC 地址：</label>
-            <div style="font-family: monospace; font-size: 16px; color: #0D47A1; margin-top: 4px;">98:5D:AD:01:2E:8A</div>
-            <button onclick="quickConnect()" style="width: 100%; height: 48px; margin-top: 8px; border-radius: 8px; border: none; background: #4CAF50; color: white; font-size: 15px; font-weight: bold; cursor: pointer;">一键连接此设备</button>
-        </div>
-
-        <!-- 预设设备 -->
-        <div style="margin: 12px 0;">
-            <label style="font-size: 13px; color: var(--sub);">或其他设备：</label>
-            <select id="presetDevice" class="device-select" style="margin-top: 6px;">
-                <option value="">-- 选择预设设备 --</option>
-                <option value="bkm06a">bkm06a (默认名称)</option>
-                <option value="HC-05">HC-05</option>
-                <option value="HC-06">HC-06</option>
-                <option value="J-HM-06">J-HM-06</option>
-            </select>
-            <button id="btnPreset" onclick="connectPreset()" style="width: 100%; height: 44px; margin-top: 8px; border-radius: 8px; border: none; background: #FF9800; color: white; font-size: 14px; font-weight: bold; cursor: pointer;">连接预设设备</button>
-        </div>
-
-        <div style="margin: 12px 0; border-top: 1px solid #eee; padding-top: 12px;">
-            <button id="btnScan" onclick="scanDevices()" style="width: 100%; height: 44px; border-radius: 8px; border: none; background: #607D8B; color: white; font-size: 14px; font-weight: bold; cursor: pointer;">扫描已配对设备</button>
-            <select id="deviceList" class="device-select" style="margin-top: 8px; display: none;"></select>
-            <button id="btnConnect" onclick="connectSelected()" style="width: 100%; height: 44px; margin-top: 8px; border-radius: 8px; border: none; background: var(--primary); color: white; font-size: 14px; font-weight: bold; cursor: pointer; display: none;">连接选中设备</button>
-        </div>
-
-        <button id="btnDisconnect" onclick="disconnectBt()" style="display: none; width: 100%; height: 44px; border-radius: 8px; border: none; background: #FF5722; color: white; font-size: 14px; font-weight: bold; cursor: pointer;">断开连接</button>
-
-        <p style="font-size: 12px; color: var(--sub); margin-top: 12px;">
-            💡 提示：如扫描不到设备，请确保：
-            <br>1. 蓝牙模块已供电（LED 闪烁）
-            <br>2. 已在系统设置中配对
-            <br>3. 定位权限已授予 APP
-        </p>
+<!-- 顶栏 -->
+<div class="topbar">
+    <h1>自动售货机</h1>
+    <div class="bt-status">
+        <div class="dot" id="dot"></div>
+        <span id="bt-label">未连接</span>
     </div>
+</div>
 
-    <!-- 设备状态卡 -->
-    <div class="card status-card">
-        <h3>设备状态</h3>
-        <div id="deviceStatus" class="status-value">选购中</div>
-    </div>
-
-    <!-- 商品列表卡 -->
-    <div class="card product-list-card">
-        <h3>商品列表</h3>
-        <div id="productList">
-            <!-- 商品列表由 JS 动态生成 -->
+<!-- 蓝牙连接卡 -->
+<div class="card">
+    <div class="card-title">蓝牙设备</div>
+    <div class="device-list" id="device-list">
+        <div style="color:#BDBDBD;font-size:13px;text-align:center;padding:8px 0;">
+            点击"扫描配对设备"获取列表
         </div>
     </div>
+    <button class="btn-scan" id="btn-scan" onclick="scanDevices()">扫描配对设备</button>
+    <button class="btn-disconnect" id="btn-disconnect" style="display:none" onclick="doDisconnect()">断开连接</button>
+</div>
 
-    <!-- 库存复位卡 -->
-    <div class="card reset-card">
-        <h3>库存复位</h3>
-        <button class="reset-btn" onclick="resetStock()">库存复位</button>
-    </div>
+<!-- 商品列表卡 -->
+<div class="card">
+    <div class="card-title">商品列表</div>
+    <div id="product-list"></div>
+</div>
 
-    <!-- 日志卡 -->
-    <div class="card log-card">
-        <div class="log-header" onclick="toggleLog()">
-            <h3>操作日志</h3>
-            <span class="log-toggle" id="logToggle">点击展开</span>
+<!-- 库存复位卡 -->
+<div class="card">
+    <div class="card-title">库存管理</div>
+    <button class="btn-scan" onclick="resetStock()" style="background:#9C27B0;">库存复位</button>
+</div>
+
+<!-- 日志卡 -->
+<div class="card">
+    <button class="log-toggle" id="log-toggle" onclick="toggleLog()">
+        通信日志 <span class="arrow">▼</span>
+    </button>
+    <div class="log-box" id="log-box"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== 商品数据 ====================
+const PRODUCTS = [
+    { id: 1, name: '可乐', price: 3, stock: 5 },
+    { id: 2, name: '矿泉水', price: 2, stock: 5 },
+    { id: 3, name: '雪碧', price: 3, stock: 5 },
+    { id: 4, name: '橙汁', price: 4, stock: 5 },
+    { id: 5, name: '绿茶', price: 3, stock: 5 }
+];
+
+let connected = false;
+let deviceState = 'MAIN';
+
+// ==================== 日志 ====================
+const MAX_LOG = 100;
+let logLines = [];
+
+function log(msg) {
+    const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    logLines.push(`[${ts}] ${msg}`);
+    if (logLines.length > MAX_LOG) logLines.shift();
+    const box = document.getElementById('log-box');
+    if (box.classList.contains('open')) {
+        box.textContent = logLines.join('\n');
+        box.scrollTop = box.scrollHeight;
+    }
+}
+
+function toggleLog() {
+    const btn = document.getElementById('log-toggle');
+    const box = document.getElementById('log-box');
+    btn.classList.toggle('open');
+    box.classList.toggle('open');
+    if (box.classList.contains('open')) {
+        box.textContent = logLines.join('\n');
+        box.scrollTop = box.scrollHeight;
+    }
+}
+
+// ==================== 状态显示 ====================
+function setStatus(s) {
+    const dot = document.getElementById('dot');
+    const label = document.getElementById('bt-label');
+    dot.className = 'dot';
+    if (s === 'connected') {
+        dot.classList.add('connected');
+        label.textContent = '已连接';
+        connected = true;
+    } else if (s === 'scanning') {
+        dot.classList.add('scanning');
+        label.textContent = '连接中...';
+    } else {
+        label.textContent = '未连接';
+        connected = false;
+    }
+}
+
+function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ==================== 蓝牙回调（Android 调用） ====================
+window.onBtDeviceList = function(devices) {
+    const list = document.getElementById('device-list');
+    if (!devices || devices.length === 0) {
+        list.innerHTML = '<div style="color:#BDBDBD;font-size:13px;text-align:center;padding:8px 0;">未找到已配对设备，请先在系统蓝牙设置中配对</div>';
+        return;
+    }
+    list.innerHTML = devices.map(d => `
+        <div class="device-item" onclick="doConnect('${d.address}')">
+            <div>
+                <div class="device-name">${d.name || '未知设备'}</div>
+                <div class="device-addr">${d.address}</div>
+            </div>
+            <button class="device-connect-btn">连接</button>
         </div>
-        <div class="log-content" id="logContent">
-            <div id="logEntries"></div>
+    `).join('');
+    log(`找到 ${devices.length} 个已配对设备`);
+};
+
+window.onBtConnected = function(address) {
+    setStatus('connected');
+    log('已连接：' + address);
+    document.getElementById('btn-scan').style.display = 'none';
+    document.getElementById('btn-disconnect').style.display = 'block';
+    document.getElementById('device-list').innerHTML = '<div style="color:var(--ok);font-size:14px;text-align:center;padding:12px 0;">✓ 已连接</div>';
+};
+
+window.onBtDisconnected = function() {
+    setStatus('disconnected');
+    log('蓝牙已断开');
+    document.getElementById('btn-scan').style.display = 'block';
+    document.getElementById('btn-disconnect').style.display = 'none';
+    document.getElementById('device-list').innerHTML = '<div style="color:#BDBDBD;font-size:13px;text-align:center;padding:8px 0;">点击"扫描配对设备"获取列表</div>';
+};
+
+window.onBtError = function(msg) {
+    log('[错误] ' + msg);
+    showToast('蓝牙错误：' + msg);
+    setStatus('disconnected');
+};
+
+window.onBtData = function(line) {
+    parseData(line.trim());
+};
+
+// ==================== 蓝牙操作 ====================
+function scanDevices() {
+    if (window.BluetoothBridge) {
+        log('正在获取配对设备...');
+        setStatus('scanning');
+        window.BluetoothBridge.getPairedDevices();
+    } else {
+        log('[调试模式] BluetoothBridge 不可用');
+        // 模拟设备列表
+        window.onBtDeviceList([
+            { name: 'BKM06A', address: '98:5D:AD:01:2E:8A' }
+        ]);
+    }
+}
+
+function doConnect(address) {
+    if (window.BluetoothBridge) {
+        log('正在连接 ' + address + ' ...');
+        setStatus('scanning');
+        window.BluetoothBridge.connect(address);
+    } else {
+        log('[调试] 模拟连接成功');
+        window.onBtConnected(address);
+    }
+}
+
+function doDisconnect() {
+    if (window.BluetoothBridge) {
+        window.BluetoothBridge.disconnect();
+    }
+}
+
+function sendCmd(cmd) {
+    if (!connected) {
+        showToast('请先连接蓝牙设备');
+        return;
+    }
+    if (window.BluetoothBridge) {
+        window.BluetoothBridge.send(cmd + '\n');
+        log('[TX] ' + cmd);
+    }
+}
+
+// ==================== 数据解析 ====================
+function parseData(msg) {
+    log('[RX] ' + msg);
+
+    if (msg.startsWith('STOCK:')) {
+        // STOCK:可乐,3,矿泉水,5,...
+        const parts = msg.substring(6).split(',');
+        for (let i = 0; i < parts.length; i += 2) {
+            const name = parts[i];
+            const stock = parseInt(parts[i + 1]);
+            const p = PRODUCTS.find(x => x.name === name);
+            if (p) p.stock = stock;
+        }
+        renderProducts();
+    }
+    else if (msg.startsWith('SOLD:')) {
+        // SOLD:可乐,1,2
+        const parts = msg.substring(5).split(',');
+        log(`出货成功：${parts[0]} x${parts[1]}，剩余：${parts[2]}`);
+        showToast(`${parts[0]} 出货成功`);
+    }
+    else if (msg.startsWith('EMPTY:')) {
+        const name = msg.substring(6);
+        showToast(`${name} 已售罄`);
+        const p = PRODUCTS.find(x => x.name === name);
+        if (p) p.stock = 0;
+        renderProducts();
+    }
+    else if (msg.startsWith('STATUS:')) {
+        deviceState = msg.substring(7);
+        renderProducts();
+    }
+    else if (msg.startsWith('BUSY:')) {
+        showToast('设备忙碌，请稍后再试');
+    }
+    else if (msg === 'PONG') {
+        log('心跳回复');
+    }
+}
+
+// ==================== 商品渲染 ====================
+function renderProducts() {
+    const container = document.getElementById('product-list');
+    const isBusy = deviceState !== 'MAIN';
+
+    container.innerHTML = PRODUCTS.map(p => `
+        <div class="product-item">
+            <div>
+                <div class="product-name">${p.name}</div>
+                <div class="product-price">${p.price} CNY</div>
+                <div class="product-stock ${p.stock === 0 ? 'empty' : ''}">${p.stock === 0 ? '售罄' : '库存：' + p.stock}</div>
+            </div>
+            <button class="sell-btn" ${isBusy || p.stock === 0 ? 'disabled' : ''} onclick="sellProduct(${p.id})">
+                ${p.stock === 0 ? '售罄' : '出货'}
+            </button>
         </div>
-    </div>
+    `).join('');
+}
 
-    <!-- 报警提示 -->
-    <div class="alarm-toast" id="alarmToast"></div>
+// ==================== 控制函数 ====================
+function sellProduct(id) {
+    sendCmd('SELL:' + id);
+}
 
-    <script>
-        // ==================== 商品数据 ====================
-        const PRODUCTS = [
-            { id: 1, name: '可乐', shortName: 'COLA', price: 3, stock: 5 },
-            { id: 2, name: '矿泉水', shortName: 'WATER', price: 2, stock: 5 },
-            { id: 3, name: '雪碧', shortName: 'SPRITE', price: 3, stock: 5 },
-            { id: 4, name: '橙汁', shortName: 'ORANGE', price: 4, stock: 5 },
-            { id: 5, name: '绿茶', shortName: 'GREENTEA', price: 3, stock: 5 }
-        ];
+function resetStock() {
+    sendCmd('RESET');
+    showToast('已发送库存复位命令');
+}
 
-        // ==================== 蓝牙通信状态 ====================
-        let isBtConnected = false;
-        let currentDeviceState = 'MAIN'; // MAIN, PAYMENT, DISPENSING
-
-        // ==================== 蓝牙连接稳定性优化 ====================
-        const CONFIG = {
-            RECONNECT_MAX_RETRY: 3,      // 最大重连次数
-            RECONNECT_DELAY: 2000,       // 重连间隔(ms)
-            HEARTBEAT_INTERVAL: 5000,    // 心跳间隔(ms)
-            HEARTBEAT_TIMEOUT: 3000,     // 心跳超时(ms)
-            DATA_TIMEOUT: 15000,         // 数据超时(ms)
-            CONNECT_TIMEOUT: 10000       // 连接超时(ms)
-        };
-
-        let reconnectRetry = 0;          // 当前重连次数
-        let heartbeatTimer = null;       // 心跳定时器
-        let heartbeatTimeoutTimer = null;// 心跳超时定时器
-        let dataTimeoutTimer = null;     // 数据超时定时器
-        let connectTimeoutTimer = null;  // 连接超时定时器
-        let lastMacAddress = '';         // 上次连接的 MAC 地址（用于重连）
-
-        // ==================== 日志管理 ====================
-        let logEntries = [];
-        const MAX_LOG_ENTRIES = 20;
-
-        function addLog(message) {
-            const now = new Date().toLocaleTimeString();
-            logEntries.unshift(`[${now}] ${message}`);
-            if (logEntries.length > MAX_LOG_ENTRIES) {
-                logEntries.pop();
-            }
-            renderLogs();
-        }
-
-        function renderLogs() {
-            const container = document.getElementById('logEntries');
-            container.innerHTML = logEntries.map(entry => `<div class="log-entry">${entry}</div>`).join('');
-        }
-
-        function toggleLog() {
-            const content = document.getElementById('logContent');
-            const toggle = document.getElementById('logToggle');
-            content.classList.toggle('expanded');
-            toggle.textContent = content.classList.contains('expanded') ? '点击收起' : '点击展开';
-        }
-
-        // ==================== 蓝牙连接稳定性核心函数 ====================
-
-        // 启动心跳检测
-        function startHeartbeat() {
-            stopHeartbeat();
-            heartbeatTimer = setInterval(() => {
-                if (isBtConnected) {
-                    sendPing();
-                }
-            }, CONFIG.HEARTBEAT_INTERVAL);
-            addLog('心跳检测已启动');
-        }
-
-        // 停止心跳检测
-        function stopHeartbeat() {
-            if (heartbeatTimer) {
-                clearInterval(heartbeatTimer);
-                heartbeatTimer = null;
-            }
-            if (heartbeatTimeoutTimer) {
-                clearTimeout(heartbeatTimeoutTimer);
-                heartbeatTimeoutTimer = null;
-            }
-        }
-
-        // 发送心跳包
-        function sendPing() {
-            if (!isBtConnected) return;
-            window.BluetoothBridge.send('PING\n');
-            addLog('发送心跳: PING');
-
-            // 启动心跳超时检测
-            heartbeatTimeoutTimer = setTimeout(() => {
-                addLog('⚠ 心跳超时，判定连接断开');
-                handleConnectionLost('心跳超时');
-            }, CONFIG.HEARTBEAT_TIMEOUT);
-        }
-
-        // 收到心跳回复
-        function onPongReceived() {
-            if (heartbeatTimeoutTimer) {
-                clearTimeout(heartbeatTimeoutTimer);
-                heartbeatTimeoutTimer = null;
-            }
-            addLog('心跳回复: PONG');
-        }
-
-        // 启动数据超时检测
-        function startDataTimeout() {
-            if (dataTimeoutTimer) {
-                clearTimeout(dataTimeoutTimer);
-            }
-            dataTimeoutTimer = setTimeout(() => {
-                if (isBtConnected) {
-                    addLog('⚠ 数据超时，判定连接断开');
-                    handleConnectionLost('数据超时');
-                }
-            }, CONFIG.DATA_TIMEOUT);
-        }
-
-        // 收到数据时重置超时
-        function resetDataTimeout() {
-            startDataTimeout();
-        }
-
-        // 启动连接超时检测
-        function startConnectTimeout() {
-            if (connectTimeoutTimer) {
-                clearTimeout(connectTimeoutTimer);
-            }
-            connectTimeoutTimer = setTimeout(() => {
-                if (!isBtConnected) {
-                    addLog('⚠ 连接超时');
-                    showToast('连接超时，请重试');
-                    stopConnectTimeout();
-                }
-            }, CONFIG.CONNECT_TIMEOUT);
-        }
-
-        // 停止连接超时检测
-        function stopConnectTimeout() {
-            if (connectTimeoutTimer) {
-                clearTimeout(connectTimeoutTimer);
-                connectTimeoutTimer = null;
-            }
-        }
-
-        // 处理连接丢失
-        function handleConnectionLost(reason) {
-            stopHeartbeat();
-            stopDataTimeout();
-            isBtConnected = false;
-
-            // 更新 UI
-            window.onBtDisconnected();
-            addLog(`连接丢失: ${reason}`);
-
-            // 自动重连
-            if (reconnectRetry < CONFIG.RECONNECT_MAX_RETRY && lastMacAddress) {
-                reconnectRetry++;
-                addLog(`自动重连尝试 ${reconnectRetry}/${CONFIG.RECONNECT_MAX_RETRY}...`);
-                showToast(`连接断开，正在重连(${reconnectRetry}/${CONFIG.RECONNECT_MAX_RETRY})`);
-
-                setTimeout(() => {
-                    window.BluetoothBridge.connect(lastMacAddress);
-                }, CONFIG.RECONNECT_DELAY);
-            } else {
-                showToast('连接已断开，请手动重连');
-                reconnectRetry = 0;
-            }
-        }
-
-        // 连接成功后初始化
-        function onConnectionEstablished(address) {
-            isBtConnected = true;
-            reconnectRetry = 0;  // 重置重连计数
-            lastMacAddress = address;
-
-            stopConnectTimeout();
-            startHeartbeat();
-            startDataTimeout();
-
-            // 更新 UI
-            document.getElementById('btStatus').textContent = '已连接：' + address;
-            document.getElementById('btStatus').className = 'status-text status-connected';
-            document.getElementById('btnScan').style.display = 'none';
-            document.getElementById('deviceList').disabled = true;
-            document.getElementById('btnConnect').style.display = 'none';
-            document.getElementById('btnDisconnect').style.display = 'block';
-            addLog(`✓ 蓝牙已连接：${address}`);
-        }
-
-        // ==================== 蓝牙控制函数 ====================
-        function quickConnect() {
-            // 直接连接预设的 BKM06A 模块（MAC: 98:5D:AD:01:2E:8A）
-            lastMacAddress = '985DAD012E8A';  // 保存用于重连
-            reconnectRetry = 0;
-
-            if (window.BluetoothBridge) {
-                addLog('正在连接设备：98:5D:AD:01:2E:8A');
-                startConnectTimeout();
-                window.BluetoothBridge.connect('985DAD012E8A');
-            } else {
-                // 没有 BluetoothBridge 时，提示用户在系统设置中配对
-                alert('请在 Android 系统设置中先配对蓝牙设备\r\n\r\n配对后返回 APP 点击"一键连接此设备"');
-            }
-        }
-
-        function scanDevices() {
-            if (window.BluetoothBridge) {
-                window.BluetoothBridge.getPairedDevices();
-                addLog('扫描已配对设备...');
-                document.getElementById('deviceList').style.display = 'block';
-            } else {
-                alert('请在 Android WebView 环境中运行');
-            }
-        }
-
-        function connectSelected() {
-            const addr = document.getElementById('deviceList').value;
-            if (!addr) {
-                alert('请先选择设备');
-                return;
-            }
-            lastMacAddress = addr;
-            reconnectRetry = 0;
-            startConnectTimeout();
-            window.BluetoothBridge.connect(addr);
-            addLog(`连接设备：${addr}`);
-        }
-
-        function connectPreset() {
-            const name = document.getElementById('presetDevice').value;
-            if (!name) {
-                showToast('请先选择预设设备');
-                return;
-            }
-            // 如果选择的是 bkm06a，直接使用 MAC 地址连接
-            if (name === 'bkm06a') {
-                quickConnect();
-                return;
-            }
-            // 其他设备尝试通过名称连接（需要 Android 端支持 connectByName）
-            if (window.BluetoothBridge) {
-                addLog(`尝试连接设备：${name}`);
-                startConnectTimeout();
-                if (typeof window.BluetoothBridge.connectByName === 'function') {
-                    window.BluetoothBridge.connectByName(name);
-                } else {
-                    showToast('当前环境不支持名称连接，请使用 MAC 地址');
-                }
-            } else {
-                alert('请在 Android WebView 环境中运行');
-            }
-        }
-
-        function connectManual() {
-            const mac = document.getElementById('macInput').value.trim();
-            if (!mac) {
-                showToast('请输入 MAC 地址');
-                return;
-            }
-            // MAC 地址格式验证
-            const macPattern = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
-            if (!macPattern.test(mac)) {
-                showToast('MAC 地址格式不正确，如：00:12:10:09:08:07');
-                return;
-            }
-            lastMacAddress = mac.replace(/[:-]/g, '').toUpperCase();
-            reconnectRetry = 0;
-            if (window.BluetoothBridge) {
-                startConnectTimeout();
-                window.BluetoothBridge.connect(lastMacAddress);
-                addLog(`连接设备：${mac}`);
-            } else {
-                alert('请在 Android WebView 环境中运行');
-            }
-        }
-
-        function disconnectBt() {
-            stopHeartbeat();
-            stopDataTimeout();
-            stopConnectTimeout();
-            reconnectRetry = 0;  // 手动断开不重连
-            lastMacAddress = '';
-            window.BluetoothBridge.disconnect();
-            addLog('手动断开蓝牙连接');
-        }
-
-        function sendViaBt(cmd) {
-            if (!isBtConnected) {
-                alert('蓝牙未连接，请先连接设备');
-                return;
-            }
-            window.BluetoothBridge.send(cmd + '\n');
-            addLog(`发送：${cmd}`);
-        }
-
-        // ==================== 回调函数（Android 调用） ====================
-        window.onBtDeviceList = function(deviceArray) {
-            const select = document.getElementById('deviceList');
-            select.innerHTML = '';
-            select.style.display = 'block';
-            document.getElementById('btnConnect').style.display = 'block';
-
-            if (deviceArray.length === 0) {
-                addLog('未找到已配对的蓝牙设备');
-                showToast('未找到已配对设备，请手动输入 MAC 地址');
-                return;
-            }
-
-            deviceArray.forEach(d => {
-                const opt = document.createElement('option');
-                opt.value = d.address;
-                opt.textContent = d.name + ' (' + d.address + ')';
-                select.appendChild(opt);
-            });
-            addLog(`发现 ${deviceArray.length} 个已配对设备`);
-
-            // 尝试自动选择 bkm06a 或 HC-05
-            for (let i = 0; i < deviceArray.length; i++) {
-                const name = deviceArray[i].name.toLowerCase();
-                if (name === 'bkm06a' || name === 'hc-05' || name === 'hc-06') {
-                    select.selectedIndex = i;
-                    addLog(`自动选中设备：${deviceArray[i].name}`);
-                    break;
-                }
-            }
-        };
-
-        window.onBtConnected = function(address) {
-            onConnectionEstablished(address);
-        };
-
-        window.onBtDisconnected = function() {
-            stopHeartbeat();
-            stopDataTimeout();
-            isBtConnected = false;
-            document.getElementById('btStatus').textContent = '未连接';
-            document.getElementById('btStatus').className = 'status-text status-disconnected';
-            document.getElementById('btnScan').style.display = 'block';
-            document.getElementById('deviceList').disabled = false;
-            document.getElementById('btnConnect').style.display = 'block';
-            document.getElementById('btnDisconnect').style.display = 'none';
-        };
-
-        window.onBtError = function(errMsg) {
-            stopConnectTimeout();
-            stopHeartbeat();
-            addLog(`蓝牙错误：${errMsg}`);
-            showToast('蓝牙错误：' + errMsg);
-            isBtConnected = false;
-            window.onBtDisconnected();
-        };
-
-        window.onBtData = function(line) {
-            resetDataTimeout();  // 收到数据重置超时
-            parseAndUpdate(line.trim());
-        };
-
-        // ==================== 数据解析（按 PRD 上行协议） ====================
-        function parseAndUpdate(message) {
-            addLog(`收到：${message}`);
-
-            // PONG 心跳回复
-            if (message === 'PONG') {
-                onPongReceived();
-                return;
-            }
-
-            // STOCK:可乐，3，矿泉水，5，雪碧，2，橙汁，4，绿茶，1
-            if (message.startsWith('STOCK:')) {
-                parseStock(message.substring(6));
-            }
-            // SOLD:可乐，1,2
-            else if (message.startsWith('SOLD:')) {
-                parseSold(message.substring(5));
-            }
-            // EMPTY:可乐
-            else if (message.startsWith('EMPTY:')) {
-                parseEmpty(message.substring(6));
-            }
-            // STATUS:MAIN / STATUS:PAYMENT / STATUS:DISPENSING
-            else if (message.startsWith('STATUS:')) {
-                parseStatus(message.substring(7));
-            }
-            // BUSY:可乐
-            else if (message.startsWith('BUSY:')) {
-                parseBusy(message.substring(5));
-            }
-        }
-
-        function parseStock(data) {
-            // 解析：可乐，3，矿泉水，5，雪碧，2，橙汁，4，绿茶，1
-            const parts = data.split(',');
-            for (let i = 0; i < parts.length; i += 2) {
-                const name = parts[i];
-                const stock = parseInt(parts[i + 1]);
-                const product = PRODUCTS.find(p => p.name === name);
-                if (product) {
-                    product.stock = stock;
-                }
-            }
-            renderProductList();
-        }
-
-        function parseSold(data) {
-            // 解析：可乐，1,2（商品名，出货数量，剩余库存）
-            const parts = data.split(',');
-            const name = parts[0];
-            const soldQty = parseInt(parts[1]);
-            const remainStock = parseInt(parts[2]);
-            addLog(`出货成功：${name} x${soldQty}，剩余：${remainStock}`);
-        }
-
-        function parseEmpty(name) {
-            // 缺货报警
-            showToast(`${name} 已售罄，请及时补货！`);
-            const product = PRODUCTS.find(p => p.name === name);
-            if (product) {
-                product.stock = 0;
-                renderProductList();
-            }
-        }
-
-        function parseStatus(status) {
-            // 更新设备状态
-            currentDeviceState = status;
-            const statusEl = document.getElementById('deviceStatus');
-            switch (status) {
-                case 'MAIN':
-                    statusEl.textContent = '选购中';
-                    statusEl.className = 'status-value';
-                    break;
-                case 'PAYMENT':
-                    statusEl.textContent = '支付中';
-                    statusEl.className = 'status-value busy';
-                    break;
-                case 'DISPENSING':
-                    statusEl.textContent = '出货中';
-                    statusEl.className = 'status-value busy';
-                    break;
-            }
-            renderProductList(); // 更新按钮可用性
-        }
-
-        function parseBusy(name) {
-            showToast(`设备正在处理交易，请稍后再试`);
-            addLog(`忙碌拒绝：${name}`);
-        }
-
-        // ==================== UI 渲染 ====================
-        function renderProductList() {
-            const container = document.getElementById('productList');
-            const isBusy = currentDeviceState === 'PAYMENT' || currentDeviceState === 'DISPENSING';
-
-            container.innerHTML = PRODUCTS.map(p => {
-                const isBusyOrEmpty = isBusy || p.stock === 0;
-                const btnClass = p.stock === 0 ? 'sell-btn empty' : 'sell-btn';
-                const stockClass = p.stock === 0 ? 'product-stock empty' : 'product-stock';
-                const stockText = p.stock === 0 ? '售罄' : `库存：${p.stock}`;
-
-                return `
-                    <div class="product-item">
-                        <div class="product-info">
-                            <div class="product-name">${p.name}</div>
-                            <div class="product-price">${p.price}CNY</div>
-                            <div class="${stockClass}">${stockText}</div>
-                        </div>
-                        <div class="product-actions">
-                            <button class="${btnClass}"
-                                    ${isBusyOrEmpty ? 'disabled' : ''}
-                                    onclick="sellProduct(${p.id})">
-                                ${p.stock === 0 ? '售罄' : '出货'}
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function renderAlarms(alarms) {
-            // 预留报警显示逻辑
-        }
-
-        // ==================== 控制函数 ====================
-        function sellProduct(productId) {
-            if (!isBtConnected) {
-                alert('蓝牙未连接，请先连接设备');
-                return;
-            }
-            if (currentDeviceState === 'PAYMENT' || currentDeviceState === 'DISPENSING') {
-                showToast('设备忙碌，请稍后再试');
-                return;
-            }
-            sendViaBt(`SELL:${productId}`);
-        }
-
-        function resetStock() {
-            if (!isBtConnected) {
-                alert('蓝牙未连接，请先连接设备');
-                return;
-            }
-            sendViaBt('RESET');
-            showToast('库存复位成功');
-        }
-
-        // ==================== 报警提示 ====================
-        function showToast(message) {
-            const toast = document.getElementById('alarmToast');
-            toast.textContent = message;
-            toast.classList.add('show');
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
-        }
-
-        // ==================== 初始化 ====================
-        window.onload = function() {
-            renderProductList();
-            addLog('蓝牙自动售货机已启动');
-        };
-    </script>
+// ==================== 初始化 ====================
+renderProducts();
+log('页面已加载');
+</script>
 </body>
 </html>
