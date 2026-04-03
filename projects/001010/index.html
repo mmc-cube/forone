@@ -388,6 +388,23 @@
         let isBtConnected = false;
         let currentDeviceState = 'MAIN'; // MAIN, PAYMENT, DISPENSING
 
+        // ==================== 蓝牙连接稳定性优化 ====================
+        const CONFIG = {
+            RECONNECT_MAX_RETRY: 3,      // 最大重连次数
+            RECONNECT_DELAY: 2000,       // 重连间隔(ms)
+            HEARTBEAT_INTERVAL: 5000,    // 心跳间隔(ms)
+            HEARTBEAT_TIMEOUT: 3000,     // 心跳超时(ms)
+            DATA_TIMEOUT: 15000,         // 数据超时(ms)
+            CONNECT_TIMEOUT: 10000       // 连接超时(ms)
+        };
+
+        let reconnectRetry = 0;          // 当前重连次数
+        let heartbeatTimer = null;       // 心跳定时器
+        let heartbeatTimeoutTimer = null;// 心跳超时定时器
+        let dataTimeoutTimer = null;     // 数据超时定时器
+        let connectTimeoutTimer = null;  // 连接超时定时器
+        let lastMacAddress = '';         // 上次连接的 MAC 地址（用于重连）
+
         // ==================== 日志管理 ====================
         let logEntries = [];
         const MAX_LOG_ENTRIES = 20;
@@ -413,11 +430,147 @@
             toggle.textContent = content.classList.contains('expanded') ? '点击收起' : '点击展开';
         }
 
+        // ==================== 蓝牙连接稳定性核心函数 ====================
+
+        // 启动心跳检测
+        function startHeartbeat() {
+            stopHeartbeat();
+            heartbeatTimer = setInterval(() => {
+                if (isBtConnected) {
+                    sendPing();
+                }
+            }, CONFIG.HEARTBEAT_INTERVAL);
+            addLog('心跳检测已启动');
+        }
+
+        // 停止心跳检测
+        function stopHeartbeat() {
+            if (heartbeatTimer) {
+                clearInterval(heartbeatTimer);
+                heartbeatTimer = null;
+            }
+            if (heartbeatTimeoutTimer) {
+                clearTimeout(heartbeatTimeoutTimer);
+                heartbeatTimeoutTimer = null;
+            }
+        }
+
+        // 发送心跳包
+        function sendPing() {
+            if (!isBtConnected) return;
+            window.BluetoothBridge.send('PING\n');
+            addLog('发送心跳: PING');
+
+            // 启动心跳超时检测
+            heartbeatTimeoutTimer = setTimeout(() => {
+                addLog('⚠ 心跳超时，判定连接断开');
+                handleConnectionLost('心跳超时');
+            }, CONFIG.HEARTBEAT_TIMEOUT);
+        }
+
+        // 收到心跳回复
+        function onPongReceived() {
+            if (heartbeatTimeoutTimer) {
+                clearTimeout(heartbeatTimeoutTimer);
+                heartbeatTimeoutTimer = null;
+            }
+            addLog('心跳回复: PONG');
+        }
+
+        // 启动数据超时检测
+        function startDataTimeout() {
+            if (dataTimeoutTimer) {
+                clearTimeout(dataTimeoutTimer);
+            }
+            dataTimeoutTimer = setTimeout(() => {
+                if (isBtConnected) {
+                    addLog('⚠ 数据超时，判定连接断开');
+                    handleConnectionLost('数据超时');
+                }
+            }, CONFIG.DATA_TIMEOUT);
+        }
+
+        // 收到数据时重置超时
+        function resetDataTimeout() {
+            startDataTimeout();
+        }
+
+        // 启动连接超时检测
+        function startConnectTimeout() {
+            if (connectTimeoutTimer) {
+                clearTimeout(connectTimeoutTimer);
+            }
+            connectTimeoutTimer = setTimeout(() => {
+                if (!isBtConnected) {
+                    addLog('⚠ 连接超时');
+                    showToast('连接超时，请重试');
+                    stopConnectTimeout();
+                }
+            }, CONFIG.CONNECT_TIMEOUT);
+        }
+
+        // 停止连接超时检测
+        function stopConnectTimeout() {
+            if (connectTimeoutTimer) {
+                clearTimeout(connectTimeoutTimer);
+                connectTimeoutTimer = null;
+            }
+        }
+
+        // 处理连接丢失
+        function handleConnectionLost(reason) {
+            stopHeartbeat();
+            stopDataTimeout();
+            isBtConnected = false;
+
+            // 更新 UI
+            window.onBtDisconnected();
+            addLog(`连接丢失: ${reason}`);
+
+            // 自动重连
+            if (reconnectRetry < CONFIG.RECONNECT_MAX_RETRY && lastMacAddress) {
+                reconnectRetry++;
+                addLog(`自动重连尝试 ${reconnectRetry}/${CONFIG.RECONNECT_MAX_RETRY}...`);
+                showToast(`连接断开，正在重连(${reconnectRetry}/${CONFIG.RECONNECT_MAX_RETRY})`);
+
+                setTimeout(() => {
+                    window.BluetoothBridge.connect(lastMacAddress);
+                }, CONFIG.RECONNECT_DELAY);
+            } else {
+                showToast('连接已断开，请手动重连');
+                reconnectRetry = 0;
+            }
+        }
+
+        // 连接成功后初始化
+        function onConnectionEstablished(address) {
+            isBtConnected = true;
+            reconnectRetry = 0;  // 重置重连计数
+            lastMacAddress = address;
+
+            stopConnectTimeout();
+            startHeartbeat();
+            startDataTimeout();
+
+            // 更新 UI
+            document.getElementById('btStatus').textContent = '已连接：' + address;
+            document.getElementById('btStatus').className = 'status-text status-connected';
+            document.getElementById('btnScan').style.display = 'none';
+            document.getElementById('deviceList').disabled = true;
+            document.getElementById('btnConnect').style.display = 'none';
+            document.getElementById('btnDisconnect').style.display = 'block';
+            addLog(`✓ 蓝牙已连接：${address}`);
+        }
+
         // ==================== 蓝牙控制函数 ====================
         function quickConnect() {
             // 直接连接预设的 BKM06A 模块（MAC: 98:5D:AD:01:2E:8A）
+            lastMacAddress = '985DAD012E8A';  // 保存用于重连
+            reconnectRetry = 0;
+
             if (window.BluetoothBridge) {
                 addLog('正在连接设备：98:5D:AD:01:2E:8A');
+                startConnectTimeout();
                 window.BluetoothBridge.connect('985DAD012E8A');
             } else {
                 // 没有 BluetoothBridge 时，提示用户在系统设置中配对
@@ -441,6 +594,9 @@
                 alert('请先选择设备');
                 return;
             }
+            lastMacAddress = addr;
+            reconnectRetry = 0;
+            startConnectTimeout();
             window.BluetoothBridge.connect(addr);
             addLog(`连接设备：${addr}`);
         }
@@ -459,6 +615,7 @@
             // 其他设备尝试通过名称连接（需要 Android 端支持 connectByName）
             if (window.BluetoothBridge) {
                 addLog(`尝试连接设备：${name}`);
+                startConnectTimeout();
                 if (typeof window.BluetoothBridge.connectByName === 'function') {
                     window.BluetoothBridge.connectByName(name);
                 } else {
@@ -481,8 +638,11 @@
                 showToast('MAC 地址格式不正确，如：00:12:10:09:08:07');
                 return;
             }
+            lastMacAddress = mac.replace(/[:-]/g, '').toUpperCase();
+            reconnectRetry = 0;
             if (window.BluetoothBridge) {
-                window.BluetoothBridge.connect(mac);
+                startConnectTimeout();
+                window.BluetoothBridge.connect(lastMacAddress);
                 addLog(`连接设备：${mac}`);
             } else {
                 alert('请在 Android WebView 环境中运行');
@@ -490,8 +650,13 @@
         }
 
         function disconnectBt() {
+            stopHeartbeat();
+            stopDataTimeout();
+            stopConnectTimeout();
+            reconnectRetry = 0;  // 手动断开不重连
+            lastMacAddress = '';
             window.BluetoothBridge.disconnect();
-            addLog('断开蓝牙连接');
+            addLog('手动断开蓝牙连接');
         }
 
         function sendViaBt(cmd) {
@@ -536,17 +701,12 @@
         };
 
         window.onBtConnected = function(address) {
-            isBtConnected = true;
-            document.getElementById('btStatus').textContent = '已连接：' + address;
-            document.getElementById('btStatus').className = 'status-text status-connected';
-            document.getElementById('btnScan').style.display = 'none';
-            document.getElementById('deviceList').disabled = true;
-            document.getElementById('btnConnect').style.display = 'none';
-            document.getElementById('btnDisconnect').style.display = 'block';
-            addLog(`蓝牙已连接：${address}`);
+            onConnectionEstablished(address);
         };
 
         window.onBtDisconnected = function() {
+            stopHeartbeat();
+            stopDataTimeout();
             isBtConnected = false;
             document.getElementById('btStatus').textContent = '未连接';
             document.getElementById('btStatus').className = 'status-text status-disconnected';
@@ -554,23 +714,31 @@
             document.getElementById('deviceList').disabled = false;
             document.getElementById('btnConnect').style.display = 'block';
             document.getElementById('btnDisconnect').style.display = 'none';
-            addLog('蓝牙已断开');
         };
 
         window.onBtError = function(errMsg) {
-            alert('蓝牙错误：' + errMsg);
+            stopConnectTimeout();
+            stopHeartbeat();
+            addLog(`蓝牙错误：${errMsg}`);
+            showToast('蓝牙错误：' + errMsg);
             isBtConnected = false;
             window.onBtDisconnected();
-            addLog(`蓝牙错误：${errMsg}`);
         };
 
         window.onBtData = function(line) {
+            resetDataTimeout();  // 收到数据重置超时
             parseAndUpdate(line.trim());
         };
 
         // ==================== 数据解析（按 PRD 上行协议） ====================
         function parseAndUpdate(message) {
             addLog(`收到：${message}`);
+
+            // PONG 心跳回复
+            if (message === 'PONG') {
+                onPongReceived();
+                return;
+            }
 
             // STOCK:可乐，3，矿泉水，5，雪碧，2，橙汁，4，绿茶，1
             if (message.startsWith('STOCK:')) {
