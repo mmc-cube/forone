@@ -365,7 +365,7 @@ function parseData(msg) {
     }
     else if (msg.startsWith('EMPTY:')) {
         const name = msg.substring(6);
-        showToast(`${name} 已售罄`);
+        showToast(`${name} 库存不足`);
         const p = PRODUCTS.find(x => x.name === name);
         if (p) p.stock = 0;
         renderProducts();
@@ -392,10 +392,10 @@ function renderProducts() {
             <div>
                 <div class="product-name">${p.name}</div>
                 <div class="product-price">${p.price} CNY</div>
-                <div class="product-stock ${p.stock === 0 ? 'empty' : ''}">${p.stock === 0 ? '售罄' : '库存：' + p.stock}</div>
+                <div class="product-stock ${p.stock === 0 ? 'empty' : ''}">${p.stock === 0 ? '库存不足' : '库存：' + p.stock}</div>
             </div>
             <button class="sell-btn" ${isBusy || p.stock === 0 ? 'disabled' : ''} onclick="sellProduct(${p.id})">
-                ${p.stock === 0 ? '售罄' : '出货'}
+                ${p.stock === 0 ? '库存不足' : '出货'}
             </button>
         </div>
     `).join('');
