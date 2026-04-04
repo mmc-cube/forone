@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>农机作业监测终端</title>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 12px;
+            padding-top: 44px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-dot.connected { background: var(--ok); }
+        .status-dot.disconnected { background: var(--alarm); }
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 13px; color: var(--sub); }
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        .data-value.alarm { color: var(--alarm); }
+        .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+        .alarm-card {
+            background: var(--ok);
+            color: white;
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            text-align: center;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .alarm-card.active {
+            background: var(--alarm);
+        }
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            min-height: 48px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #1976D2; }
+        .btn:active { background: #1565C0; }
+        .btn-mute {
+            background: var(--alarm);
+        }
+        .btn-mute:hover { background: #D32F2F; }
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+        }
+        .threshold-label {
+            font-size: 14px;
+            color: var(--sub);
+            flex: 1;
+        }
+        .threshold-input {
+            width: 80px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            text-align: center;
+        }
+        .threshold-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            min-height: 40px;
+        }
+        .threshold-btn:hover { background: #1976D2; }
+        .threshold-display {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--primary);
+            padding: 8px 0;
+        }
+        .log-card { cursor: pointer; }
+        .log-content {
+            display: none;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+        .log-content.expanded { display: block; }
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .log-entry:last-child { border-bottom: none; }
+        .gps-text {
+            font-size: 13px;
+            color: var(--sub);
+            padding: 4px 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- 状态栏 -->
+    <div class="card">
+        <div class="status-bar">
+            <div>
+                <span class="status-dot disconnected" id="statusDot"></span>
+                <span id="statusText">未连接</span>
+            </div>
+            <div>
+                <span style="color: var(--sub);">更新: </span>
+                <span id="updateTime">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-label">作业速度</span>
+            <div>
+                <span class="data-value" id="speed">--</span>
+                <span class="data-unit">km/h</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">累计面积</span>
+            <div>
+                <span class="data-value" id="area">--</span>
+                <span class="data-unit">mu</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">GPS 位置</span>
+            <div class="gps-text" id="gpsText">定位中...</div>
+        </div>
+        <div class="gps-text" id="gpsCoords" style="display:none;">
+            <span id="lat">--</span>, <span id="lon">--</span>
+        </div>
+    </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card">
+        <div class="card-title">报警状态</div>
+        <div class="alarm-card" id="alarmCard">运行正常 ✓</div>
+    </div>
+
+    <!-- 控制卡 -->
+    <div class="card">
+        <div class="card-title">远程控制</div>
+        <button class="btn btn-mute" id="muteBtn" onclick="sendMute()">消警</button>
+    </div>
+
+    <!-- 阈值显示卡 -->
+    <div class="card">
+        <div class="card-title">当前阈值（下位机上报）</div>
+        <div class="threshold-display">
+            <span id="thresholdDisplay">--</span> km/h
+        </div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="threshold-row">
+            <span class="threshold-label">速度阈值 (1~30)</span>
+            <input type="number" class="threshold-input" id="thresholdInput" min="1" max="30" value="10">
+            <button class="threshold-btn" onclick="setThreshold()">发送</button>
+        </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card log-card" onclick="toggleLog()">
+        <div class="card-title">
+            <span>日志记录</span>
+            <span id="logArrow">▼</span>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
+
+    <script src="mqtt.min.js"></script>
+    <script>
+        // ==================== MQTT Topic（来自下位机代码） ====================
+        const UPLOAD_TOPIC = '583924/471605/jinggaijiance/upload';
+        const CMD_TOPIC = '583924/471605/jinggaijiance/cmd';
+
+        // ==================== 数据状态 ====================
+        let currentData = {
+            speed: null,
+            area: null,
+            lat: null,
+            lon: null,
+            threshold: null
+        };
+
+        // ==================== 同步保护状态 ====================
+        let waitingSync = { threshold: false };
+        let pendingValue = { threshold: null };
+        let syncTimeoutTimer = { threshold: null };
+        let lastUserSetTime = { threshold: 0 };
+
+        const DEBOUNCE_MS = 500;
+        const SYNC_TIMEOUT_MS = 5000;
+
+        // ==================== 日志记录 ====================
+        let logs = [];
+        const MAX_LOGS = 20;
+
+        function addLog(msg) {
+            const time = new Date().toLocaleTimeString();
+            logs.unshift(`[${time}] ${msg}`);
+            if (logs.length > MAX_LOGS) logs.pop();
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const el = document.getElementById('logContent');
+            el.innerHTML = logs.map(l => `<div class="log-entry">${l}</div>`).join('');
+        }
+
+        function toggleLog() {
+            const el = document.getElementById('logContent');
+            const arrow = document.getElementById('logArrow');
+            if (el.classList.contains('expanded')) {
+                el.classList.remove('expanded');
+                arrow.textContent = '▼';
+            } else {
+                el.classList.add('expanded');
+                arrow.textContent = '▲';
+            }
+        }
+
+        // ==================== MQTT 连接 ====================
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'webview_nongji_' + Math.random().toString(36).substr(2, 6),
+            reconnectPeriod: 3000
+        });
+
+        client.on('connect', () => {
+            document.getElementById('statusDot').classList.remove('disconnected');
+            document.getElementById('statusDot').classList.add('connected');
+            document.getElementById('statusText').textContent = '已连接';
+            client.subscribe(UPLOAD_TOPIC);
+            addLog('MQTT 已连接');
+        });
+
+        client.on('close', () => {
+            document.getElementById('statusDot').classList.remove('connected');
+            document.getElementById('statusDot').classList.add('disconnected');
+            document.getElementById('statusText').textContent = '未连接';
+            addLog('MQTT 断开');
+        });
+
+        client.on('message', (topic, payload) => {
+            const msg = payload.toString();
+            parseMessage(msg);
+            addLog(`收到: ${msg}`);
+        });
+
+        // ==================== 数据解析（带同步保护） ====================
+        function parseMessage(msg) {
+            const parts = msg.split(',');
+            if (parts.length < 5) return;
+
+            const newData = {
+                speed: parseFloat(parts[0]),
+                area: parseFloat(parts[1]),
+                lat: parseFloat(parts[2]),
+                lon: parseFloat(parts[3]),
+                threshold: parseInt(parts[4])
+            };
+
+            // 传感器值始终更新
+            currentData.speed = newData.speed;
+            currentData.area = newData.area;
+            currentData.lat = newData.lat;
+            currentData.lon = newData.lon;
+
+            // 检查是否有正在等待同步的阈值
+            let hasPendingSync = false;
+            if (waitingSync.threshold) {
+                hasPendingSync = true;
+                const expectedValue = pendingValue.threshold;
+                const receivedValue = newData.threshold;
+
+                // 检查下位机是否确认了新值（允许小范围误差）
+                if (expectedValue !== null && Math.abs(receivedValue - expectedValue) < 0.5) {
+                    console.log(`Sync confirmed for threshold: ${receivedValue}`);
+
+                    // 同步成功，清除定时器
+                    if (syncTimeoutTimer.threshold) {
+                        clearTimeout(syncTimeoutTimer.threshold);
+                        syncTimeoutTimer.threshold = null;
+                    }
+
+                    // 释放保护状态
+                    waitingSync.threshold = false;
+                    pendingValue.threshold = null;
+                    lastUserSetTime.threshold = 0;
+                }
+            }
+
+            // 阈值更新逻辑（三重保护）
+            const now = Date.now();
+            if (!lastUserSetTime.threshold || (now - lastUserSetTime.threshold) >= DEBOUNCE_MS) {
+                if (!waitingSync.threshold) {
+                    currentData.threshold = newData.threshold;
+                }
+            }
+
+            updateUI();
+            updateTime();
+
+            // 报警判断
+            if (hasPendingSync) {
+                checkAlarmsWithPending();
+            } else {
+                checkAlarms();
+            }
+        }
+
+        // ==================== UI 更新 ====================
+        function updateUI() {
+            // 速度
+            if (currentData.speed !== null) {
+                const el = document.getElementById('speed');
+                el.textContent = currentData.speed.toFixed(1);
+                // 报警时标红
+                const thresh = waitingSync.threshold ? pendingValue.threshold : currentData.threshold;
+                if (thresh !== null && currentData.speed >= thresh) {
+                    el.classList.add('alarm');
+                } else {
+                    el.classList.remove('alarm');
+                }
+            }
+
+            // 面积
+            if (currentData.area !== null) {
+                document.getElementById('area').textContent = currentData.area.toFixed(2);
+            }
+
+            // GPS
+            if (currentData.lat !== null && currentData.lon !== null) {
+                if (currentData.lat === 0.0 && currentData.lon === 0.0) {
+                    document.getElementById('gpsText').textContent = '定位中...';
+                    document.getElementById('gpsCoords').style.display = 'none';
+                } else {
+                    document.getElementById('gpsText').textContent = '已定位';
+                    document.getElementById('lat').textContent = currentData.lat.toFixed(4);
+                    document.getElementById('lon').textContent = currentData.lon.toFixed(4);
+                    document.getElementById('gpsCoords').style.display = 'block';
+                }
+            }
+
+            // 阈值显示（关键：等待期间显示预测值）
+            if (currentData.threshold !== null) {
+                const displayValue = waitingSync.threshold ? pendingValue.threshold : currentData.threshold;
+                document.getElementById('thresholdDisplay').textContent = displayValue;
+            }
+        }
+
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('updateTime').textContent = now.toLocaleTimeString();
+        }
+
+        // ==================== 报警判断 ====================
+        function checkAlarms() {
+            const card = document.getElementById('alarmCard');
+            if (currentData.speed !== null && currentData.threshold !== null) {
+                if (currentData.speed >= currentData.threshold) {
+                    card.textContent = '超速报警！';
+                    card.classList.add('active');
+                    sendAlarmToNative({ type: 'overspeed', speed: currentData.speed, threshold: currentData.threshold });
+                } else {
+                    card.textContent = '运行正常 ✓';
+                    card.classList.remove('active');
+                }
+            }
+        }
+
+        function checkAlarmsWithPending() {
+            const card = document.getElementById('alarmCard');
+            const thresh = waitingSync.threshold ? pendingValue.threshold : currentData.threshold;
+            if (currentData.speed !== null && thresh !== null) {
+                if (currentData.speed >= thresh) {
+                    card.textContent = '超速报警！';
+                    card.classList.add('active');
+                    sendAlarmToNative({ type: 'overspeed', speed: currentData.speed, threshold: thresh });
+                } else {
+                    card.textContent = '运行正常 ✓';
+                    card.classList.remove('active');
+                }
+            }
+        }
+
+        // ==================== JS Bridge（Android WebView） ====================
+        function sendAlarmToNative(data) {
+            if (window.Android && window.Android.onAlarm) {
+                window.Android.onAlarm(JSON.stringify(data));
+            }
+        }
+
+        // ==================== 下行指令 ====================
+        function sendMute() {
+            client.publish(CMD_TOPIC, '01');
+            addLog('发送消警指令: 01');
+        }
+
+        function setThreshold() {
+            const input = document.getElementById('thresholdInput');
+            const value = parseInt(input.value);
+
+            if (!value || isNaN(value)) {
+                alert('请输入有效阈值');
+                return;
+            }
+
+            if (value < 1 || value > 30) {
+                alert('阈值范围: 1~30 km/h');
+                return;
+            }
+
+            // 检查是否正在等待同步
+            if (waitingSync.threshold) {
+                console.log('Already waiting sync for threshold');
+                return;
+            }
+
+            // 1. 设置等待同步状态
+            waitingSync.threshold = true;
+            pendingValue.threshold = value;
+
+            // 2. 发送指令
+            client.publish(CMD_TOPIC, `02,${value}`);
+            addLog(`发送阈值指令: 02,${value}`);
+
+            // 3. 记录用户操作时间（防抖）
+            lastUserSetTime.threshold = Date.now();
+
+            // 4. 立即更新显示（预测状态）
+            currentData.threshold = value;
+            updateUI();
+
+            // 5. 立即检查报警（即时反馈）
+            checkAlarmsWithPending();
+
+            // 6. 设置超时保护
+            syncTimeoutTimer.threshold = setTimeout(() => {
+                if (waitingSync.threshold) {
+                    console.warn('Sync timeout for threshold, releasing protection');
+                    waitingSync.threshold = false;
+                    pendingValue.threshold = null;
+                    syncTimeoutTimer.threshold = null;
+                }
+            }, SYNC_TIMEOUT_MS);
+
+            input.blur();
+        }
+    </script>
+</body>
+</html>
