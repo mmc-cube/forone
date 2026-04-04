@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>生鲜冷链物流监控系统</title>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 12px;
+            padding-top: 44px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--alarm);
+        }
+        .status-dot.connected { background: var(--ok); }
+        .status-text { font-size: 13px; color: var(--sub); }
+        /* 数据行 */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 8px 0;
+            border-bottom: 1px solid #EEEEEE;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 13px; color: var(--sub); }
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        .data-value.alarm { color: var(--alarm); }
+        .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+        /* GPS */
+        .gps-value { font-size: 16px; font-weight: 500; }
+        .gps-loading { color: var(--sub); font-size: 14px; }
+        /* 报警卡片 */
+        .alarm-card { background: var(--ok); color: white; }
+        .alarm-card.has-alarm { background: var(--alarm); }
+        .alarm-item {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+        /* 控制按钮 */
+        .ctrl-btn {
+            width: 100%;
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .ctrl-btn:active { background: #1976D2; }
+        /* 阈值显示 */
+        .thresh-display-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 14px;
+        }
+        .thresh-display-label { color: var(--sub); }
+        .thresh-display-value { font-weight: 500; }
+        /* 阈值设置 */
+        .thresh-set-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #EEEEEE;
+        }
+        .thresh-set-row:last-child { border-bottom: none; }
+        .thresh-set-label { font-size: 13px; color: var(--sub); flex: 1; }
+        .thresh-input {
+            width: 80px;
+            height: 36px;
+            border: 1px solid #E0E0E0;
+            border-radius: 6px;
+            padding: 0 8px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .thresh-send-btn {
+            width: 60px;
+            height: 36px;
+            border: none;
+            border-radius: 6px;
+            background: var(--primary);
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+        .thresh-send-btn:active { background: #1976D2; }
+        /* 日志卡 */
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .log-toggle { font-size: 12px; color: var(--sub); }
+        .log-content {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            color: var(--sub);
+            background: #FAFAFA;
+            padding: 8px;
+            border-radius: 6px;
+            margin-top: 8px;
+        }
+        .log-item { padding: 4px 0; border-bottom: 1px dashed #E0E0E0; }
+        .log-item:last-child { border-bottom: none; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<!-- 状态栏 -->
+<div class="card">
+    <div class="status-bar">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <div class="status-dot" id="connDot"></div>
+            <span class="status-text" id="connText">未连接</span>
+        </div>
+        <span class="status-text" style="font-size:11px;">123124/234235/xianleng...</span>
+    </div>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+    <div class="card-title">实时数据</div>
+    <div class="data-row">
+        <span class="data-label">温度</span>
+        <div>
+            <span class="data-value" id="temp">--</span>
+            <span class="data-unit">℃</span>
+        </div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">湿度</span>
+        <div>
+            <span class="data-value" id="humidity">--</span>
+            <span class="data-unit">%RH</span>
+        </div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">倾斜角</span>
+        <div>
+            <span class="data-value" id="tilt_angle">--</span>
+            <span class="data-unit">度</span>
+        </div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">震动状态</span>
+        <div>
+            <span class="data-value" id="vibration_status">--</span>
+        </div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">GPS 定位</span>
+        <div id="gpsDisplay">
+            <span class="gps-loading">定位中...</span>
+        </div>
+    </div>
+</div>
+
+<!-- 报警状态卡 -->
+<div class="card alarm-card" id="alarmCard">
+    <div class="card-title" style="color:white;">报警状态</div>
+    <div id="alarmContent">运行正常 ✓</div>
+</div>
+
+<!-- 控制卡 -->
+<div class="card">
+    <div class="card-title">远程控制</div>
+    <button class="ctrl-btn" onclick="sendCmd('01')">远程消警</button>
+</div>
+
+<!-- 阈值显示卡 -->
+<div class="card">
+    <div class="card-title">当前阈值（下位机上报）</div>
+    <div class="thresh-display-row">
+        <span class="thresh-display-label">温度上限</span>
+        <span class="thresh-display-value"><span id="thresh_temp_display">--</span> ℃</span>
+    </div>
+    <div class="thresh-display-row">
+        <span class="thresh-display-label">湿度上限</span>
+        <span class="thresh-display-value"><span id="thresh_humi_display">--</span> %RH</span>
+    </div>
+    <div class="thresh-display-row">
+        <span class="thresh-display-label">倾斜阈值</span>
+        <span class="thresh-display-value"><span id="thresh_tilt_display">--</span> 度</span>
+    </div>
+    <div class="thresh-display-row">
+        <span class="thresh-display-label">震动阈值</span>
+        <span class="thresh-display-value"><span id="thresh_vibr_display">--</span></span>
+    </div>
+</div>
+
+<!-- 阈值设置卡 -->
+<div class="card">
+    <div class="card-title">阈值设置</div>
+    <div class="thresh-set-row">
+        <span class="thresh-set-label">温度上限</span>
+        <input type="number" class="thresh-input" id="thresh_temp_input" placeholder="30">
+        <button class="thresh-send-btn" onclick="setThreshold('temp', '02')">发送</button>
+    </div>
+    <div class="thresh-set-row">
+        <span class="thresh-set-label">湿度上限</span>
+        <input type="number" class="thresh-input" id="thresh_humi_input" placeholder="80">
+        <button class="thresh-send-btn" onclick="setThreshold('humi', '03')">发送</button>
+    </div>
+    <div class="thresh-set-row">
+        <span class="thresh-set-label">倾斜阈值</span>
+        <input type="number" class="thresh-input" id="thresh_tilt_input" placeholder="30">
+        <button class="thresh-send-btn" onclick="setThreshold('tilt', '04')">发送</button>
+    </div>
+    <div class="thresh-set-row">
+        <span class="thresh-set-label">震动阈值</span>
+        <input type="number" class="thresh-input" id="thresh_vibr_input" placeholder="50">
+        <button class="thresh-send-btn" onclick="setThreshold('vibr', '05')">发送</button>
+    </div>
+</div>
+
+<!-- 日志卡 -->
+<div class="card">
+    <div class="log-header" onclick="toggleLog()">
+        <span class="card-title">通信日志</span>
+        <span class="log-toggle" id="logToggle">展开 ▼</span>
+    </div>
+    <div class="log-content hidden" id="logContent"></div>
+</div>
+
+<script src="mqtt.min.js"></script>
+<script>
+// ========== MQTT 配置 ==========
+const UPLOAD_TOPIC = '123124/234235/xianlengliandongwuliukongxitong/upload';
+const CMD_TOPIC = '123124/234235/xianlengliandongwuliukongxitong/cmd';
+
+// ========== 数据状态 ==========
+let currentData = {
+    temp: null,
+    humidity: null,
+    tilt_angle: null,
+    vibration_status: null,
+    lat: null,
+    lon: null,
+    thresh_temp: null,
+    thresh_humi: null,
+    thresh_tilt: null,
+    thresh_vibr: null
+};
+
+// ========== 同步保护状态 ==========
+let waitingSync = { temp: false, humi: false, tilt: false, vibr: false };
+let pendingValue = { temp: null, humi: null, tilt: null, vibr: null };
+let syncTimeoutTimer = { temp: null, humi: null, tilt: null, vibr: null };
+let lastUserSetTime = { thresh_temp: 0, thresh_humi: 0, thresh_tilt: 0, thresh_vibr: 0 };
+
+const DEBOUNCE_MS = 500;
+const SYNC_TIMEOUT_MS = 5000;
+
+// ========== 日志 ==========
+let logs = [];
+const MAX_LOGS = 20;
+
+function addLog(msg, direction = 'RX') {
+    const time = new Date().toLocaleTimeString();
+    logs.unshift(`[${time}] ${direction}: ${msg}`);
+    if (logs.length > MAX_LOGS) logs.pop();
+    renderLogs();
+}
+
+function renderLogs() {
+    const el = document.getElementById('logContent');
+    el.innerHTML = logs.map(l => `<div class="log-item">${l}</div>`).join('');
+}
+
+function toggleLog() {
+    const content = document.getElementById('logContent');
+    const toggle = document.getElementById('logToggle');
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        toggle.textContent = '收起 ▲';
+    } else {
+        content.classList.add('hidden');
+        toggle.textContent = '展开 ▼';
+    }
+}
+
+// ========== MQTT 连接 ==========
+let client = null;
+
+function connectMQTT() {
+    client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+        clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+        reconnectPeriod: 3000
+    });
+
+    client.on('connect', () => {
+        document.getElementById('connDot').classList.add('connected');
+        document.getElementById('connText').textContent = '已连接';
+        client.subscribe(UPLOAD_TOPIC);
+        addLog('已连接并订阅', 'SYS');
+    });
+
+    client.on('close', () => {
+        document.getElementById('connDot').classList.remove('connected');
+        document.getElementById('connText').textContent = '未连接';
+    });
+
+    client.on('message', (topic, payload) => {
+        const msg = payload.toString();
+        addLog(msg, 'RX');
+        parseMessage(msg);
+    });
+}
+
+function sendCmd(cmd) {
+    if (client && client.connected) {
+        client.publish(CMD_TOPIC, cmd);
+        addLog(cmd, 'TX');
+    } else {
+        alert('MQTT 未连接');
+    }
+}
+
+// ========== 数据解析与 UI 更新 ==========
+function parseMessage(msg) {
+    const parts = msg.split(',');
+    if (parts.length < 10) return;
+
+    const newData = {
+        temp: parseFloat(parts[0]),
+        humidity: parseFloat(parts[1]),
+        tilt_angle: parseFloat(parts[2]),
+        vibration_status: parseInt(parts[3]),
+        lat: parseFloat(parts[4]),
+        lon: parseFloat(parts[5]),
+        thresh_temp: parseFloat(parts[6]),
+        thresh_humi: parseFloat(parts[7]),
+        thresh_tilt: parseFloat(parts[8]),
+        thresh_vibr: parseFloat(parts[9])
+    };
+
+    // 传感器值始终更新
+    currentData.temp = newData.temp;
+    currentData.humidity = newData.humidity;
+    currentData.tilt_angle = newData.tilt_angle;
+    currentData.vibration_status = newData.vibration_status;
+    currentData.lat = newData.lat;
+    currentData.lon = newData.lon;
+
+    // 检查同步确认
+    let hasPendingSync = false;
+    const threshKeys = ['temp', 'humi', 'tilt', 'vibr'];
+    for (const key of threshKeys) {
+        if (waitingSync[key]) {
+            hasPendingSync = true;
+            const expected = pendingValue[key];
+            const received = newData['thresh_' + key];
+            if (expected !== null && Math.abs(received - expected) < 0.5) {
+                console.log(`Sync confirmed for ${key}: ${received}`);
+                if (syncTimeoutTimer[key]) {
+                    clearTimeout(syncTimeoutTimer[key]);
+                    syncTimeoutTimer[key] = null;
+                }
+                waitingSync[key] = false;
+                pendingValue[key] = null;
+                lastUserSetTime['thresh_' + key] = 0;
+            }
+        }
+    }
+
+    // 阈值更新（三重保护）
+    const now = Date.now();
+    for (const key of threshKeys) {
+        const threshKey = 'thresh_' + key;
+        if (!lastUserSetTime[threshKey] || (now - lastUserSetTime[threshKey]) >= DEBOUNCE_MS) {
+            if (!waitingSync[key]) {
+                currentData[threshKey] = newData[threshKey];
+            }
+        }
+    }
+
+    updateUI();
+    if (hasPendingSync) {
+        checkAlarmsWithPending();
+    } else {
+        checkAlarms();
+    }
+}
+
+function updateUI() {
+    // 温度
+    if (currentData.temp !== null) {
+        const el = document.getElementById('temp');
+        el.textContent = currentData.temp.toFixed(1);
+        el.classList.remove('alarm');
+    }
+    // 湿度
+    if (currentData.humidity !== null) {
+        const el = document.getElementById('humidity');
+        el.textContent = currentData.humidity.toFixed(0);
+        el.classList.remove('alarm');
+    }
+    // 倾斜角
+    if (currentData.tilt_angle !== null) {
+        const el = document.getElementById('tilt_angle');
+        el.textContent = currentData.tilt_angle.toFixed(0);
+        el.classList.remove('alarm');
+    }
+    // 震动状态
+    if (currentData.vibration_status !== null) {
+        const el = document.getElementById('vibration_status');
+        if (currentData.vibration_status === 1) {
+            el.textContent = 'ERR!';
+            el.classList.add('alarm');
+        } else {
+            el.textContent = 'OK';
+            el.classList.remove('alarm');
+        }
+    }
+    // GPS
+    const gpsEl = document.getElementById('gpsDisplay');
+    if (currentData.lat !== null && currentData.lon !== null) {
+        if (currentData.lat === 0 && currentData.lon === 0) {
+            gpsEl.innerHTML = '<span class="gps-loading">定位中...</span>';
+        } else {
+            gpsEl.innerHTML = `<span class="gps-value">${currentData.lat.toFixed(4)}, ${currentData.lon.toFixed(4)}</span>`;
+        }
+    }
+
+    // 阈值显示（等待期间显示预测值）
+    updateThreshDisplay();
+}
+
+function updateThreshDisplay() {
+    const keys = ['temp', 'humi', 'tilt', 'vibr'];
+    for (const key of keys) {
+        const el = document.getElementById('thresh_' + key + '_display');
+        if (waitingSync[key] && pendingValue[key] !== null) {
+            el.textContent = pendingValue[key];
+        } else if (currentData['thresh_' + key] !== null) {
+            el.textContent = currentData['thresh_' + key].toFixed(0);
+        }
+    }
+}
+
+// ========== 报警判断 ==========
+function checkAlarms() {
+    const alarms = [];
+
+    if (currentData.temp !== null && currentData.thresh_temp !== null) {
+        if (currentData.temp > currentData.thresh_temp) {
+            alarms.push('温度超限');
+            document.getElementById('temp').classList.add('alarm');
+        }
+    }
+    if (currentData.humidity !== null && currentData.thresh_humi !== null) {
+        if (currentData.humidity > currentData.thresh_humi) {
+            alarms.push('湿度超限');
+            document.getElementById('humidity').classList.add('alarm');
+        }
+    }
+    if (currentData.tilt_angle !== null && currentData.thresh_tilt !== null) {
+        if (currentData.tilt_angle > currentData.thresh_tilt) {
+            alarms.push('倾斜超限');
+            document.getElementById('tilt_angle').classList.add('alarm');
+        }
+    }
+    if (currentData.vibration_status === 1) {
+        alarms.push('震动异常');
+    }
+
+    renderAlarms(alarms);
+}
+
+function checkAlarmsWithPending() {
+    const alarms = [];
+
+    const threshTemp = waitingSync.temp ? pendingValue.temp : currentData.thresh_temp;
+    const threshHumi = waitingSync.humi ? pendingValue.humi : currentData.thresh_humi;
+    const threshTilt = waitingSync.tilt ? pendingValue.tilt : currentData.thresh_tilt;
+
+    if (currentData.temp !== null && threshTemp !== null && currentData.temp > threshTemp) {
+        alarms.push('温度超限');
+        document.getElementById('temp').classList.add('alarm');
+    }
+    if (currentData.humidity !== null && threshHumi !== null && currentData.humidity > threshHumi) {
+        alarms.push('湿度超限');
+        document.getElementById('humidity').classList.add('alarm');
+    }
+    if (currentData.tilt_angle !== null && threshTilt !== null && currentData.tilt_angle > threshTilt) {
+        alarms.push('倾斜超限');
+        document.getElementById('tilt_angle').classList.add('alarm');
+    }
+    if (currentData.vibration_status === 1) {
+        alarms.push('震动异常');
+    }
+
+    renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+    const card = document.getElementById('alarmCard');
+    const content = document.getElementById('alarmContent');
+
+    if (alarms.length === 0) {
+        card.classList.remove('has-alarm');
+        content.innerHTML = '运行正常 ✓';
+    } else {
+        card.classList.add('has-alarm');
+        content.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
+        // 调用原生通知（如果在 WebView 中）
+        sendAlarmToNative(alarms);
+    }
+}
+
+function sendAlarmToNative(alarms) {
+    if (window.Android) {
+        window.Android.onAlarm(JSON.stringify({
+            alarms: alarms,
+            temp: currentData.temp,
+            humidity: currentData.humidity,
+            tilt: currentData.tilt_angle,
+            vibration: currentData.vibration_status
+        }));
+    }
+}
+
+// ========== 阈值设置（同步保护） ==========
+function setThreshold(type, cmdCode) {
+    const inputEl = document.getElementById('thresh_' + type + '_input');
+    const value = inputEl.value;
+
+    if (!value || value === '') {
+        alert('请输入阈值');
+        return;
+    }
+
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) {
+        alert('请输入有效数字');
+        return;
+    }
+
+    if (waitingSync[type]) {
+        console.log(`Already waiting sync for ${type}`);
+        return;
+    }
+
+    // 1. 设置等待同步状态
+    waitingSync[type] = true;
+    pendingValue[type] = numValue;
+
+    // 2. 发送指令
+    sendCmd(cmdCode + ',' + numValue);
+
+    // 3. 记录用户操作时间
+    lastUserSetTime['thresh_' + type] = Date.now();
+
+    // 4. 立即更新本地数据
+    currentData['thresh_' + type] = numValue;
+
+    // 5. 立即检查报警
+    checkAlarmsWithPending();
+
+    // 6. 设置超时保护
+    syncTimeoutTimer[type] = setTimeout(() => {
+        if (waitingSync[type]) {
+            console.warn(`Sync timeout for ${type}, releasing protection`);
+            waitingSync[type] = false;
+            pendingValue[type] = null;
+            syncTimeoutTimer[type] = null;
+        }
+    }, SYNC_TIMEOUT_MS);
+
+    // 更新阈值显示
+    updateThreshDisplay();
+
+    // 关闭输入框焦点
+    inputEl.blur();
+}
+
+// ========== 初始化 ==========
+connectMQTT();
+</script>
+</body>
+</html>
