@@ -458,10 +458,10 @@
         };
 
         // ==================== 同步保护状态 ====================
-        let waitingSync = { wgtd: false, steps: false, hr: false, spo2: false };
-        let pendingValue = { wgtd: null, steps: null, hr: null, spo2: null };
-        let syncTimeoutTimer = { wgtd: null, steps: null, hr: null, spo2: null };
-        let lastUserSetTime = { thr_wgtd: 0, thr_steps: 0, thr_hr: 0, thr_spo2: 0 };
+        let waitingSync = { wgtd: false, steps: false, hr: false, spo2: false, weight: false };
+        let pendingValue = { wgtd: null, steps: null, hr: null, spo2: null, weight: null };
+        let syncTimeoutTimer = { wgtd: null, steps: null, hr: null, spo2: null, weight: null };
+        let lastUserSetTime = { thr_wgtd: 0, thr_steps: 0, thr_hr: 0, thr_spo2: 0, weight: 0 };
         const DEBOUNCE_MS = 500;
         const SYNC_TIMEOUT_MS = 5000;
 
@@ -596,10 +596,35 @@
             currentData.temp = newData.temp;
             currentData.humid = newData.humid;
 
-            // 更新详情页体重显示
+            // 体重同步确认（乐观更新）
+            if (waitingSync.weight && pendingValue.weight !== null) {
+                const expectedWeight = pendingValue.weight;
+                const receivedWeight = newData.weight;
+                // 允许小范围误差
+                if (Math.abs(receivedWeight - expectedWeight) < 0.1) {
+                    console.log(`Weight sync confirmed: ${receivedWeight}`);
+                    if (syncTimeoutTimer.weight) {
+                        clearTimeout(syncTimeoutTimer.weight);
+                        syncTimeoutTimer.weight = null;
+                    }
+                    waitingSync.weight = false;
+                    pendingValue.weight = null;
+                    lastUserSetTime.weight = 0;
+                    document.getElementById('weightStatus').textContent = '设备已确认';
+                    document.getElementById('weightStatus').className = 'status-msg';
+                }
+            }
+
+            // 更新体重显示（非同步等待期间才更新）
+            const now = Date.now();
             if (newData.weight > 0) {
-                document.getElementById('currentWeight').textContent = newData.weight.toFixed(1);
-                recordWeight(newData.weight);
+                if (!lastUserSetTime.weight || (now - lastUserSetTime.weight) >= DEBOUNCE_MS) {
+                    if (!waitingSync.weight) {
+                        currentData.weight = newData.weight;
+                        document.getElementById('currentWeight').textContent = newData.weight.toFixed(1);
+                        recordWeight(newData.weight);
+                    }
+                }
             }
 
             // 更新本周步数
@@ -611,6 +636,7 @@
             // 阈值同步确认
             let hasPendingSync = false;
             for (const [key, isWaiting] of Object.entries(waitingSync)) {
+                if (key === 'weight') continue;  // 体重单独处理
                 if (isWaiting) {
                     hasPendingSync = true;
                     const expected = pendingValue[key];
@@ -783,7 +809,7 @@
             document.getElementById(`thr_${type}_input`).blur();
         }
 
-        // ==================== 体重设置 ====================
+        // ==================== 体重设置（带乐观更新） ====================
         function setWeight() {
             const value = document.getElementById('weightInput').value;
             const statusEl = document.getElementById('weightStatus');
@@ -797,14 +823,49 @@
                 return;
             }
 
-            sendCmd(`06,${numValue.toFixed(1)}`);
-            statusEl.textContent = `已发送：${numValue.toFixed(1)} kg`;
-            statusEl.className = 'status-msg';
+            // 防止重复发送
+            if (waitingSync.weight) {
+                statusEl.textContent = '正在等待设备确认...';
+                return;
+            }
 
+            // 1. 设置等待同步状态
+            waitingSync.weight = true;
+            pendingValue.weight = numValue;
+            lastUserSetTime.weight = Date.now();
+
+            // 2. 发送指令
+            sendCmd(`06,${numValue.toFixed(1)}`);
+
+            // 3. 立即更新显示（乐观更新）
             currentData.weight = numValue;
             document.getElementById('currentWeight').textContent = numValue.toFixed(1);
+            document.getElementById('weight').textContent = numValue.toFixed(1);
+
+            // 4. 记录到历史
             recordWeight(numValue);
+
+            // 5. 立即检查报警
+            checkAlarms();
+
+            // 6. 更新状态提示
+            statusEl.textContent = `已发送：${numValue.toFixed(1)} kg，等待确认...`;
+            statusEl.className = 'status-msg';
+
+            // 7. 清空输入框
             document.getElementById('weightInput').value = '';
+
+            // 8. 设置超时保护
+            syncTimeoutTimer.weight = setTimeout(() => {
+                if (waitingSync.weight) {
+                    console.warn('Weight sync timeout, releasing protection');
+                    waitingSync.weight = false;
+                    pendingValue.weight = null;
+                    syncTimeoutTimer.weight = null;
+                    statusEl.textContent = '设备响应超时，请重试';
+                    statusEl.className = 'status-msg';
+                }
+            }, SYNC_TIMEOUT_MS);
         }
 
         function recordWeight(weight) {
