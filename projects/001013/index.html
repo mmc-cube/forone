@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>健康监护仪</title>
     <script src="mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg: #F5F5F5;
@@ -55,6 +56,8 @@
             color: white;
         }
         .page-tab:active { opacity: 0.8; }
+        .page-content { display: none; }
+        .page-content.active { display: block; }
         .card {
             background: var(--card);
             border-radius: var(--radius);
@@ -146,10 +149,10 @@
             width: 100%;
         }
         .btn:active { background: #1976D2; }
-        .btn-alarm {
-            background: var(--alarm);
-        }
+        .btn-alarm { background: var(--alarm); }
         .btn-alarm:active { background: #D32F2F; }
+        .btn-green { background: var(--ok); }
+        .btn-green:active { background: #388E3C; }
         .threshold-row {
             display: flex;
             justify-content: space-between;
@@ -185,9 +188,7 @@
             cursor: pointer;
         }
         .threshold-send:active { background: #1976D2; }
-        .log-card {
-            cursor: pointer;
-        }
+        .log-card { cursor: pointer; }
         .log-content {
             max-height: 0;
             overflow: hidden;
@@ -212,134 +213,235 @@
             font-size: 12px;
             transition: transform 0.3s;
         }
-        .collapse-icon.open {
-            transform: rotate(180deg);
+        .collapse-icon.open { transform: rotate(180deg); }
+        .chart-container {
+            height: 180px;
+            margin-top: 8px;
+        }
+        .food-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .food-input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .food-total {
+            font-size: 14px;
+            color: var(--primary);
+            margin-top: 8px;
+        }
+        .food-list {
+            margin-top: 12px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .food-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px dashed #eee;
+            font-size: 13px;
+        }
+        .weight-input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .weight-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            text-align: center;
+        }
+        .weight-display {
+            font-size: 24px;
+            color: var(--text);
+            font-weight: bold;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .status-msg {
+            font-size: 12px;
+            color: var(--sub);
+            margin-top: 8px;
+            text-align: center;
         }
         @media (max-width: 420px) {
             body { padding: 8px; padding-top: 48px; }
             .card { padding: 12px; margin-bottom: 8px; }
             .data-value { font-size: 24px; }
-        }
-            body { padding: 8px; padding-top: 36px; }
-            .card { padding: 12px; margin-bottom: 8px; }
-            .data-value { font-size: 24px; }
+            .chart-container { height: 150px; }
         }
     </style>
 </head>
 <body>
     <!-- 顶部页面切换栏 -->
     <div class="page-switcher">
-        <button class="page-tab active" onclick="location.href='index.html'">📊 监控</button>
-        <button class="page-tab" onclick="location.href='detail.html'">📝 详情</button>
+        <button class="page-tab active" onclick="switchPage('monitor')">📊 监控</button>
+        <button class="page-tab" onclick="switchPage('detail')">📝 详情</button>
     </div>
 
-    <!-- 状态栏 -->
-    <div class="card status-bar">
-        <div style="display:flex;align-items:center;">
-            <span class="status-dot err" id="mqttDot"></span>
-            <span id="mqttStatus">未连接</span>
+    <!-- ========== 监控页面 ========== -->
+    <div id="page-monitor" class="page-content active">
+        <!-- 状态栏 -->
+        <div class="card status-bar">
+            <div style="display:flex;align-items:center;">
+                <span class="status-dot err" id="mqttDot"></span>
+                <span id="mqttStatus">未连接</span>
+            </div>
+            <div style="font-size:14px;color:var(--text);">健康监护仪</div>
         </div>
-        <div style="font-size:14px;color:var(--text);">健康监护仪</div>
+
+        <!-- 实时数据卡 -->
+        <div class="card">
+            <div class="card-title">📊 实时数据</div>
+            <div class="data-grid">
+                <div class="data-item">
+                    <span class="data-label">心率</span>
+                    <div><span class="data-value" id="hr">0</span><span class="data-unit">bpm</span><span id="hrAlarm" style="color:var(--alarm);display:none;">!</span></div>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">血氧</span>
+                    <div><span class="data-value" id="spo2">0</span><span class="data-unit">%</span><span id="spo2Alarm" style="color:var(--alarm);display:none;">!</span></div>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">步数</span>
+                    <div><span class="data-value" id="steps">0</span><span class="data-unit">步</span><span id="stepsAlarm" style="color:var(--alarm);display:none;">!</span></div>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">今日摄入</span>
+                    <div><span class="data-value" id="cal">0</span><span class="data-unit">kcal</span></div>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">体重</span>
+                    <div><span class="data-value" id="weight">0.0</span><span class="data-unit">kg</span><span id="weightAlarm" style="color:var(--alarm);display:none;">!</span></div>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">温度</span>
+                    <div><span class="data-value" id="temp">0</span><span class="data-unit">°C</span></div>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">湿度</span>
+                    <div><span class="data-value" id="humid">0</span><span class="data-unit">%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 报警状态卡 -->
+        <div class="card">
+            <div class="card-title">⚠ 报警状态</div>
+            <div class="alarm-box" id="alarmBox">
+                <div class="alarm-ok" id="alarmOk">运行正常 ✓</div>
+                <div id="alarmList"></div>
+            </div>
+            <button class="btn btn-alarm" id="clearAlarmBtn" style="margin-top:12px;display:none;">消警</button>
+        </div>
+
+        <!-- 阈值显示卡 -->
+        <div class="card">
+            <div class="card-title">📋 当前阈值</div>
+            <div class="data-row">
+                <span class="data-label">体重阈值</span>
+                <span class="threshold-display" id="thr_wgtd_display">70.0 kg</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">运动目标</span>
+                <span class="threshold-display" id="thr_steps_display">10000 步</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">心率上限</span>
+                <span class="threshold-display" id="thr_hr_display">120 bpm</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">血氧下限</span>
+                <span class="threshold-display" id="thr_spo2_display">95 %</span>
+            </div>
+        </div>
+
+        <!-- 阈值设置卡 -->
+        <div class="card">
+            <div class="card-title">⚙ 阈值设置</div>
+            <div class="threshold-row">
+                <span class="threshold-label">体重阈值</span>
+                <input type="number" step="0.1" class="threshold-input" id="thr_wgtd_input" placeholder="70.0">
+                <button class="threshold-send" onclick="setThreshold('wgtd', '02')">发送</button>
+            </div>
+            <div class="threshold-row">
+                <span class="threshold-label">运动目标</span>
+                <input type="number" class="threshold-input" id="thr_steps_input" placeholder="10000">
+                <button class="threshold-send" onclick="setThreshold('steps', '03')">发送</button>
+            </div>
+            <div class="threshold-row">
+                <span class="threshold-label">心率上限</span>
+                <input type="number" class="threshold-input" id="thr_hr_input" placeholder="120">
+                <button class="threshold-send" onclick="setThreshold('hr', '04')">发送</button>
+            </div>
+            <div class="threshold-row">
+                <span class="threshold-label">血氧下限</span>
+                <input type="number" class="threshold-input" id="thr_spo2_input" placeholder="95">
+                <button class="threshold-send" onclick="setThreshold('spo2', '05')">发送</button>
+            </div>
+        </div>
+
+        <!-- 日志卡 -->
+        <div class="card log-card" onclick="toggleLog()">
+            <div class="card-title collapsible-header">
+                📝 原始数据日志
+                <span class="collapse-icon" id="logIcon">▼</span>
+            </div>
+            <div class="log-content" id="logContent"></div>
+        </div>
     </div>
 
-    <!-- 实时数据卡 -->
-    <div class="card">
-        <div class="card-title">📊 实时数据</div>
-        <div class="data-grid">
-            <div class="data-item">
-                <span class="data-label">心率</span>
-                <div><span class="data-value" id="hr">0</span><span class="data-unit">bpm</span><span id="hrAlarm" style="color:var(--alarm);display:none;">!</span></div>
+    <!-- ========== 详情页面 ========== -->
+    <div id="page-detail" class="page-content">
+        <!-- 体重设置卡 -->
+        <div class="card">
+            <div class="card-title">⚖ 体重设置</div>
+            <div class="weight-display">
+                <span id="currentWeight">65.5</span><span style="font-size:14px;color:var(--sub);"> kg</span>
             </div>
-            <div class="data-item">
-                <span class="data-label">血氧</span>
-                <div><span class="data-value" id="spo2">0</span><span class="data-unit">%</span><span id="spo2Alarm" style="color:var(--alarm);display:none;">!</span></div>
+            <div class="weight-input-row">
+                <input type="number" step="0.1" class="weight-input" id="weightInput" placeholder="输入新体重 (kg)">
+                <button class="btn btn-green" onclick="setWeight()" style="width:100px;">发送</button>
             </div>
-            <div class="data-item">
-                <span class="data-label">步数</span>
-                <div><span class="data-value" id="steps">0</span><span class="data-unit">步</span><span id="stepsAlarm" style="color:var(--alarm);display:none;">!</span></div>
-            </div>
-            <div class="data-item">
-                <span class="data-label">今日摄入</span>
-                <div><span class="data-value" id="cal">0</span><span class="data-unit">kcal</span></div>
-            </div>
-            <div class="data-item">
-                <span class="data-label">体重</span>
-                <div><span class="data-value" id="weight">0.0</span><span class="data-unit">kg</span><span id="weightAlarm" style="color:var(--alarm);display:none;">!</span></div>
-            </div>
-            <div class="data-item">
-                <span class="data-label">温度</span>
-                <div><span class="data-value" id="temp">0</span><span class="data-unit">°C</span></div>
-            </div>
-            <div class="data-item">
-                <span class="data-label">湿度</span>
-                <div><span class="data-value" id="humid">0</span><span class="data-unit">%</span></div>
-            </div>
+            <div class="status-msg" id="weightStatus">输入体重后点击发送，将同步到设备</div>
         </div>
-    </div>
 
-    <!-- 报警状态卡 -->
-    <div class="card">
-        <div class="card-title">⚠ 报警状态</div>
-        <div class="alarm-box" id="alarmBox">
-            <div class="alarm-ok" id="alarmOk">运行正常 ✓</div>
-            <div id="alarmList"></div>
+        <!-- 体重趋势图 -->
+        <div class="card">
+            <div class="card-title">📈 体重变化趋势</div>
+            <div class="chart-container">
+                <canvas id="weightChart"></canvas>
+            </div>
         </div>
-        <button class="btn btn-alarm" id="clearAlarmBtn" style="margin-top:12px;display:none;">消警</button>
-    </div>
 
-    <!-- 阈值显示卡 -->
-    <div class="card">
-        <div class="card-title">📋 当前阈值</div>
-        <div class="data-row">
-            <span class="data-label">体重阈值</span>
-            <span class="threshold-display" id="thr_wgtd_display">70.0 kg</span>
+        <!-- 运动周报 -->
+        <div class="card">
+            <div class="card-title">🏃 本周运动</div>
+            <div class="chart-container">
+                <canvas id="stepsChart"></canvas>
+            </div>
         </div>
-        <div class="data-row">
-            <span class="data-label">运动目标</span>
-            <span class="threshold-display" id="thr_steps_display">10000 步</span>
-        </div>
-        <div class="data-row">
-            <span class="data-label">心率上限</span>
-            <span class="threshold-display" id="thr_hr_display">120 bpm</span>
-        </div>
-        <div class="data-row">
-            <span class="data-label">血氧下限</span>
-            <span class="threshold-display" id="thr_spo2_display">95 %</span>
-        </div>
-    </div>
 
-    <!-- 阈值设置卡 -->
-    <div class="card">
-        <div class="card-title">⚙ 阈值设置</div>
-        <div class="threshold-row">
-            <span class="threshold-label">体重阈值</span>
-            <input type="number" step="0.1" class="threshold-input" id="thr_wgtd_input" placeholder="70.0">
-            <button class="threshold-send" onclick="setThreshold('wgtd', '02')">发送</button>
+        <!-- 饮食录入卡 -->
+        <div class="card">
+            <div class="card-title">🍎 饮食录入</div>
+            <div class="food-row">
+                <input type="text" class="food-input" id="foodName" placeholder="饮食名称">
+                <input type="number" class="food-input" id="foodCal" placeholder="热量(kcal)">
+            </div>
+            <button class="btn" onclick="addFood()">记录</button>
+            <div class="food-total">今日摄入：<span id="foodTotal">0</span> kcal</div>
+            <div class="food-list" id="foodList"></div>
         </div>
-        <div class="threshold-row">
-            <span class="threshold-label">运动目标</span>
-            <input type="number" class="threshold-input" id="thr_steps_input" placeholder="10000">
-            <button class="threshold-send" onclick="setThreshold('steps', '03')">发送</button>
-        </div>
-        <div class="threshold-row">
-            <span class="threshold-label">心率上限</span>
-            <input type="number" class="threshold-input" id="thr_hr_input" placeholder="120">
-            <button class="threshold-send" onclick="setThreshold('hr', '04')">发送</button>
-        </div>
-        <div class="threshold-row">
-            <span class="threshold-label">血氧下限</span>
-            <input type="number" class="threshold-input" id="thr_spo2_input" placeholder="95">
-            <button class="threshold-send" onclick="setThreshold('spo2', '05')">发送</button>
-        </div>
-    </div>
-
-    <!-- 日志卡 -->
-    <div class="card log-card" onclick="toggleLog()">
-        <div class="card-title collapsible-header">
-            📝 原始数据日志
-            <span class="collapse-icon" id="logIcon">▼</span>
-        </div>
-        <div class="log-content" id="logContent"></div>
     </div>
 
     <script>
@@ -354,19 +456,97 @@
             temp: 0, humid: 0,
             thr_wgtd: 70.0, thr_steps: 10000, thr_hr: 120, thr_spo2: 95
         };
-        let lastWeight = 0;
 
         // ==================== 同步保护状态 ====================
         let waitingSync = { wgtd: false, steps: false, hr: false, spo2: false };
         let pendingValue = { wgtd: null, steps: null, hr: null, spo2: null };
         let syncTimeoutTimer = { wgtd: null, steps: null, hr: null, spo2: null };
         let lastUserSetTime = { thr_wgtd: 0, thr_steps: 0, thr_hr: 0, thr_spo2: 0 };
-
         const DEBOUNCE_MS = 500;
         const SYNC_TIMEOUT_MS = 5000;
 
-        // ==================== 饮食记录存储 ====================
+        // ==================== 历史数据存储 ====================
+        let weightHistory = JSON.parse(localStorage.getItem('weightHistory') || '[]');
         let foodRecords = JSON.parse(localStorage.getItem('foodRecords') || '[]');
+        let stepsWeek = JSON.parse(localStorage.getItem('stepsWeek') || '[]');
+
+        // ==================== 页面切换 ====================
+        function switchPage(page) {
+            document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+
+            if (page === 'monitor') {
+                document.querySelector('.page-tab:first-child').classList.add('active');
+                document.getElementById('page-monitor').classList.add('active');
+            } else {
+                document.querySelector('.page-tab:last-child').classList.add('active');
+                document.getElementById('page-detail').classList.add('active');
+                initCharts();
+                updateFoodList();
+            }
+        }
+
+        // ==================== 生成模拟数据（首次运行） ====================
+        function initMockData() {
+            const today = new Date();
+
+            // 生成过去7天体重数据
+            if (weightHistory.length === 0) {
+                const baseWeight = 65 + Math.random() * 3;
+                for (let i = 6; i >= 0; i--) {
+                    const date = new Date(today);
+                    date.setDate(date.getDate() - i);
+                    weightHistory.push({
+                        date: date.toLocaleDateString(),
+                        value: parseFloat((baseWeight + (Math.random() - 0.5) * 1.5).toFixed(1))
+                    });
+                }
+                localStorage.setItem('weightHistory', JSON.stringify(weightHistory));
+            }
+
+            // 生成本周步数数据
+            if (stepsWeek.length === 0 || stepsWeek.every(v => v === 0)) {
+                stepsWeek = [];
+                for (let i = 0; i < 7; i++) {
+                    stepsWeek.push(Math.floor(5000 + Math.random() * 8000));
+                }
+                localStorage.setItem('stepsWeek', JSON.stringify(stepsWeek));
+            }
+
+            // 生成过去3天饮食记录
+            if (foodRecords.length === 0) {
+                const foodItems = [
+                    { name: '早餐-燕麦粥', cal: 200 },
+                    { name: '午餐-米饭套餐', cal: 650 },
+                    { name: '晚餐-清炒时蔬', cal: 300 },
+                    { name: '早餐-牛奶面包', cal: 280 },
+                    { name: '午餐-面条', cal: 500 },
+                    { name: '晚餐-鸡胸肉沙拉', cal: 350 },
+                    { name: '零食-苹果', cal: 80 },
+                    { name: '早餐-鸡蛋三明治', cal: 320 },
+                    { name: '午餐-便当', cal: 600 },
+                    { name: '晚餐-蒸鱼', cal: 280 }
+                ];
+
+                for (let i = 2; i >= 0; i--) {
+                    const date = new Date(today);
+                    date.setDate(date.getDate() - i);
+                    const dateStr = date.toDateString();
+                    const count = 3 + Math.floor(Math.random() * 2);
+                    const startIndex = (3 - i) * 3;
+                    for (let j = 0; j < count; j++) {
+                        const item = foodItems[startIndex + j] || foodItems[Math.floor(Math.random() * foodItems.length)];
+                        foodRecords.push({
+                            name: item.name,
+                            cal: item.cal,
+                            time: `${7 + j * 5}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}`,
+                            date: dateStr
+                        });
+                    }
+                }
+                localStorage.setItem('foodRecords', JSON.stringify(foodRecords));
+            }
+        }
 
         // ==================== MQTT 连接 ====================
         function connectMQTT() {
@@ -391,12 +571,11 @@
             });
         }
 
-        // ==================== 消息解析（带同步保护） ====================
+        // ==================== 消息解析 ====================
         function parseMessage(msg) {
             const parts = msg.split(',');
             const now = Date.now();
 
-            // 解析新数据
             const newData = {
                 hr: parseFloat(parts[0]) || 0,
                 spo2: parseFloat(parts[1]) || 0,
@@ -410,7 +589,6 @@
                 thr_spo2: parseInt(parts[10]) || 95
             };
 
-            // 传感器值始终更新
             currentData.hr = newData.hr;
             currentData.spo2 = newData.spo2;
             currentData.steps = newData.steps;
@@ -418,17 +596,26 @@
             currentData.temp = newData.temp;
             currentData.humid = newData.humid;
 
-            // 检查阈值同步确认
+            // 更新详情页体重显示
+            if (newData.weight > 0) {
+                document.getElementById('currentWeight').textContent = newData.weight.toFixed(1);
+                recordWeight(newData.weight);
+            }
+
+            // 更新本周步数
+            const dayIndex = new Date().getDay();
+            const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1;
+            stepsWeek[adjustedIndex] = newData.steps;
+            localStorage.setItem('stepsWeek', JSON.stringify(stepsWeek));
+
+            // 阈值同步确认
             let hasPendingSync = false;
             for (const [key, isWaiting] of Object.entries(waitingSync)) {
                 if (isWaiting) {
                     hasPendingSync = true;
                     const expected = pendingValue[key];
                     const received = newData[`thr_${key}`];
-
-                    // 允许小范围误差
                     if (expected !== null && Math.abs(received - expected) < 0.5) {
-                        console.log(`Sync confirmed for ${key}: ${received}`);
                         if (syncTimeoutTimer[key]) {
                             clearTimeout(syncTimeoutTimer[key]);
                             syncTimeoutTimer[key] = null;
@@ -440,7 +627,7 @@
                 }
             }
 
-            // 阈值更新（三重保护）
+            // 阈值更新
             for (const key of ['wgtd', 'steps', 'hr', 'spo2']) {
                 const threshKey = `thr_${key}`;
                 if (!lastUserSetTime[threshKey] || (now - lastUserSetTime[threshKey]) >= DEBOUNCE_MS) {
@@ -468,13 +655,14 @@
             document.getElementById('temp').textContent = currentData.temp.toFixed(1);
             document.getElementById('humid').textContent = currentData.humid.toFixed(0);
 
-            // 今日摄入（从饮食记录计算）
+            // 今日摄入
             const today = new Date().toDateString();
             const todayFood = foodRecords.filter(f => f.date === today);
             const totalCal = todayFood.reduce((sum, f) => sum + f.cal, 0);
             document.getElementById('cal').textContent = totalCal;
+            document.getElementById('foodTotal').textContent = totalCal;
 
-            // 阈值显示（等待期间显示预测值）
+            // 阈值显示
             document.getElementById('thr_wgtd_display').textContent =
                 (waitingSync.wgtd ? pendingValue.wgtd : currentData.thr_wgtd).toFixed(1) + ' kg';
             document.getElementById('thr_steps_display').textContent =
@@ -489,7 +677,6 @@
         function checkAlarms() {
             const alarms = [];
 
-            // 心率超限
             if (currentData.hr > currentData.thr_hr && currentData.hr > 0) {
                 alarms.push('心率超限报警');
                 document.getElementById('hrAlarm').style.display = 'inline';
@@ -497,7 +684,6 @@
                 document.getElementById('hrAlarm').style.display = 'none';
             }
 
-            // 血氧超限
             if (currentData.spo2 < currentData.thr_spo2 && currentData.spo2 > 0) {
                 alarms.push('血氧超限报警');
                 document.getElementById('spo2Alarm').style.display = 'inline';
@@ -505,7 +691,6 @@
                 document.getElementById('spo2Alarm').style.display = 'none';
             }
 
-            // 体重超限（同步下位机逻辑）
             if (currentData.weight > currentData.thr_wgtd && currentData.weight > 0) {
                 alarms.push('体重超限报警');
                 document.getElementById('weightAlarm').style.display = 'inline';
@@ -519,7 +704,6 @@
         function checkAlarmsWithPending() {
             const alarms = [];
             const thrWgtd = waitingSync.wgtd ? pendingValue.wgtd : currentData.thr_wgtd;
-            const thrSteps = waitingSync.steps ? pendingValue.steps : currentData.thr_steps;
             const thrHr = waitingSync.hr ? pendingValue.hr : currentData.thr_hr;
             const thrSpo2 = waitingSync.spo2 ? pendingValue.spo2 : currentData.thr_spo2;
 
@@ -537,7 +721,6 @@
                 document.getElementById('spo2Alarm').style.display = 'none';
             }
 
-            // 体重超限（同步下位机逻辑）
             if (currentData.weight > thrWgtd && currentData.weight > 0) {
                 alarms.push('体重超限报警');
                 document.getElementById('weightAlarm').style.display = 'inline';
@@ -570,71 +753,69 @@
                     div.textContent = a;
                     alarmList.appendChild(div);
                 });
-                sendAlarmToNative(alarms);
             }
         }
 
-        function sendAlarmToNative(alarms) {
-            if (window.Android) {
-                window.Android.onAlarm(JSON.stringify({
-                    alarms: alarms,
-                    hr: currentData.hr,
-                    spo2: currentData.spo2,
-                    steps: currentData.steps,
-                    weight: currentData.weight
-                }));
-            }
-        }
-
-        // ==================== 阈值设置（带同步保护） ====================
+        // ==================== 阈值设置 ====================
         function setThreshold(type, cmdCode) {
-            const inputId = `thr_${type}_input`;
-            const value = document.getElementById(inputId).value;
-
-            if (!value || value === '') {
-                alert('请输入阈值');
-                return;
-            }
-
+            const value = document.getElementById(`thr_${type}_input`).value;
+            if (!value) { alert('请输入阈值'); return; }
             const numValue = parseFloat(value);
-            if (isNaN(numValue)) {
-                alert('请输入有效数字');
-                return;
-            }
+            if (isNaN(numValue)) { alert('请输入有效数字'); return; }
+            if (waitingSync[type]) return;
 
-            if (waitingSync[type]) {
-                console.log(`Already waiting sync for ${type}`);
-                return;
-            }
-
-            // 1. 设置等待同步状态
             waitingSync[type] = true;
             pendingValue[type] = numValue;
-
-            // 2. 发送指令
             sendCmd(`${cmdCode},${numValue}`);
-
-            // 3. 记录用户操作时间
             lastUserSetTime[`thr_${type}`] = Date.now();
-
-            // 4. 立即更新显示（预测状态）
             currentData[`thr_${type}`] = numValue;
             updateUI();
-
-            // 5. 立即检查报警
             checkAlarmsWithPending();
 
-            // 6. 设置超时保护
             syncTimeoutTimer[type] = setTimeout(() => {
                 if (waitingSync[type]) {
-                    console.warn(`Sync timeout for ${type}, releasing protection`);
                     waitingSync[type] = false;
                     pendingValue[type] = null;
                     syncTimeoutTimer[type] = null;
                 }
             }, SYNC_TIMEOUT_MS);
 
-            document.getElementById(inputId).blur();
+            document.getElementById(`thr_${type}_input`).blur();
+        }
+
+        // ==================== 体重设置 ====================
+        function setWeight() {
+            const value = document.getElementById('weightInput').value;
+            const statusEl = document.getElementById('weightStatus');
+
+            if (!value) { statusEl.textContent = '请输入体重值'; statusEl.className = 'status-msg'; return; }
+
+            const numValue = parseFloat(value);
+            if (isNaN(numValue) || numValue < 20 || numValue > 200) {
+                statusEl.textContent = '请输入有效体重 (20-200 kg)';
+                statusEl.className = 'status-msg';
+                return;
+            }
+
+            sendCmd(`06,${numValue.toFixed(1)}`);
+            statusEl.textContent = `已发送：${numValue.toFixed(1)} kg`;
+            statusEl.className = 'status-msg';
+
+            currentData.weight = numValue;
+            document.getElementById('currentWeight').textContent = numValue.toFixed(1);
+            recordWeight(numValue);
+            document.getElementById('weightInput').value = '';
+        }
+
+        function recordWeight(weight) {
+            const today = new Date().toLocaleDateString();
+            const existing = weightHistory.find(w => w.date === today);
+            if (!existing) {
+                weightHistory.push({ date: today, value: weight });
+                if (weightHistory.length > 30) weightHistory.shift();
+                localStorage.setItem('weightHistory', JSON.stringify(weightHistory));
+                if (weightChart) updateWeightChart();
+            }
         }
 
         // ==================== 发送指令 ====================
@@ -646,30 +827,116 @@
         }
 
         // ==================== 消警 ====================
-        document.getElementById('clearAlarmBtn').addEventListener('click', () => {
-            sendCmd('01');
-        });
+        document.getElementById('clearAlarmBtn').addEventListener('click', () => sendCmd('01'));
 
         // ==================== 日志 ====================
         const logs = [];
         function addLog(msg) {
             logs.unshift(msg);
             if (logs.length > 20) logs.pop();
-            const logContent = document.getElementById('logContent');
-            logContent.innerHTML = logs.map(l =>
+            document.getElementById('logContent').innerHTML = logs.map(l =>
                 `<div class="log-item">${new Date().toLocaleTimeString()} ${l}</div>`
             ).join('');
         }
 
         function toggleLog() {
-            const content = document.getElementById('logContent');
-            const icon = document.getElementById('logIcon');
-            content.classList.toggle('open');
-            icon.classList.toggle('open');
+            document.getElementById('logContent').classList.toggle('open');
+            document.getElementById('logIcon').classList.toggle('open');
+        }
+
+        // ==================== 图表 ====================
+        let weightChart = null;
+        let stepsChart = null;
+
+        function initCharts() {
+            if (!weightChart) {
+                const ctx1 = document.getElementById('weightChart').getContext('2d');
+                weightChart = new Chart(ctx1, {
+                    type: 'line',
+                    data: {
+                        labels: weightHistory.map(w => w.date),
+                        datasets: [{
+                            label: '体重(kg)',
+                            data: weightHistory.map(w => w.value),
+                            borderColor: '#2196F3',
+                            backgroundColor: 'rgba(33,150,243,0.1)',
+                            tension: 0.3,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: false } },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+
+            if (!stepsChart) {
+                const ctx2 = document.getElementById('stepsChart').getContext('2d');
+                const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+                stepsChart = new Chart(ctx2, {
+                    type: 'bar',
+                    data: {
+                        labels: weekDays,
+                        datasets: [{
+                            label: '步数',
+                            data: stepsWeek,
+                            backgroundColor: '#4CAF50'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true } },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+        }
+
+        function updateWeightChart() {
+            if (weightChart) {
+                weightChart.data.labels = weightHistory.map(w => w.date);
+                weightChart.data.datasets[0].data = weightHistory.map(w => w.value);
+                weightChart.update();
+            }
+        }
+
+        // ==================== 饮食录入 ====================
+        function addFood() {
+            const name = document.getElementById('foodName').value;
+            const cal = parseInt(document.getElementById('foodCal').value);
+
+            if (!name || !cal) { alert('请填写完整信息'); return; }
+
+            foodRecords.push({
+                name: name,
+                cal: cal,
+                time: new Date().toLocaleTimeString(),
+                date: new Date().toDateString()
+            });
+            localStorage.setItem('foodRecords', JSON.stringify(foodRecords));
+
+            document.getElementById('foodName').value = '';
+            document.getElementById('foodCal').value = '';
+            updateUI();
+            updateFoodList();
+        }
+
+        function updateFoodList() {
+            const today = new Date().toDateString();
+            const todayFood = foodRecords.filter(f => f.date === today);
+            document.getElementById('foodList').innerHTML = todayFood.slice(-10).reverse().map(f =>
+                `<div class="food-item"><span>${f.time} ${f.name}</span><span>${f.cal} kcal</span></div>`
+            ).join('');
         }
 
         // ==================== 初始化 ====================
+        initMockData();
         connectMQTT();
+        updateUI();
     </script>
 </body>
 </html>
