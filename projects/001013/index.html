@@ -616,9 +616,9 @@
             }
 
             // 更新体重显示（非同步等待期间才更新）
-            const now = Date.now();
+            const nowTime = Date.now();
             if (newData.weight > 0) {
-                if (!lastUserSetTime.weight || (now - lastUserSetTime.weight) >= DEBOUNCE_MS) {
+                if (!lastUserSetTime.weight || (nowTime - lastUserSetTime.weight) >= DEBOUNCE_MS) {
                     if (!waitingSync.weight) {
                         currentData.weight = newData.weight;
                         document.getElementById('currentWeight').textContent = newData.weight.toFixed(1);
