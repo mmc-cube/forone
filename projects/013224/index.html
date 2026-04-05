@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>基于LoRa的积水检测装置</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #F5F5F5;
+            color: #212121;
+            min-height: 100vh;
+            padding: 12px;
+            padding-top: 44px;
+        }
+        .card {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .card-title {
+            font-size: 14px;
+            color: #757575;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #F44336;
+        }
+        .status-dot.connected {
+            background: #4CAF50;
+        }
+        .status-text {
+            font-size: 14px;
+        }
+        /* 实时数据卡 */
+        .data-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .data-row:last-child {
+            margin-bottom: 0;
+        }
+        .data-label {
+            font-size: 13px;
+            color: #757575;
+        }
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #212121;
+        }
+        .data-value.alarm {
+            color: #F44336;
+        }
+        .data-unit {
+            font-size: 13px;
+            color: #757575;
+            margin-left: 2px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #E0E0E0;
+            border-radius: 4px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #4CAF50;
+            border-radius: 4px;
+            transition: width 0.3s, background 0.3s;
+        }
+        .progress-fill.alarm {
+            background: #F44336;
+        }
+        /* 报警状态卡 */
+        .alarm-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #E8F5E9;
+        }
+        .alarm-status.active {
+            background: #FFEBEE;
+        }
+        .alarm-icon {
+            font-size: 20px;
+        }
+        .alarm-text {
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .alarm-status.active .alarm-text {
+            color: #F44336;
+        }
+        /* 控制卡 */
+        .control-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        .control-btn {
+            flex: 1;
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-mute {
+            background: #2196F3;
+            color: white;
+        }
+        .btn-mute:hover {
+            background: #1976D2;
+        }
+        .btn-mute:active {
+            background: #1565C0;
+        }
+        /* 阈值显示卡 */
+        .threshold-display {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .threshold-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2196F3;
+        }
+        /* 阈值设置卡 */
+        .threshold-setting {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .threshold-input {
+            width: 80px;
+            height: 40px;
+            border: 2px solid #E0E0E0;
+            border-radius: 8px;
+            font-size: 16px;
+            text-align: center;
+            outline: none;
+        }
+        .threshold-input:focus {
+            border-color: #2196F3;
+        }
+        .btn-send {
+            height: 40px;
+            padding: 0 20px;
+            border: none;
+            border-radius: 8px;
+            background: #4CAF50;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-send:hover {
+            background: #388E3C;
+        }
+        .btn-send:active {
+            background: #2E7D32;
+        }
+        /* 日志卡 */
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+        .log-toggle {
+            font-size: 12px;
+            color: #757575;
+        }
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s;
+        }
+        .log-content.expanded {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-item {
+            font-size: 12px;
+            color: #757575;
+            padding: 4px 0;
+            border-bottom: 1px solid #E0E0E0;
+        }
+        .log-item:last-child {
+            border-bottom: none;
+        }
+        .log-time {
+            color: #9E9E9E;
+        }
+    </style>
+</head>
+<body>
+    <!-- 状态栏 -->
+    <div class="card">
+        <div class="status-bar">
+            <span class="card-title">MQTT 连接状态</span>
+            <div class="status-indicator">
+                <div class="status-dot" id="status-dot"></div>
+                <span class="status-text" id="status-text">未连接</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">实时水位数据</div>
+        <div class="data-row">
+            <span class="data-label">水位</span>
+            <div>
+                <span class="data-value" id="water-level">--</span>
+                <span class="data-unit">%</span>
+            </div>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card">
+        <div class="card-title">报警状态</div>
+        <div class="alarm-status" id="alarm-status">
+            <span class="alarm-icon" id="alarm-icon">✓</span>
+            <span class="alarm-text" id="alarm-text">运行正常</span>
+        </div>
+    </div>
+
+    <!-- 控制卡 -->
+    <div class="card">
+        <div class="card-title">远程控制</div>
+        <div class="control-buttons">
+            <button class="control-btn btn-mute" onclick="sendMute()">消警</button>
+        </div>
+    </div>
+
+    <!-- 阈值显示卡 -->
+    <div class="card">
+        <div class="card-title">当前阈值（下位机上报）</div>
+        <div class="threshold-display">
+            <span class="data-label">报警阈值</span>
+            <span class="threshold-value" id="threshold-display">--%</span>
+        </div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="threshold-setting">
+            <span class="data-label">报警阈值</span>
+            <input type="number" class="threshold-input" id="threshold-input" min="0" max="100" placeholder="80">
+            <button class="btn-send" onclick="setThreshold()">发送</button>
+        </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card">
+        <div class="log-header" onclick="toggleLog()">
+            <span class="card-title">原始数据日志</span>
+            <span class="log-toggle" id="log-toggle">展开 ▼</span>
+        </div>
+        <div class="log-content" id="log-content">
+            <div id="log-list"></div>
+        </div>
+    </div>
+
+    <script src="mqtt.min.js"></script>
+    <script>
+        // ==================== MQTT 配置 ====================
+        const UPLOAD_TOPIC = '202201013224/202201013224/jishuijiance/upload';
+        const CMD_TOPIC = '202201013224/202201013224/jishuijiance/cmd';
+
+        // ==================== 数据状态 ====================
+        let currentData = {
+            water_level: null,
+            threshold: null
+        };
+
+        // ==================== 同步保护状态 ====================
+        let waitingSync = false;
+        let pendingValue = null;
+        let syncTimeoutTimer = null;
+        let lastUserSetTime = 0;
+
+        const DEBOUNCE_MS = 500;
+        const SYNC_TIMEOUT_MS = 5000;
+
+        // ==================== 日志记录 ====================
+        let logs = [];
+        const MAX_LOGS = 20;
+
+        // ==================== MQTT 连接 ====================
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+            reconnectPeriod: 3000
+        });
+
+        client.on('connect', () => {
+            document.getElementById('status-dot').classList.add('connected');
+            document.getElementById('status-text').textContent = '已连接';
+            client.subscribe(UPLOAD_TOPIC);
+            console.log('MQTT connected');
+        });
+
+        client.on('close', () => {
+            document.getElementById('status-dot').classList.remove('connected');
+            document.getElementById('status-text').textContent = '未连接';
+        });
+
+        client.on('error', (err) => {
+            console.error('MQTT error:', err);
+            document.getElementById('status-text').textContent = '连接错误';
+        });
+
+        client.on('message', (topic, payload) => {
+            const message = payload.toString();
+            console.log('Received:', message);
+            parseMessage(message);
+            addLog(message);
+        });
+
+        // ==================== 数据解析 ====================
+        function parseMessage(message) {
+            // 支持 JSON 格式和逗号分隔格式
+            let newWaterLevel, newThreshold;
+
+            if (message.startsWith('{')) {
+                // JSON 格式
+                try {
+                    const data = JSON.parse(message);
+                    newWaterLevel = parseFloat(data.water_level);
+                    newThreshold = parseFloat(data.threshold);
+                } catch (e) {
+                    console.error('JSON parse error:', e);
+                    return;
+                }
+            } else {
+                // 逗号分隔格式
+                const parts = message.split(',');
+                newWaterLevel = parseFloat(parts[0]);
+                newThreshold = parseFloat(parts[1]);
+            }
+
+            // 传感器值始终更新
+            currentData.water_level = newWaterLevel;
+
+            // 检查是否有正在等待同步的阈值
+            if (waitingSync && pendingValue !== null) {
+                const receivedValue = newThreshold;
+                // 检查下位机是否确认了新值（允许误差）
+                if (Math.abs(receivedValue - pendingValue) < 1) {
+                    console.log('Sync confirmed:', receivedValue);
+                    // 同步成功
+                    if (syncTimeoutTimer) {
+                        clearTimeout(syncTimeoutTimer);
+                        syncTimeoutTimer = null;
+                    }
+                    waitingSync = false;
+                    pendingValue = null;
+                    lastUserSetTime = 0;
+                }
+            }
+
+            // 阈值更新逻辑（三重保护）
+            const now = Date.now();
+            if (!lastUserSetTime || (now - lastUserSetTime) >= DEBOUNCE_MS) {
+                if (!waitingSync) {
+                    currentData.threshold = newThreshold;
+                }
+            }
+
+            updateUI();
+            checkAlarms();
+        }
+
+        // ==================== UI 更新 ====================
+        function updateUI() {
+            // 水位显示
+            const levelEl = document.getElementById('water-level');
+            const progressEl = document.getElementById('progress-fill');
+
+            if (currentData.water_level !== null) {
+                const level = currentData.water_level;
+                levelEl.textContent = level;
+
+                // 进度条
+                progressEl.style.width = level + '%';
+
+                // 超限显示（使用预测阈值或当前阈值）
+                const checkThreshold = waitingSync ? pendingValue : currentData.threshold;
+                if (checkThreshold !== null && level >= checkThreshold) {
+                    levelEl.classList.add('alarm');
+                    levelEl.textContent = level + '!';
+                    progressEl.classList.add('alarm');
+                } else {
+                    levelEl.classList.remove('alarm');
+                    progressEl.classList.remove('alarm');
+                }
+            }
+
+            // 阈值显示（等待期间显示预测值）
+            const thresholdDisplayEl = document.getElementById('threshold-display');
+            if (waitingSync && pendingValue !== null) {
+                thresholdDisplayEl.textContent = pendingValue + '%';
+            } else if (currentData.threshold !== null) {
+                thresholdDisplayEl.textContent = currentData.threshold + '%';
+            }
+        }
+
+        // ==================== 报警判断 ====================
+        function checkAlarms() {
+            const alarmStatusEl = document.getElementById('alarm-status');
+            const alarmIconEl = document.getElementById('alarm-icon');
+            const alarmTextEl = document.getElementById('alarm-text');
+
+            // 使用预测阈值（如果正在等待同步）或当前阈值
+            const checkThreshold = waitingSync ? pendingValue : currentData.threshold;
+
+            if (currentData.water_level !== null && checkThreshold !== null &&
+                currentData.water_level >= checkThreshold) {
+                // 报警状态
+                alarmStatusEl.classList.add('active');
+                alarmIconEl.textContent = '!';
+                alarmTextEl.textContent = '水位超限报警';
+                alarmTextEl.style.color = '#F44336';
+
+                // 通知原生（如果在 WebView 中）
+                sendAlarmToNative({
+                    which: 'water_level',
+                    water_level: currentData.water_level,
+                    threshold: checkThreshold
+                });
+            } else {
+                // 正常状态
+                alarmStatusEl.classList.remove('active');
+                alarmIconEl.textContent = '✓';
+                alarmTextEl.textContent = '运行正常';
+                alarmTextEl.style.color = '#4CAF50';
+            }
+        }
+
+        // ==================== 下行指令 ====================
+        function sendCmd(cmd) {
+            if (client.connected) {
+                client.publish(CMD_TOPIC, cmd);
+                console.log('Sent:', cmd);
+            } else {
+                alert('MQTT 未连接');
+            }
+        }
+
+        function sendMute() {
+            sendCmd('01');
+        }
+
+        function setThreshold() {
+            const inputEl = document.getElementById('threshold-input');
+            const value = inputEl.value;
+
+            if (!value || value === '') {
+                alert('请输入阈值');
+                return;
+            }
+
+            const numValue = parseFloat(value);
+            if (isNaN(numValue) || numValue < 0 || numValue > 100) {
+                alert('请输入有效阈值（0-100）');
+                return;
+            }
+
+            // 检查是否正在等待同步
+            if (waitingSync) {
+                console.log('Already waiting sync');
+                return;
+            }
+
+            // 1. 设置等待同步状态
+            waitingSync = true;
+            pendingValue = numValue;
+
+            // 2. 发送指令
+            sendCmd('02,' + numValue);
+
+            // 3. 记录用户操作时间
+            lastUserSetTime = Date.now();
+
+            // 4. 立即更新显示（预测状态）
+            currentData.threshold = numValue;
+            updateUI();
+
+            // 5. 立即检查报警
+            checkAlarms();
+
+            // 6. 设置超时保护
+            syncTimeoutTimer = setTimeout(() => {
+                if (waitingSync) {
+                    console.warn('Sync timeout, releasing protection');
+                    waitingSync = false;
+                    pendingValue = null;
+                    syncTimeoutTimer = null;
+                }
+            }, SYNC_TIMEOUT_MS);
+
+            // 关闭输入框焦点
+            inputEl.blur();
+        }
+
+        // ==================== 日志功能 ====================
+        function addLog(message) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+
+            logs.unshift({ time: timeStr, message: message });
+            if (logs.length > MAX_LOGS) {
+                logs.pop();
+            }
+
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const logListEl = document.getElementById('log-list');
+            logListEl.innerHTML = logs.map(log =>
+                `<div class="log-item"><span class="log-time">${log.time}</span> ${log.message}</div>`
+            ).join('');
+        }
+
+        function toggleLog() {
+            const contentEl = document.getElementById('log-content');
+            const toggleEl = document.getElementById('log-toggle');
+
+            if (contentEl.classList.contains('expanded')) {
+                contentEl.classList.remove('expanded');
+                toggleEl.textContent = '展开 ▼';
+            } else {
+                contentEl.classList.add('expanded');
+                toggleEl.textContent = '收起 ▲';
+            }
+        }
+
+        // ==================== 原生通知 ====================
+        function sendAlarmToNative(data) {
+            if (window.Android) {
+                window.Android.onAlarm(JSON.stringify(data));
+            } else if (window.Notification && Notification.permission === 'granted') {
+                new Notification('水位报警', { body: JSON.stringify(data) });
+            }
+        }
+    </script>
+</body>
+</html>
