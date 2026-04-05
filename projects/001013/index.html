@@ -871,12 +871,16 @@
         function recordWeight(weight) {
             const today = new Date().toLocaleDateString();
             const existing = weightHistory.find(w => w.date === today);
-            if (!existing) {
+            if (existing) {
+                // 今天已有记录，更新值
+                existing.value = weight;
+            } else {
+                // 今天无记录，添加新记录
                 weightHistory.push({ date: today, value: weight });
                 if (weightHistory.length > 30) weightHistory.shift();
-                localStorage.setItem('weightHistory', JSON.stringify(weightHistory));
-                if (weightChart) updateWeightChart();
             }
+            localStorage.setItem('weightHistory', JSON.stringify(weightHistory));
+            if (weightChart) updateWeightChart();
         }
 
         // ==================== 发送指令 ====================
