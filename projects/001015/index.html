@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI手势控制小车</title>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            padding: 12px;
+            min-height: 100vh;
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .status-dot.connected { background: var(--ok); }
+        .status-dot.disconnected { background: var(--alarm); }
+
+        /* 实时数据卡 */
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .data-item {
+            text-align: center;
+        }
+        .data-label {
+            font-size: 13px;
+            color: var(--sub);
+        }
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+            margin-top: 4px;
+        }
+        .data-unit {
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        /* 视频流卡 */
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 200px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .video-container img,
+        .video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .video-overlay {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .video-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        /* 手势识别卡 */
+        .gesture-display {
+            text-align: center;
+            padding: 12px;
+        }
+        .gesture-video {
+            width: 100%;
+            height: 180px;
+            border-radius: 8px;
+            background: #000;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        .gesture-label {
+            margin-top: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        .gesture-status {
+            font-size: 13px;
+            color: var(--sub);
+            margin-top: 4px;
+        }
+
+        /* 控制卡 */
+        .control-grid {
+            display: grid;
+            grid-template-areas:
+                ". forward ."
+                "left stop right"
+                ". backward .";
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            max-width: 280px;
+            margin: 0 auto;
+        }
+        .ctrl-btn {
+            height: 60px;
+            border: none;
+            border-radius: 12px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .ctrl-btn:active {
+            background: #1976D2;
+            transform: scale(0.95);
+        }
+        .ctrl-btn.forward { grid-area: forward; }
+        .ctrl-btn.backward { grid-area: backward; }
+        .ctrl-btn.left { grid-area: left; }
+        .ctrl-btn.right { grid-area: right; }
+        .ctrl-btn.stop { grid-area: stop; background: var(--alarm); }
+
+        /* 速度滑块 */
+        .speed-control {
+            margin-top: 16px;
+        }
+        .speed-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 8px;
+        }
+        .speed-slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #E0E0E0;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .speed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+        }
+        .speed-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .speed-btn {
+            flex: 1;
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            background: var(--card);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .speed-btn:active {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        /* 功能按钮 */
+        .func-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .func-btn {
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            background: var(--card);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .func-btn:active {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        /* 日志卡 */
+        .log-toggle {
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .log-toggle::after {
+            content: '▼';
+            font-size: 12px;
+            color: var(--sub);
+            transition: transform 0.2s;
+        }
+        .log-toggle.collapsed::after {
+            transform: rotate(-90deg);
+        }
+        .log-content {
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            background: #FAFAFA;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+            display: none;
+        }
+        .log-content.expanded {
+            display: block;
+        }
+        .log-item {
+            padding: 2px 0;
+            color: var(--sub);
+        }
+        .log-item.send { color: var(--primary); }
+        .log-item.recv { color: var(--ok); }
+
+        /* 配置输入 */
+        .config-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #E0E0E0;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        /* 模式显示 */
+        .mode-display {
+            text-align: center;
+            padding: 8px;
+            background: var(--bg);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .mode-value {
+            font-weight: bold;
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+
+<!-- 状态栏 -->
+<div class="card status-bar">
+    <div class="status-item">
+        <span class="status-dot disconnected" id="ble-status"></span>
+        <span id="ble-status-text">BLE 未连接</span>
+    </div>
+    <div class="status-item">
+        <span class="status-dot disconnected" id="wifi-status"></span>
+        <span id="wifi-status-text">WiFi 未连接</span>
+    </div>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+    <div class="card-title">实时数据</div>
+    <div class="data-grid">
+        <div class="data-item">
+            <div class="data-label">距离</div>
+            <div class="data-value" id="dist-value">--</div>
+            <div class="data-unit">cm</div>
+        </div>
+        <div class="data-item">
+            <div class="data-label">速度</div>
+            <div class="data-value" id="speed-value">--</div>
+            <div class="data-unit">%</div>
+        </div>
+        <div class="data-item">
+            <div class="data-label">模式</div>
+            <div class="data-value" id="mode-value">--</div>
+            <div class="data-unit"></div>
+        </div>
+    </div>
+    <div class="mode-display" style="margin-top:12px;">
+        舵机角度：<span class="mode-value" id="angle-value">--</span>°
+    </div>
+</div>
+
+<!-- 视频流卡 (ESP32-CAM) -->
+<div class="card">
+    <div class="card-title">小车视角 (ESP32-CAM)</div>
+    <div class="video-container">
+        <img id="esp32-cam-video" src="" alt="ESP32-CAM 视频流" style="display:none;">
+        <div class="video-placeholder" id="video-placeholder">
+            请输入 ESP32-CAM IP 地址
+        </div>
+        <div class="video-overlay">ESP32-CAM</div>
+    </div>
+    <input type="text" class="config-input" id="cam-ip-input"
+           placeholder="ESP32-CAM IP 地址 (如 192.168.4.1)"
+           value="192.168.4.1">
+    <button class="func-btn" style="margin-top:8px;width:100%;" onclick="connectCamera()">
+        连接视频流
+    </button>
+</div>
+
+<!-- 手势识别卡 -->
+<div class="card">
+    <div class="card-title">手势识别 (手机摄像头)</div>
+    <div class="gesture-display">
+        <video id="gesture-video" class="gesture-video" autoplay playsinline></video>
+        <div class="gesture-label" id="gesture-result">等待识别...</div>
+        <div class="gesture-status" id="gesture-status">请允许摄像头权限</div>
+    </div>
+    <button class="func-btn" style="width:100%;margin-top:12px;" onclick="startGestureRecognition()">
+        启动手势识别
+    </button>
+</div>
+
+<!-- 控制卡 -->
+<div class="card">
+    <div class="card-title">手动控制</div>
+    <div class="control-grid">
+        <button class="ctrl-btn forward" onclick="sendCmd('01')">前进</button>
+        <button class="ctrl-btn left" onclick="sendCmd('03')">左转</button>
+        <button class="ctrl-btn stop" onclick="sendCmd('05')">停车</button>
+        <button class="ctrl-btn right" onclick="sendCmd('04')">右转</button>
+        <button class="ctrl-btn backward" onclick="sendCmd('02')">后退</button>
+    </div>
+
+    <div class="speed-control">
+        <div class="speed-label">
+            <span>速度调节</span>
+            <span id="speed-display">50%</span>
+        </div>
+        <input type="range" class="speed-slider" id="speed-slider"
+               min="0" max="100" value="50"
+               oninput="updateSpeedDisplay()">
+        <div class="speed-buttons">
+            <button class="speed-btn" onclick="setSpeed(30)">慢速</button>
+            <button class="speed-btn" onclick="setSpeed(50)">中速</button>
+            <button class="speed-btn" onclick="setSpeed(80)">快速</button>
+        </div>
+    </div>
+
+    <div class="func-buttons">
+        <button class="func-btn" onclick="sendCmd('07')">扫描避障</button>
+        <button class="func-btn" onclick="sendCmd('08')">切换模式</button>
+    </div>
+</div>
+
+<!-- 日志卡 -->
+<div class="card">
+    <div class="card-title log-toggle collapsed" id="log-toggle" onclick="toggleLog()">
+        通信日志
+    </div>
+    <div class="log-content" id="log-content"></div>
+</div>
+
+<!-- MediaPipe Hands -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
+<script>
+// ==================== 状态变量 ====================
+let currentData = {
+    dist: null,
+    speed: null,
+    mode: null,
+    angle: null
+};
+let bleConnected = false;
+let wifiConnected = false;
+let gestureRecognitionActive = false;
+let handsModel = null;
+let gestureCamera = null;
+let lastGestureTime = 0;
+const GESTURE_COOLDOWN = 500; // 手势冷却时间 500ms
+
+// ==================== BLE 蓝牙通信 ====================
+function initBluetooth() {
+    if (!window.BluetoothBridge) {
+        console.warn('BluetoothBridge 未定义，请在 Android WebView 中运行');
+        document.getElementById('ble-status-text').textContent = '非 WebView 环境';
+        return;
+    }
+
+    // 设置接收回调
+    window.BluetoothBridge.setOnReceiveCallback(function(data) {
+        console.log('BLE 接收:', data);
+        parseData(data);
+        addLog('recv', data);
+    });
+
+    // 设置连接状态回调
+    window.BluetoothBridge.setOnConnectCallback(function(connected) {
+        bleConnected = connected;
+        updateBleStatus();
+        if (connected) {
+            addLog('sys', 'BLE 已连接');
+        } else {
+            addLog('sys', 'BLE 已断开');
+        }
+    });
+
+    // 自动连接
+    window.BluetoothBridge.connect('ESP32-Car');
+}
+
+function sendCmd(cmd) {
+    if (!window.BluetoothBridge) {
+        alert('请先连接蓝牙');
+        return;
+    }
+
+    if (!bleConnected) {
+        alert('蓝牙未连接');
+        return;
+    }
+
+    console.log('BLE 发送:', cmd);
+    window.BluetoothBridge.send(cmd);
+    addLog('send', cmd);
+}
+
+// ==================== 数据解析 ====================
+function parseData(data) {
+    const parts = data.split(',');
+    if (parts.length >= 4) {
+        currentData.dist = parseInt(parts[0]) || 0;
+        currentData.speed = parseInt(parts[1]) || 0;
+        currentData.mode = parseInt(parts[2]) || 0;
+        currentData.angle = parseInt(parts[3]) || 90;
+
+        updateDisplay();
+    }
+}
+
+function updateDisplay() {
+    // 距离显示
+    document.getElementById('dist-value').textContent =
+        currentData.dist === 0 ? '无效' : currentData.dist;
+
+    // 速度显示
+    document.getElementById('speed-value').textContent = currentData.speed;
+
+    // 模式显示
+    document.getElementById('mode-value').textContent =
+        currentData.mode === 0 ? '本地' : '手势';
+
+    // 舵机角度
+    document.getElementById('angle-value').textContent = currentData.angle;
+
+    // 同步速度滑块
+    document.getElementById('speed-slider').value = currentData.speed;
+    document.getElementById('speed-display').textContent = currentData.speed + '%';
+}
+
+// ==================== 状态更新 ====================
+function updateBleStatus() {
+    const dot = document.getElementById('ble-status');
+    const text = document.getElementById('ble-status-text');
+
+    dot.className = 'status-dot ' + (bleConnected ? 'connected' : 'disconnected');
+    text.textContent = bleConnected ? 'BLE 已连接' : 'BLE 未连接';
+}
+
+function updateWifiStatus() {
+    const dot = document.getElementById('wifi-status');
+    const text = document.getElementById('wifi-status-text');
+
+    dot.className = 'status-dot ' + (wifiConnected ? 'connected' : 'disconnected');
+    text.textContent = wifiConnected ? 'WiFi 已连接' : 'WiFi 未连接';
+}
+
+// ==================== 视频流连接 ====================
+function connectCamera() {
+    const ip = document.getElementById('cam-ip-input').value.trim();
+    if (!ip) {
+        alert('请输入 ESP32-CAM IP 地址');
+        return;
+    }
+
+    const videoUrl = `http://${ip}/stream`;
+    const img = document.getElementById('esp32-cam-video');
+    const placeholder = document.getElementById('video-placeholder');
+
+    img.src = videoUrl;
+    img.style.display = 'block';
+    placeholder.style.display = 'none';
+
+    img.onload = function() {
+        wifiConnected = true;
+        updateWifiStatus();
+        addLog('sys', '视频流已连接: ' + videoUrl);
+    };
+
+    img.onerror = function() {
+        wifiConnected = false;
+        updateWifiStatus();
+        img.style.display = 'none';
+        placeholder.style.display = 'flex';
+        placeholder.textContent = '连接失败，请检查 IP';
+        addLog('sys', '视频流连接失败');
+    };
+}
+
+// ==================== 手势识别 ====================
+async function startGestureRecognition() {
+    if (gestureRecognitionActive) {
+        stopGestureRecognition();
+        return;
+    }
+
+    const video = document.getElementById('gesture-video');
+    const statusText = document.getElementById('gesture-status');
+
+    try {
+        // 请求摄像头权限
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480, facingMode: 'user' }
+        });
+        video.srcObject = stream;
+
+        // 初始化 MediaPipe Hands
+        handsModel = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        handsModel.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+
+        handsModel.onResults(onGestureResults);
+
+        // 启动摄像头循环
+        gestureCamera = new Camera(video, {
+            onFrame: async () => {
+                if (gestureRecognitionActive) {
+                    await handsModel.send({ image: video });
+                }
+            },
+            width: 640,
+            height: 480
+        });
+
+        await gestureCamera.start();
+        gestureRecognitionActive = true;
+        statusText.textContent = '手势识别已启动';
+
+    } catch (err) {
+        console.error('摄像头启动失败:', err);
+        statusText.textContent = '摄像头权限被拒绝';
+    }
+}
+
+function stopGestureRecognition() {
+    gestureRecognitionActive = false;
+
+    if (gestureCamera) {
+        gestureCamera.stop();
+    }
+
+    const video = document.getElementById('gesture-video');
+    if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+    }
+
+    document.getElementById('gesture-status').textContent = '手势识别已停止';
+}
+
+function onGestureResults(results) {
+    const gestureText = document.getElementById('gesture-result');
+
+    if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+        gestureText.textContent = '等待识别...';
+        return;
+    }
+
+    const landmarks = results.multiHandLandmarks[0];
+    const gesture = detectGesture(landmarks);
+
+    if (gesture) {
+        gestureText.textContent = gesture.name;
+
+        // 发送指令（带冷却时间）
+        const now = Date.now();
+        if (now - lastGestureTime > GESTURE_COOLDOWN) {
+            lastGestureTime = now;
+            sendCmd(gesture.cmd);
+        }
+    } else {
+        gestureText.textContent = '未知手势';
+    }
+}
+
+// ==================== 手势检测算法 ====================
+function detectGesture(landmarks) {
+    // 手指关节索引
+    // 0: 手腕, 1-4: 食指, 5-8: 中指, 9-12: 无名指, 13-16: 小指, 17-20: 大拇指
+
+    const wrist = landmarks[0];
+    const indexTip = landmarks[8];
+    const indexMcp = landmarks[5];
+    const middleTip = landmarks[12];
+    const ringTip = landmarks[16];
+    const pinkyTip = landmarks[20];
+    const thumbTip = landmarks[4];
+
+    // 判断手指是否伸展（指尖比指根高）
+    function isFingerExtended(tip, mcp) {
+        return tip.y < mcp.y - 0.05;
+    }
+
+    const indexExtended = isFingerExtended(indexTip, indexMcp);
+    const middleExtended = isFingerExtended(middleTip, landmarks[9]);
+    const ringExtended = isFingerExtended(ringTip, landmarks[13]);
+    const pinkyExtended = isFingerExtended(pinkyTip, landmarks[17]);
+
+    // 食指方向判断
+    function getIndexDirection() {
+        const dx = indexTip.x - wrist.x;
+        const dy = indexTip.y - wrist.y;
+
+        if (dy < -0.15 && Math.abs(dx) < 0.1) return 'up';    // 向上
+        if (dy > 0.15 && Math.abs(dx) < 0.1) return 'down';   // 向下
+        if (dx < -0.1 && Math.abs(dy) < 0.15) return 'left';  // 向左
+        if (dx > 0.1 && Math.abs(dy) < 0.15) return 'right';  // 向右
+        return null;
+    }
+
+    // 握拳：所有手指弯曲
+    if (!indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
+        return { name: '握拳 (停车)', cmd: '05' };
+    }
+
+    // 手掌张开：所有手指伸展
+    if (indexExtended && middleExtended && ringExtended && pinkyExtended) {
+        return { name: '手掌张开 (扫描)', cmd: '07' };
+    }
+
+    // 食指指向：只有食指伸展
+    if (indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
+        const dir = getIndexDirection();
+        if (dir === 'up') return { name: '食指向上 (前进)', cmd: '01' };
+        if (dir === 'down') return { name: '食指向下 (后退)', cmd: '02' };
+        if (dir === 'left') return { name: '食指向左 (左转)', cmd: '03' };
+        if (dir === 'right') return { name: '食指向右 (右转)', cmd: '04' };
+    }
+
+    return null;
+}
+
+// ==================== 速度控制 ====================
+function updateSpeedDisplay() {
+    const value = document.getElementById('speed-slider').value;
+    document.getElementById('speed-display').textContent = value + '%';
+}
+
+function setSpeed(value) {
+    document.getElementById('speed-slider').value = value;
+    document.getElementById('speed-display').textContent = value + '%';
+    sendCmd('06,' + value);
+}
+
+// ==================== 日志 ====================
+let logs = [];
+const MAX_LOGS = 20;
+
+function addLog(type, message) {
+    logs.unshift({ type, message, time: new Date().toLocaleTimeString() });
+    if (logs.length > MAX_LOGS) logs.pop();
+    renderLogs();
+}
+
+function renderLogs() {
+    const content = document.getElementById('log-content');
+    content.innerHTML = logs.map(log => {
+        const typeClass = log.type === 'send' ? 'send' :
+                          log.type === 'recv' ? 'recv' : '';
+        const typeLabel = log.type === 'send' ? '发' :
+                          log.type === 'recv' ? '收' : '系';
+        return `<div class="log-item ${typeClass}">[${log.time}] ${typeLabel}: ${log.message}</div>`;
+    }).join('');
+}
+
+function toggleLog() {
+    const toggle = document.getElementById('log-toggle');
+    const content = document.getElementById('log-content');
+
+    toggle.classList.toggle('collapsed');
+    content.classList.toggle('expanded');
+}
+
+// ==================== 初始化 ====================
+window.onload = function() {
+    initBluetooth();
+    addLog('sys', 'APP 已启动');
+};
+</script>
+
+</body>
+</html>
