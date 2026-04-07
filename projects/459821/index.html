@@ -109,6 +109,7 @@
   .data-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; }
   .data-value.alarm { color: var(--alarm); }
   .data-value.warn { color: var(--warn); }
+  .data-value.ok { color: var(--ok); }
   .data-unit { font-size: 11px; color: var(--sub); margin-top: 2px; }
 
   /* ---- Alarm Cards ---- */
@@ -185,24 +186,6 @@
     min-width: 0;
   }
   .thr-input:focus { border-color: var(--primary); }
-  .thr-divider { font-size: 11px; color: var(--sub); text-align: center; margin: 8px 0 10px; }
-
-  /* ---- Lid State ---- */
-  .lid-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .lid-badge.open  { background: var(--ok-light);  color: var(--ok); }
-  .lid-badge.close { background: #ECEFF1; color: #455A64; }
-
-
-  /* ---- Section subtitle ---- */
-  .section-sub { font-size: 11px; color: var(--sub); margin: -4px 0 10px; }
 </style>
 </head>
 <body>
@@ -218,7 +201,6 @@
 <div class="tab-bar">
   <div class="tab active" onclick="switchTab(0)">&#128202; 监控</div>
   <div class="tab" onclick="switchTab(1)">&#128275; 控制</div>
-  <div class="tab" onclick="switchTab(2)">&#9881;&#65039; 设置</div>
 </div>
 
 <!-- ===== Page 0: 实时监控 ===== -->
@@ -245,7 +227,12 @@
       <div class="data-item">
         <div class="data-label">溢满状态</div>
         <div class="data-value" id="valFull">--</div>
-        <div class="data-unit">红外检测</div>
+        <div class="data-unit"></div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">桶盖状态</div>
+        <div class="data-value" id="valLid">--</div>
+        <div class="data-unit"></div>
       </div>
     </div>
   </div>
@@ -269,23 +256,35 @@
       <span class="icon">&#9888;&#65039;</span>
       <span>垃圾已满，请及时清理</span>
     </div>
-    <button class="btn btn-alarm" style="margin-top:10px" onclick="sendCmd('01')">&#128276; 消警（关闭蜂鸣器）</button>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn btn-alarm" onclick="sendCmd('01')">&#128276; 消警</button>
+      <button class="btn btn-primary" onclick="sendCmd('07')" id="btnClearFull">&#128465; 清空垃圾桶</button>
+    </div>
   </div>
 
-  <!-- 当前阈值显示 -->
+  <!-- 阈值设置 -->
   <div class="card">
-    <div class="card-title">当前阈值（来自设备）</div>
+    <div class="card-title">阈值设置</div>
+
     <div class="thr-row">
       <span class="thr-label">气体阈值</span>
       <div class="thr-current" id="dispGasThr">--</div>
+      <input class="thr-input" id="inputGasThr" type="number" placeholder="输入" min="0" max="4095" style="width:80px">
+      <button class="btn btn-send" onclick="sendThr('02', 'inputGasThr', 'dispGasThr', 0)">发送</button>
     </div>
+
     <div class="thr-row">
       <span class="thr-label">火焰阈值</span>
       <div class="thr-current" id="dispFlameThr">--</div>
+      <input class="thr-input" id="inputFlameThr" type="number" placeholder="输入" min="0" max="4095" style="width:80px">
+      <button class="btn btn-send" onclick="sendThr('03', 'inputFlameThr', 'dispFlameThr', 0)">发送</button>
     </div>
+
     <div class="thr-row">
       <span class="thr-label">开盖距离</span>
       <div class="thr-current" id="dispDistThr">-- cm</div>
+      <input class="thr-input" id="inputDistThr" type="number" placeholder="输入" min="1" max="200" step="0.1" style="width:80px">
+      <button class="btn btn-send" onclick="sendThr('04', 'inputDistThr', 'dispDistThr', 1)">发送</button>
     </div>
   </div>
 
@@ -297,7 +296,6 @@
   <!-- 桶盖控制 -->
   <div class="card">
     <div class="card-title">桶盖远程控制</div>
-    <p class="section-sub">发送指令后设备进入手动模式，30s 无操作后恢复自动模式</p>
     <div class="btn-row">
       <button class="btn btn-open" onclick="sendCmd('05')">&#128275; 远程开盖</button>
       <button class="btn btn-close" onclick="sendCmd('06')">&#128274; 远程关盖</button>
@@ -307,8 +305,13 @@
   <!-- 消警 -->
   <div class="card">
     <div class="card-title">报警控制</div>
-    <button class="btn btn-alarm" onclick="sendCmd('01')">&#128276; 消警（静音蜂鸣器）</button>
-    <p style="margin-top:8px;font-size:12px;color:var(--sub)">消警后传感器恢复正常时自动允许下次报警</p>
+    <button class="btn btn-alarm" onclick="sendCmd('01')">&#128276; 消警</button>
+  </div>
+
+  <!-- 清空垃圾桶 -->
+  <div class="card">
+    <div class="card-title">溢满管理</div>
+    <button class="btn btn-primary" onclick="sendCmd('07')">&#128465; 清空垃圾桶</button>
   </div>
 
   <!-- 连接信息 -->
@@ -319,51 +322,6 @@
       <div>上行：<span id="infoUpTopic" style="color:var(--primary)">--</span></div>
       <div>下行：<span id="infoCmdTopic" style="color:var(--primary)">--</span></div>
       <div>客户端ID：<span id="infoClientId" style="color:var(--sub)">--</span></div>
-    </div>
-  </div>
-
-</div>
-
-<!-- ===== Page 2: 阈值设置 ===== -->
-<div class="page" id="page2">
-
-  <div class="card">
-    <div class="card-title">阈值设置</div>
-    <p class="section-sub">修改后点击"发送"，设备实时生效并刷新 OLED</p>
-
-    <!-- 气体阈值 -->
-    <div class="thr-row">
-      <span class="thr-label">气体阈值</span>
-      <input class="thr-input" id="inputGasThr" type="number" placeholder="" min="0" max="4095">
-      <button class="btn btn-send" onclick="sendThr('02', 'inputGasThr', 'dispGasThr', 0)">发送</button>
-    </div>
-    <div class="thr-divider">气体 ADC 值超过此阈值触发报警（默认 500）</div>
-
-    <!-- 火焰阈值 -->
-    <div class="thr-row">
-      <span class="thr-label">火焰阈值</span>
-      <input class="thr-input" id="inputFlameThr" type="number" placeholder="" min="0" max="4095">
-      <button class="btn btn-send" onclick="sendThr('03', 'inputFlameThr', 'dispFlameThr', 0)">发送</button>
-    </div>
-    <div class="thr-divider">火焰 ADC 值低于此阈值触发报警（无火~4000，有火~30）</div>
-
-    <!-- 开盖距离阈值 -->
-    <div class="thr-row">
-      <span class="thr-label">开盖距离</span>
-      <input class="thr-input" id="inputDistThr" type="number" placeholder="" min="1" max="200" step="0.1">
-      <button class="btn btn-send" onclick="sendThr('04', 'inputDistThr', 'dispDistThr', 1)">发送</button>
-    </div>
-    <div class="thr-divider">距离小于此值（cm）时自动开盖（默认 50cm）</div>
-  </div>
-
-  <!-- 说明 -->
-  <div class="card">
-    <div class="card-title">传感器说明</div>
-    <div style="font-size:12px;color:var(--sub);line-height:1.9">
-      <div>&#128168; <b>气体(MQ-2)</b>：值越大浓度越高，超过气体阈值报警</div>
-      <div>&#128293; <b>火焰</b>：无火时约 4000，有火时约 100；低于火焰阈值报警</div>
-      <div>&#128202; <b>距离</b>：人靠近时数值减小，小于开盖距离自动开盖</div>
-      <div>&#9888;&#65039; <b>溢满</b>：红外遮挡检测，满时禁止自动开盖</div>
     </div>
   </div>
 
@@ -426,16 +384,17 @@ function setStatus(online, text) {
 // ============================================================
 function parsePayload(raw) {
   const parts = raw.split(',');
-  if (parts.length < 7) return;
+  if (parts.length < 8) return;
 
   const data = {
     dist:     parseFloat(parts[0]) || 0,
     gas:      parseInt(parts[1])   || 0,
     flame:    parseInt(parts[2])   || 0,
     full:     parseInt(parts[3])   || 0,
-    gasThr:   parseInt(parts[4])   || 500,
-    flameThr: parseInt(parts[5])   || 2000,
-    distThr:  parseFloat(parts[6]) || 50.0
+    lidState: parseInt(parts[4])   || 0,
+    gasThr:   parseInt(parts[5])   || 500,
+    flameThr: parseInt(parts[6])   || 2000,
+    distThr:  parseFloat(parts[7]) || 50.0
   };
   lastData = data;
   updateUI(data);
@@ -443,8 +402,6 @@ function parsePayload(raw) {
 }
 
 function updateUI(data) {
-  const now = Date.now();
-
   // 距离
   set('valDist', data.dist.toFixed(1));
 
@@ -464,6 +421,11 @@ function updateUI(data) {
   const fullEl = document.getElementById('valFull');
   fullEl.textContent = data.full === 1 ? '已满' : '正常';
   fullEl.className = 'data-value' + (data.full === 1 ? ' warn' : '');
+
+  // 桶盖状态
+  const lidEl = document.getElementById('valLid');
+  lidEl.textContent = data.lidState === 1 ? '已打开' : '已关闭';
+  lidEl.className = 'data-value' + (data.lidState === 1 ? ' ok' : '');
 
   // 阈值显示（防抖）
   if (!inDebounce('gasThr'))   set('dispGasThr',   data.gasThr);
@@ -485,7 +447,7 @@ function inDebounce(key) {
 // ============================================================
 function checkAlarms(data) {
   const gasAlarm  = data.gas   > data.gasThr;
-  const fireAlarm = data.flame < data.flameThr;   // 值小=有火
+  const fireAlarm = data.flame < data.flameThr;
   const fullWarn  = data.full  === 1;
 
   const hasAlarm = gasAlarm || fireAlarm || fullWarn;
