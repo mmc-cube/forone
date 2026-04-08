@@ -518,7 +518,8 @@ let currentData = {
     thr_temp: null, thr_humi: null,
     taken_cnt: null, missed_cnt: null,
     remind_active: null,
-    hour: null, minute: null
+    hour: null, minute: null,
+    taken_flag: [0, 0, 0]  /* 每个时间点的服药状态 */
 };
 
 // 提醒时间（下位机默认：08:00, 12:00, 18:00）
@@ -655,7 +656,7 @@ function sendCmd(cmd) {
 // ==================== 解析消息（15字段） ====================
 function parseMessage(msg) {
     const parts = msg.split(',');
-    if (parts.length < 15) return;
+    if (parts.length < 18) return;
 
     const now = Date.now();
     const newData = {
@@ -673,7 +674,12 @@ function parseMessage(msg) {
         missed_cnt: parseInt(parts[11]),
         remind_active: parseInt(parts[12]),
         hour: parseInt(parts[13]),
-        minute: parseInt(parts[14])
+        minute: parseInt(parts[14]),
+        taken_flag: [
+            parseInt(parts[15]) || 0,
+            parseInt(parts[16]) || 0,
+            parseInt(parts[17]) || 0
+        ]
     };
 
     // 传感器值始终更新
@@ -688,6 +694,7 @@ function parseMessage(msg) {
     currentData.remind_active = newData.remind_active;
     currentData.hour = newData.hour;
     currentData.minute = newData.minute;
+    currentData.taken_flag = newData.taken_flag;
 
     // 阈值更新逻辑（三重保护）
     const thrKeys = ['box1', 'box2', 'temp', 'humi'];
@@ -915,9 +922,8 @@ function updateUI() {
 }
 
 function updateRecordStatus() {
-    // 根据当前时间和已服/漏服次数推断状态
-    const taken = currentData.taken_cnt || 0;
-    const missed = currentData.missed_cnt || 0;
+    // 使用下位机上报的实际 taken_flag
+    const takenFlags = currentData.taken_flag || [0, 0, 0];
     const nowMinutes = (currentData.hour || 0) * 60 + (currentData.minute || 0);
 
     for (let i = 0; i < 3; i++) {
@@ -935,8 +941,8 @@ function updateRecordStatus() {
             medicineName = (boxNames.box1 || '药盒1') + '+' + (boxNames.box2 || '药盒2');
         }
 
-        // 简化逻辑：已服次数 >= (i+1) 表示该时间点已服
-        if (taken > i) {
+        // 使用实际 taken_flag 判断
+        if (takenFlags[i] === 1) {
             statusEl.className = 'record-status taken';
             statusEl.textContent = '✓ 已服 ' + medicineName;
         } else if (nowMinutes > remindMinutes + 5) {
