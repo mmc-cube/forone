@@ -801,8 +801,20 @@ function sendRemindTime(idx, cmdCode) {
     remindTimes[idx - 1] = { hour, minute, box };
     saveLocalConfig();
 
+    // 立即重置该时间点的服药状态（下位机会同步重置）
+    if (currentData.taken_flag && currentData.taken_flag[idx - 1] === 1) {
+        currentData.taken_flag[idx - 1] = 0;
+        // 重新计算已服次数
+        currentData.taken_cnt = (currentData.taken_flag[0] || 0) +
+                                (currentData.taken_flag[1] || 0) +
+                                (currentData.taken_flag[2] || 0);
+    }
+
     document.getElementById('remind' + idx + '_time').textContent =
         hour.toString().padStart(2, '0') + ':' + minute.toString().padStart(2, '0');
+
+    // 立即更新 UI
+    updateUI();
 }
 
 // ==================== UI 更新 ====================
