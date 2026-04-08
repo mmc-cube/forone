@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>双药盒智能管理系统</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --warning: #FF9800;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            padding: 12px;
+            padding-top: 44px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+        }
+        .time-display {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        .mqtt-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--alarm);
+        }
+        .status-dot.connected { background: var(--ok); }
+
+        /* 服药进度 */
+        .progress-bar {
+            height: 20px;
+            background: #E0E0E0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: var(--ok);
+            transition: width 0.3s;
+        }
+        .progress-text {
+            text-align: center;
+            font-size: 14px;
+            color: var(--text);
+            margin-top: 4px;
+        }
+        .next-remind {
+            text-align: center;
+            font-size: 13px;
+            color: var(--sub);
+            margin-top: 8px;
+        }
+
+        /* 数据项 */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 13px; color: var(--sub); }
+        .data-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        .data-value.alarm { color: var(--alarm); }
+        .data-unit { font-size: 12px; color: var(--sub); margin-left: 2px; }
+        .data-exclaim { color: var(--alarm); font-size: 18px; margin-left: 2px; }
+
+        /* 服药记录 */
+        .record-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .record-item:last-child { border-bottom: none; }
+        .record-time { font-size: 14px; color: var(--text); }
+        .record-status { font-size: 14px; }
+        .record-status.taken { color: var(--ok); }
+        .record-status.missed { color: var(--alarm); }
+        .record-status.pending { color: var(--sub); }
+
+        /* 报警状态 */
+        .alarm-ok {
+            background: #E8F5E9;
+            color: var(--ok);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .alarm-item {
+            background: #FFEBEE;
+            color: var(--alarm);
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .alarm-item:last-child { margin-bottom: 0; }
+        .remind-active {
+            background: #FFF3E0;
+            color: var(--warning);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        /* 控制按钮 */
+        .ctrl-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .ctrl-btn {
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .ctrl-btn:active { background: #1976D2; }
+        .ctrl-btn.full { grid-column: span 2; }
+        .ctrl-btn.alarm { background: var(--alarm); }
+        .ctrl-btn.alarm:active { background: #D32F2F; }
+
+        /* 阈值设置行 */
+        .thr-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .thr-row:last-child { margin-bottom: 0; }
+        .thr-label { font-size: 12px; color: var(--sub); flex: 1; }
+        .thr-input {
+            width: 60px;
+            height: 32px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 0 6px;
+            font-size: 13px;
+            text-align: center;
+        }
+        .thr-btn {
+            height: 32px;
+            padding: 0 12px;
+            border: none;
+            border-radius: 6px;
+            background: var(--primary);
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .thr-btn:active { background: #1976D2; }
+
+        /* 提醒时间设置 */
+        .time-set-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .time-set-label { font-size: 12px; color: var(--sub); width: 80px; }
+        .time-input {
+            width: 50px;
+            height: 32px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 0 6px;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        /* 药盒选择下拉 */
+        .box-select {
+            min-width: 80px;
+            max-width: 120px;
+            height: 32px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 0 6px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        /* 药品名称输入 */
+        .medicine-input {
+            width: 100px;
+            height: 32px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 0 8px;
+            font-size: 13px;
+        }
+
+        /* 阈值显示 */
+        .thr-display-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+        .thr-display-value { font-weight: 500; color: var(--text); }
+
+        /* 日志卡 */
+        .log-header {
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .log-arrow { transition: transform 0.3s; }
+        .log-arrow.open { transform: rotate(180deg); }
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s;
+        }
+        .log-content.open { max-height: 200px; overflow-y: auto; }
+        .log-item {
+            font-size: 11px;
+            color: var(--sub);
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+
+<!-- 状态栏 -->
+<div class="card status-bar">
+    <div class="time-display" id="currentTime">--:--</div>
+    <div class="mqtt-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">未连接</span>
+    </div>
+</div>
+
+<!-- 今日服药 -->
+<div class="card">
+    <div class="card-title">今日服药进度</div>
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+    </div>
+    <div class="progress-text">已服 <span id="takenCount">0</span>/3 次 | 漏服 <span id="missedCount" style="color:#F44336">0</span> 次</div>
+    <div class="next-remind">下次提醒: <span id="nextRemind">--:--</span></div>
+</div>
+
+<!-- 服药记录 -->
+<div class="card">
+    <div class="card-title">服药记录</div>
+    <div class="record-item">
+        <span class="record-time" id="remind1_time">08:00</span>
+        <span class="record-status" id="remind1_status">-</span>
+    </div>
+    <div class="record-item">
+        <span class="record-time" id="remind2_time">12:00</span>
+        <span class="record-status" id="remind2_status">-</span>
+    </div>
+    <div class="record-item">
+        <span class="record-time" id="remind3_time">18:00</span>
+        <span class="record-status" id="remind3_status">-</span>
+    </div>
+</div>
+
+<!-- 提醒状态 -->
+<div class="card">
+    <div class="card-title">提醒状态</div>
+    <div id="remindArea">
+        <div class="alarm-ok">暂无提醒 ✓</div>
+    </div>
+</div>
+
+<!-- 药盒状态 -->
+<div class="card">
+    <div class="card-title">药盒状态</div>
+    <div class="data-row">
+        <span class="data-label">药盒1 (<span id="box1_name_display">药品1</span>)</span>
+        <div>
+            <span class="data-value" id="box1_weight">--</span>
+            <span class="data-unit">g</span>
+            <span class="data-exclaim" id="box1_exclaim" style="display:none">!</span>
+        </div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">药盒2 (<span id="box2_name_display">药品2</span>)</span>
+        <div>
+            <span class="data-value" id="box2_weight">--</span>
+            <span class="data-unit">g</span>
+            <span class="data-exclaim" id="box2_exclaim" style="display:none">!</span>
+        </div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">温度</span>
+        <div>
+            <span class="data-value" id="temp">--</span>
+            <span class="data-unit">°C</span>
+            <span class="data-exclaim" id="temp_exclaim" style="display:none">!</span>
+        </div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">湿度</span>
+        <div>
+            <span class="data-value" id="humi">--</span>
+            <span class="data-unit">%</span>
+            <span class="data-exclaim" id="humi_exclaim" style="display:none">!</span>
+        </div>
+    </div>
+</div>
+
+<!-- 报警状态 -->
+<div class="card">
+    <div class="card-title">报警状态</div>
+    <div id="alarmArea">
+        <div class="alarm-ok">运行正常 ✓</div>
+    </div>
+</div>
+
+<!-- 远程控制 -->
+<div class="card">
+    <div class="card-title">远程控制</div>
+    <div class="ctrl-grid">
+        <button class="ctrl-btn" onclick="syncTime()">同步时间</button>
+        <button class="ctrl-btn" onclick="sendCmd('10')">确认服药</button>
+        <button class="ctrl-btn alarm" onclick="sendCmd('01')">消警</button>
+        <button class="ctrl-btn alarm" onclick="sendCmd('11')">重置今日</button>
+    </div>
+</div>
+
+<!-- 时间同步设置 -->
+<div class="card">
+    <div class="card-title">同步时间设置</div>
+    <div class="time-set-row">
+        <span class="time-set-label">当前时间</span>
+        <input type="number" class="time-input" id="sync_hour" min="0" max="23" placeholder="时">
+        <span>:</span>
+        <input type="number" class="time-input" id="sync_minute" min="0" max="59" placeholder="分">
+        <button class="thr-btn" onclick="sendSyncTime()">发送</button>
+    </div>
+</div>
+
+<!-- 提醒时间设置 -->
+<div class="card">
+    <div class="card-title">服药计划设置</div>
+
+    <!-- 药品名称定义 -->
+    <div style="display:flex;gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #eee;">
+        <div style="flex:1;">
+            <div style="font-size:12px;color:var(--sub);margin-bottom:4px;">药盒1药品</div>
+            <input type="text" class="medicine-input" id="box1_name" placeholder="如：降压药" style="width:100%;">
+        </div>
+        <div style="flex:1;">
+            <div style="font-size:12px;color:var(--sub);margin-bottom:4px;">药盒2药品</div>
+            <input type="text" class="medicine-input" id="box2_name" placeholder="如：胃药" style="width:100%;">
+        </div>
+    </div>
+
+    <!-- 提醒时间设置 -->
+    <div class="time-set-row">
+        <span class="time-set-label">提醒1</span>
+        <input type="number" class="time-input" id="remind1_hour" min="0" max="23" placeholder="时">
+        <span>:</span>
+        <input type="number" class="time-input" id="remind1_minute" min="0" max="59" placeholder="分">
+        <select class="box-select" id="remind1_box">
+            <option value="1">药盒1</option>
+            <option value="2">药盒2</option>
+            <option value="3">两个都吃</option>
+        </select>
+        <button class="thr-btn" onclick="sendRemindTime(1, '07')">发送</button>
+    </div>
+    <div class="time-set-row">
+        <span class="time-set-label">提醒2</span>
+        <input type="number" class="time-input" id="remind2_hour" min="0" max="23" placeholder="时">
+        <span>:</span>
+        <input type="number" class="time-input" id="remind2_minute" min="0" max="59" placeholder="分">
+        <select class="box-select" id="remind2_box">
+            <option value="1">药盒1</option>
+            <option value="2">药盒2</option>
+            <option value="3">两个都吃</option>
+        </select>
+        <button class="thr-btn" onclick="sendRemindTime(2, '08')">发送</button>
+    </div>
+    <div class="time-set-row">
+        <span class="time-set-label">提醒3</span>
+        <input type="number" class="time-input" id="remind3_hour" min="0" max="23" placeholder="时">
+        <span>:</span>
+        <input type="number" class="time-input" id="remind3_minute" min="0" max="59" placeholder="分">
+        <select class="box-select" id="remind3_box">
+            <option value="1">药盒1</option>
+            <option value="2">药盒2</option>
+            <option value="3">两个都吃</option>
+        </select>
+        <button class="thr-btn" onclick="sendRemindTime(3, '09')">发送</button>
+    </div>
+</div>
+
+<!-- 阈值显示 -->
+<div class="card">
+    <div class="card-title">当前阈值（下位机上报）</div>
+    <div class="thr-display-row">
+        <span>药盒1阈值</span>
+        <span class="thr-display-value"><span id="thr_box1_display">--</span> g</span>
+    </div>
+    <div class="thr-display-row">
+        <span>药盒2阈值</span>
+        <span class="thr-display-value"><span id="thr_box2_display">--</span> g</span>
+    </div>
+    <div class="thr-display-row">
+        <span>温度阈值</span>
+        <span class="thr-display-value"><span id="thr_temp_display">--</span> °C</span>
+    </div>
+    <div class="thr-display-row">
+        <span>湿度阈值</span>
+        <span class="thr-display-value"><span id="thr_humi_display">--</span> %</span>
+    </div>
+</div>
+
+<!-- 阈值设置 -->
+<div class="card">
+    <div class="card-title">阈值设置</div>
+    <div class="thr-row">
+        <span class="thr-label">药盒1 (0~500g)</span>
+        <input type="number" class="thr-input" id="thr_box1_input" min="0" max="500" step="1">
+        <button class="thr-btn" onclick="setThreshold('box1', '02')">发送</button>
+    </div>
+    <div class="thr-row">
+        <span class="thr-label">药盒2 (0~500g)</span>
+        <input type="number" class="thr-input" id="thr_box2_input" min="0" max="500" step="1">
+        <button class="thr-btn" onclick="setThreshold('box2', '03')">发送</button>
+    </div>
+    <div class="thr-row">
+        <span class="thr-label">温度 (0~50°C)</span>
+        <input type="number" class="thr-input" id="thr_temp_input" min="0" max="50" step="1">
+        <button class="thr-btn" onclick="setThreshold('temp', '04')">发送</button>
+    </div>
+    <div class="thr-row">
+        <span class="thr-label">湿度 (0~100%)</span>
+        <input type="number" class="thr-input" id="thr_humi_input" min="0" max="100" step="1">
+        <button class="thr-btn" onclick="setThreshold('humi', '05')">发送</button>
+    </div>
+</div>
+
+<!-- 日志 -->
+<div class="card">
+    <div class="card-title log-header" onclick="toggleLog()">
+        <span>通信日志</span>
+        <span class="log-arrow" id="logArrow">▼</span>
+    </div>
+    <div class="log-content" id="logContent"></div>
+</div>
+
+<script>
+// ==================== MQTT 配置 ====================
+const UPLOAD_TOPIC = '457891/283647/shuangyaohex/upload';
+const CMD_TOPIC = '457891/283647/shuangyaohex/cmd';
+
+// ==================== 数据状态 ====================
+let currentData = {
+    box1_weight: null, box2_weight: null,
+    temp: null, humi: null,
+    ir1: null, ir2: null,
+    thr_box1: null, thr_box2: null,
+    thr_temp: null, thr_humi: null,
+    taken_cnt: null, missed_cnt: null,
+    remind_active: null,
+    hour: null, minute: null
+};
+
+// 提醒时间（下位机默认：08:00, 12:00, 18:00）
+let remindTimes = [
+    { hour: 8, minute: 0, box: 1 },
+    { hour: 12, minute: 0, box: 2 },
+    { hour: 18, minute: 0, box: 3 }
+];
+
+// 药盒名称（APP本地存储）
+let boxNames = {
+    box1: '药品1',
+    box2: '药品2'
+};
+
+// ==================== 同步保护状态 ====================
+let waitingSync = { box1: false, box2: false, temp: false, humi: false };
+let pendingValue = { box1: null, box2: null, temp: null, humi: null };
+let syncTimeoutTimer = { box1: null, box2: null, temp: null, humi: null };
+let lastUserSetTime = { thr_box1: 0, thr_box2: 0, thr_temp: 0, thr_humi: 0 };
+
+const DEBOUNCE_MS = 500;
+const SYNC_TIMEOUT_MS = 5000;
+
+// ==================== 本地存储 ====================
+function loadLocalConfig() {
+    try {
+        const saved = localStorage.getItem('shuangyaohe_config');
+        if (saved) {
+            const config = JSON.parse(saved);
+            if (config.boxNames) {
+                boxNames = config.boxNames;
+                document.getElementById('box1_name').value = boxNames.box1 || '';
+                document.getElementById('box2_name').value = boxNames.box2 || '';
+            }
+            if (config.remindBoxes) {
+                config.remindBoxes.forEach((box, i) => {
+                    if (i < 3) {
+                        remindTimes[i].box = box;
+                        document.getElementById('remind' + (i+1) + '_box').value = box;
+                    }
+                });
+            }
+        }
+    } catch(e) {}
+}
+
+function saveLocalConfig() {
+    const config = {
+        boxNames: {
+            box1: document.getElementById('box1_name').value || '药品1',
+            box2: document.getElementById('box2_name').value || '药品2'
+        },
+        remindBoxes: [
+            parseInt(document.getElementById('remind1_box').value) || 1,
+            parseInt(document.getElementById('remind2_box').value) || 2,
+            parseInt(document.getElementById('remind3_box').value) || 3
+        ]
+    };
+    boxNames = config.boxNames;
+    remindTimes.forEach((r, i) => {
+        r.box = config.remindBoxes[i];
+    });
+    localStorage.setItem('shuangyaohe_config', JSON.stringify(config));
+    updateBoxNameDisplay();
+}
+
+function updateBoxNameDisplay() {
+    document.getElementById('box1_name_display').textContent = boxNames.box1 || '药品1';
+    document.getElementById('box2_name_display').textContent = boxNames.box2 || '药品2';
+
+    // 更新下拉框选项文本
+    const name1 = boxNames.box1 || '药盒1';
+    const name2 = boxNames.box2 || '药盒2';
+    for (let i = 1; i <= 3; i++) {
+        const select = document.getElementById('remind' + i + '_box');
+        select.options[0].text = name1;
+        select.options[1].text = name2;
+        select.options[2].text = name1 + '+' + name2;
+    }
+}
+
+// 监听药品名称和药盒选择变化
+document.getElementById('box1_name').addEventListener('input', saveLocalConfig);
+document.getElementById('box2_name').addEventListener('input', saveLocalConfig);
+document.getElementById('remind1_box').addEventListener('change', saveLocalConfig);
+document.getElementById('remind2_box').addEventListener('change', saveLocalConfig);
+document.getElementById('remind3_box').addEventListener('change', saveLocalConfig);
+
+// ==================== 日志 ====================
+let logs = [];
+const MAX_LOGS = 20;
+
+// ==================== MQTT 连接 ====================
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: 'webview_shuangyaohe_' + Math.random().toString(36).substr(2, 6),
+    reconnectPeriod: 3000
+});
+
+client.on('connect', () => {
+    document.getElementById('statusDot').classList.add('connected');
+    document.getElementById('statusText').textContent = '已连接';
+    client.subscribe(UPLOAD_TOPIC);
+    addLog('[MQTT] 已连接并订阅');
+
+    // 加载本地配置
+    loadLocalConfig();
+    updateBoxNameDisplay();
+
+    // 连接成功后立即同步一次时间
+    syncTime();
+
+    // 每分钟自动同步时间
+    setInterval(syncTime, 60000);
+});
+
+client.on('disconnect', () => {
+    document.getElementById('statusDot').classList.remove('connected');
+    document.getElementById('statusText').textContent = '未连接';
+    addLog('[MQTT] 断开连接');
+});
+
+client.on('message', (topic, payload) => {
+    const msg = payload.toString();
+    addLog('[RX] ' + msg);
+    parseMessage(msg);
+});
+
+function sendCmd(cmd) {
+    client.publish(CMD_TOPIC, cmd);
+    addLog('[TX] ' + cmd);
+}
+
+// ==================== 解析消息（15字段） ====================
+function parseMessage(msg) {
+    const parts = msg.split(',');
+    if (parts.length < 15) return;
+
+    const now = Date.now();
+    const newData = {
+        box1_weight: parseFloat(parts[0]),
+        box2_weight: parseFloat(parts[1]),
+        temp: parseFloat(parts[2]),
+        humi: parseInt(parts[3]),
+        ir1: parseInt(parts[4]),
+        ir2: parseInt(parts[5]),
+        thr_box1: parseFloat(parts[6]),
+        thr_box2: parseFloat(parts[7]),
+        thr_temp: parseFloat(parts[8]),
+        thr_humi: parseInt(parts[9]),
+        taken_cnt: parseInt(parts[10]),
+        missed_cnt: parseInt(parts[11]),
+        remind_active: parseInt(parts[12]),
+        hour: parseInt(parts[13]),
+        minute: parseInt(parts[14])
+    };
+
+    // 传感器值始终更新
+    currentData.box1_weight = newData.box1_weight;
+    currentData.box2_weight = newData.box2_weight;
+    currentData.temp = newData.temp;
+    currentData.humi = newData.humi;
+    currentData.ir1 = newData.ir1;
+    currentData.ir2 = newData.ir2;
+    currentData.taken_cnt = newData.taken_cnt;
+    currentData.missed_cnt = newData.missed_cnt;
+    currentData.remind_active = newData.remind_active;
+    currentData.hour = newData.hour;
+    currentData.minute = newData.minute;
+
+    // 阈值更新逻辑（三重保护）
+    const thrKeys = ['box1', 'box2', 'temp', 'humi'];
+    thrKeys.forEach(key => {
+        if (waitingSync[key]) {
+            const expected = pendingValue[key];
+            const received = newData['thr_' + key];
+            if (expected !== null && Math.abs(received - expected) < 0.5) {
+                if (syncTimeoutTimer[key]) {
+                    clearTimeout(syncTimeoutTimer[key]);
+                    syncTimeoutTimer[key] = null;
+                }
+                waitingSync[key] = false;
+                pendingValue[key] = null;
+                lastUserSetTime['thr_' + key] = 0;
+            }
+        }
+        const thrKey = 'thr_' + key;
+        if (!lastUserSetTime[thrKey] || (now - lastUserSetTime[thrKey]) >= DEBOUNCE_MS) {
+            if (!waitingSync[key]) {
+                currentData[thrKey] = newData[thrKey];
+            }
+        }
+    });
+
+    updateUI();
+    checkAlarms();
+}
+
+// ==================== 阈值设置 ====================
+function setThreshold(type, cmdCode) {
+    const inputId = 'thr_' + type + '_input';
+    const value = document.getElementById(inputId).value;
+
+    if (!value || value === '') {
+        alert('请输入阈值');
+        return;
+    }
+
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) {
+        alert('请输入有效数字');
+        return;
+    }
+
+    const ranges = { box1: [0, 500], box2: [0, 500], temp: [0, 50], humi: [0, 100] };
+    if (numValue < ranges[type][0] || numValue > ranges[type][1]) {
+        alert('阈值范围: ' + ranges[type][0] + '~' + ranges[type][1]);
+        return;
+    }
+
+    if (waitingSync[type]) return;
+
+    waitingSync[type] = true;
+    pendingValue[type] = numValue;
+    sendCmd(cmdCode + ',' + numValue);
+    lastUserSetTime['thr_' + type] = Date.now();
+    currentData['thr_' + type] = numValue;
+
+    syncTimeoutTimer[type] = setTimeout(() => {
+        if (waitingSync[type]) {
+            waitingSync[type] = false;
+            pendingValue[type] = null;
+            syncTimeoutTimer[type] = null;
+        }
+    }, SYNC_TIMEOUT_MS);
+
+    document.getElementById(inputId).blur();
+}
+
+// ==================== 时间同步 ====================
+function syncTime() {
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    sendCmd('06,' + h + ',' + m);
+}
+
+function sendSyncTime() {
+    const h = document.getElementById('sync_hour').value;
+    const m = document.getElementById('sync_minute').value;
+    if (!h || !m) {
+        alert('请输入时间和分钟');
+        return;
+    }
+    const hour = parseInt(h);
+    const minute = parseInt(m);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+        alert('时间范围错误');
+        return;
+    }
+    sendCmd('06,' + hour + ',' + minute);
+}
+
+// ==================== 提醒时间设置 ====================
+function sendRemindTime(idx, cmdCode) {
+    const h = document.getElementById('remind' + idx + '_hour').value;
+    const m = document.getElementById('remind' + idx + '_minute').value;
+    if (!h || !m) {
+        alert('请输入时间和分钟');
+        return;
+    }
+    const hour = parseInt(h);
+    const minute = parseInt(m);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+        alert('时间范围错误');
+        return;
+    }
+
+    // 获取药盒选择，发送带药盒参数的指令
+    const box = parseInt(document.getElementById('remind' + idx + '_box').value) || 1;
+    sendCmd(cmdCode + ',' + hour + ',' + minute + ',' + box);
+
+    // 保存时间和药盒选择到本地
+    remindTimes[idx - 1] = { hour, minute, box };
+    saveLocalConfig();
+
+    document.getElementById('remind' + idx + '_time').textContent =
+        hour.toString().padStart(2, '0') + ':' + minute.toString().padStart(2, '0');
+}
+
+// ==================== UI 更新 ====================
+function updateUI() {
+    // 当前时间
+    if (currentData.hour !== null && currentData.minute !== null) {
+        const h = currentData.hour.toString().padStart(2, '0');
+        const m = currentData.minute.toString().padStart(2, '0');
+        document.getElementById('currentTime').textContent = h + ':' + m;
+    }
+
+    // 服药进度
+    const taken = currentData.taken_cnt || 0;
+    const missed = currentData.missed_cnt || 0;
+    document.getElementById('takenCount').textContent = taken;
+    document.getElementById('missedCount').textContent = missed;
+    document.getElementById('progressFill').style.width = (taken / 3 * 100) + '%';
+
+    // 下次提醒时间
+    if (currentData.hour !== null) {
+        const nowMinutes = currentData.hour * 60 + currentData.minute;
+        let nextRemindMinutes = null;
+        for (let i = 0; i < 3; i++) {
+            const remindMinutes = remindTimes[i].hour * 60 + remindTimes[i].minute;
+            if (remindMinutes > nowMinutes) {
+                nextRemindMinutes = remindMinutes;
+                break;
+            }
+        }
+        if (nextRemindMinutes !== null) {
+            const h = Math.floor(nextRemindMinutes / 60);
+            const m = nextRemindMinutes % 60;
+            document.getElementById('nextRemind').textContent =
+                h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0');
+        } else {
+            document.getElementById('nextRemind').textContent = '明日';
+        }
+    }
+
+    // 提醒时间显示
+    for (let i = 1; i <= 3; i++) {
+        const t = remindTimes[i - 1];
+        document.getElementById('remind' + i + '_time').textContent =
+            t.hour.toString().padStart(2, '0') + ':' + t.minute.toString().padStart(2, '0');
+    }
+
+    // 服药记录状态
+    updateRecordStatus();
+
+    // 提醒状态
+    if (currentData.remind_active === 1) {
+        // 找出当前正在提醒的时间点
+        let currentRemindIdx = -1;
+        const nowMinutes = (currentData.hour || 0) * 60 + (currentData.minute || 0);
+        for (let i = 0; i < 3; i++) {
+            const remindMinutes = remindTimes[i].hour * 60 + remindTimes[i].minute;
+            if (nowMinutes >= remindMinutes && nowMinutes <= remindMinutes + 5) {
+                currentRemindIdx = i;
+                break;
+            }
+        }
+
+        let medicineText = '';
+        if (currentRemindIdx >= 0) {
+            const box = remindTimes[currentRemindIdx].box;
+            if (box === 1) {
+                medicineText = boxNames.box1 || '药盒1';
+            } else if (box === 2) {
+                medicineText = boxNames.box2 || '药盒2';
+            } else {
+                medicineText = (boxNames.box1 || '药盒1') + ' + ' + (boxNames.box2 || '药盒2');
+            }
+        }
+
+        document.getElementById('remindArea').innerHTML =
+            '<div class="remind-active">⏰ 服药提醒中<br>请服用：' + medicineText + '</div>';
+    } else {
+        document.getElementById('remindArea').innerHTML =
+            '<div class="alarm-ok">暂无提醒 ✓</div>';
+    }
+
+    // 药盒数据
+    if (currentData.box1_weight !== null) {
+        document.getElementById('box1_weight').textContent = currentData.box1_weight.toFixed(1);
+    }
+    if (currentData.box2_weight !== null) {
+        document.getElementById('box2_weight').textContent = currentData.box2_weight.toFixed(1);
+    }
+    if (currentData.temp !== null) {
+        document.getElementById('temp').textContent = currentData.temp.toFixed(1);
+    }
+    if (currentData.humi !== null) {
+        document.getElementById('humi').textContent = currentData.humi;
+    }
+
+    // 阈值显示
+    const thrKeys = ['box1', 'box2', 'temp', 'humi'];
+    thrKeys.forEach(key => {
+        const displayId = 'thr_' + key + '_display';
+        const thrKey = 'thr_' + key;
+        if (currentData[thrKey] !== null) {
+            const val = waitingSync[key] ? pendingValue[key] : currentData[thrKey];
+            document.getElementById(displayId).textContent = val;
+        }
+    });
+}
+
+function updateRecordStatus() {
+    // 根据当前时间和已服/漏服次数推断状态
+    const taken = currentData.taken_cnt || 0;
+    const missed = currentData.missed_cnt || 0;
+    const nowMinutes = (currentData.hour || 0) * 60 + (currentData.minute || 0);
+
+    for (let i = 0; i < 3; i++) {
+        const remindMinutes = remindTimes[i].hour * 60 + remindTimes[i].minute;
+        const statusEl = document.getElementById('remind' + (i + 1) + '_status');
+        const box = remindTimes[i].box;
+
+        // 获取药品名称
+        let medicineName = '';
+        if (box === 1) {
+            medicineName = boxNames.box1 || '药盒1';
+        } else if (box === 2) {
+            medicineName = boxNames.box2 || '药盒2';
+        } else {
+            medicineName = (boxNames.box1 || '药盒1') + '+' + (boxNames.box2 || '药盒2');
+        }
+
+        // 简化逻辑：已服次数 >= (i+1) 表示该时间点已服
+        if (taken > i) {
+            statusEl.className = 'record-status taken';
+            statusEl.textContent = '✓ 已服 ' + medicineName;
+        } else if (nowMinutes > remindMinutes + 5) {
+            // 超过提醒时间5分钟且未服 → 漏服
+            statusEl.className = 'record-status missed';
+            statusEl.textContent = '✗ 漏服 ' + medicineName;
+        } else if (nowMinutes >= remindMinutes && nowMinutes <= remindMinutes + 5) {
+            // 当前正在提醒时段
+            statusEl.className = 'record-status pending';
+            statusEl.textContent = '⏰ ' + medicineName;
+        } else {
+            statusEl.className = 'record-status pending';
+            statusEl.textContent = '- ' + medicineName;
+        }
+    }
+}
+
+// ==================== 报警判断 ====================
+function checkAlarms() {
+    const alarms = [];
+
+    // 药盒重量不足
+    if (currentData.box1_weight !== null && currentData.thr_box1 !== null &&
+        currentData.box1_weight < currentData.thr_box1) {
+        alarms.push('药盒1重量不足');
+        document.getElementById('box1_exclaim').style.display = 'inline';
+        document.getElementById('box1_weight').classList.add('alarm');
+    } else {
+        document.getElementById('box1_exclaim').style.display = 'none';
+        document.getElementById('box1_weight').classList.remove('alarm');
+    }
+
+    if (currentData.box2_weight !== null && currentData.thr_box2 !== null &&
+        currentData.box2_weight < currentData.thr_box2) {
+        alarms.push('药盒2重量不足');
+        document.getElementById('box2_exclaim').style.display = 'inline';
+        document.getElementById('box2_weight').classList.add('alarm');
+    } else {
+        document.getElementById('box2_exclaim').style.display = 'none';
+        document.getElementById('box2_weight').classList.remove('alarm');
+    }
+
+    // 温湿度超标
+    if (currentData.temp !== null && currentData.thr_temp !== null &&
+        currentData.temp > currentData.thr_temp) {
+        alarms.push('温度超标');
+        document.getElementById('temp_exclaim').style.display = 'inline';
+        document.getElementById('temp').classList.add('alarm');
+    } else {
+        document.getElementById('temp_exclaim').style.display = 'none';
+        document.getElementById('temp').classList.remove('alarm');
+    }
+
+    if (currentData.humi !== null && currentData.thr_humi !== null &&
+        currentData.humi > currentData.thr_humi) {
+        alarms.push('湿度超标');
+        document.getElementById('humi_exclaim').style.display = 'inline';
+        document.getElementById('humi').classList.add('alarm');
+    } else {
+        document.getElementById('humi_exclaim').style.display = 'none';
+        document.getElementById('humi').classList.remove('alarm');
+    }
+
+    renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+    const area = document.getElementById('alarmArea');
+    if (alarms.length === 0) {
+        area.innerHTML = '<div class="alarm-ok">运行正常 ✓</div>';
+    } else {
+        area.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+    }
+}
+
+// ==================== 日志 ====================
+function addLog(text) {
+    logs.unshift(text);
+    if (logs.length > MAX_LOGS) logs.pop();
+    const content = document.getElementById('logContent');
+    content.innerHTML = logs.map(l => '<div class="log-item">' + l + '</div>').join('');
+}
+
+function toggleLog() {
+    const content = document.getElementById('logContent');
+    const arrow = document.getElementById('logArrow');
+    content.classList.toggle('open');
+    arrow.classList.toggle('open');
+}
+</script>
+</body>
+</html>
