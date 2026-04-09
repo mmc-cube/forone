@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>超声波清洗机智能控制系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #F5F5F5;
+            min-height: 100vh;
+            padding: 12px;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .card-title {
+            font-size: 14px;
+            color: #757575;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .status-dot.ok { background: #4CAF50; }
+        .status-dot.err { background: #F44336; }
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 8px 0;
+        }
+        .data-label { font-size: 13px; color: #757575; }
+        .data-value { font-size: 28px; font-weight: bold; color: #212121; }
+        .data-unit { font-size: 13px; color: #757575; margin-left: 2px; }
+        .data-value.alarm { color: #F44336; }
+        .alarm-bar {
+            background: #FFEBEE;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-top: 8px;
+            color: #F44336;
+            font-size: 13px;
+        }
+        .btn {
+            width: 100%;
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+        .btn-primary { background: #2196F3; color: white; }
+        .btn-primary:active { background: #1976D2; }
+        .btn-danger { background: #F44336; color: white; }
+        .btn-danger:active { background: #D32F2F; }
+        .btn-secondary { background: #E0E0E0; color: #212121; }
+        .btn-secondary:active { background: #BDBDBD; }
+        .mode-btns {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .mode-btn {
+            flex: 1;
+            height: 44px;
+            border: 2px solid #E0E0E0;
+            border-radius: 8px;
+            font-size: 13px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mode-btn.active {
+            border-color: #2196F3;
+            background: #E3F2FD;
+            color: #2196F3;
+        }
+        .param-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .param-label { font-size: 13px; color: #757575; width: 70px; }
+        .param-input {
+            width: 80px;
+            height: 36px;
+            border: 1px solid #E0E0E0;
+            border-radius: 6px;
+            padding: 0 8px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .param-btn {
+            height: 36px;
+            padding: 0 16px;
+            border: none;
+            border-radius: 6px;
+            background: #2196F3;
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .log-card { cursor: pointer; }
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s;
+        }
+        .log-content.expanded { max-height: 300px; }
+        .log-item {
+            font-size: 12px;
+            color: #757575;
+            padding: 4px 0;
+            border-bottom: 1px solid #F0F0F0;
+        }
+        .device-status {
+            display: flex;
+            gap: 16px;
+            margin-top: 8px;
+        }
+        .device-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+        }
+        .device-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .device-dot.on { background: #4CAF50; }
+        .device-dot.off { background: #BDBDBD; }
+    </style>
+</head>
+<body>
+
+<!-- 状态栏 -->
+<div class="card">
+    <span id="mqtt-status">
+        <span class="status-dot err"></span>
+        <span style="font-size:13px;color:#757575">未连接</span>
+    </span>
+    <span style="float:right;font-size:13px;color:#757575" id="time-display">--:--</span>
+</div>
+
+<!-- 运行总览 -->
+<div class="card">
+    <div class="card-title">运行总览</div>
+    <div class="data-row">
+        <span class="data-label">当前温度</span>
+        <span><span class="data-value" id="temp-current">--</span><span class="data-unit">°C</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">目标温度</span>
+        <span><span class="data-value" id="temp-target">--</span><span class="data-unit">°C</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">剩余时间</span>
+        <span><span class="data-value" id="time-remain">--</span><span class="data-unit">min</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">总时长</span>
+        <span><span class="data-value" id="time-total">--</span><span class="data-unit">min</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">运行状态</span>
+        <span class="data-value" id="status-text" style="font-size:16px">Standby</span>
+    </div>
+    <div class="device-status">
+        <span class="device-item"><span class="device-dot off" id="heat-dot"></span>制热</span>
+        <span class="device-item"><span class="device-dot off" id="cool-dot"></span>制冷</span>
+        <span class="device-item"><span class="device-dot off" id="motor-dot"></span>震动</span>
+    </div>
+</div>
+
+<!-- 液位监控 -->
+<div class="card">
+    <div class="card-title">液位状态</div>
+    <div class="data-row">
+        <span class="data-label">当前液位</span>
+        <span><span class="data-value" id="liquid-level">--</span><span class="data-unit">%</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">安全阈值</span>
+        <span><span class="data-value" id="liquid-threshold">--</span><span class="data-unit">%</span></span>
+    </div>
+    <div id="liquid-alarm" style="display:none">
+        <div class="alarm-bar">液位过低，已触发保护!</div>
+    </div>
+</div>
+
+<!-- 震动档位 -->
+<div class="card">
+    <div class="card-title">震动档位</div>
+    <div class="data-row">
+        <span class="data-label">当前档位</span>
+        <span class="data-value" id="vibrate-level-text" style="font-size:16px">--</span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">PWM 占空比</span>
+        <span><span class="data-value" id="vibrate-pwm">--</span><span class="data-unit">%</span></span>
+    </div>
+</div>
+
+<!-- 报警状态 -->
+<div class="card" id="alarm-card" style="display:none">
+    <div class="card-title" style="color:#F44336">报警状态</div>
+    <div id="alarm-list"></div>
+</div>
+
+<!-- 设备控制 -->
+<div class="card">
+    <div class="card-title">设备控制</div>
+    <button class="btn btn-primary" onclick="sendCmd('01')">启动设备</button>
+    <button class="btn btn-danger" onclick="sendCmd('02')">停止设备</button>
+</div>
+
+<!-- 模式切换 -->
+<div class="card">
+    <div class="card-title">模式切换</div>
+    <div class="mode-btns">
+        <button class="mode-btn" id="mode-1" onclick="sendCmd('03,1')">精密零件</button>
+        <button class="mode-btn" id="mode-2" onclick="sendCmd('03,2')">日常物品</button>
+        <button class="mode-btn" id="mode-3" onclick="sendCmd('03,3')">快速冲洗</button>
+    </div>
+</div>
+
+<!-- 参数下发 -->
+<div class="card">
+    <div class="card-title">参数下发</div>
+    <div class="param-row">
+        <span class="param-label">目标温度</span>
+        <input type="number" class="param-input" id="param-temp" placeholder="45" min="30" max="60">
+        <span class="data-unit">°C</span>
+    </div>
+    <div class="param-row">
+        <span class="param-label">震动强度</span>
+        <input type="number" class="param-input" id="param-vibrate" placeholder="65" min="0" max="100">
+        <span class="data-unit">%</span>
+    </div>
+    <button class="btn btn-secondary" onclick="sendParams()">下发参数</button>
+</div>
+
+<!-- 运行日志 -->
+<div class="card log-card" onclick="toggleLog()">
+    <div class="card-title">运行日志（点击展开）</div>
+    <div class="log-content" id="log-content"></div>
+</div>
+
+<script src="mqtt.min.js"></script>
+<script>
+const UPLOAD_TOPIC = '753284/ultrasonic/upload';
+const CMD_TOPIC = '753284/ultrasonic/cmd';
+
+const MODE_NAMES = { 1: '精密零件', 2: '日常物品', 3: '快速冲洗' };
+const STATUS_NAMES = { 0: 'Standby', 1: 'Heating', 2: 'Cooling', 3: 'Cleaning', 4: 'Done', 5: 'Fault' };
+const VIBRATE_NAMES = { 1: '弱', 2: '中', 3: '强' };
+
+let currentMode = 0;
+let logs = [];
+
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: 'web_' + Math.random().toString(36).substr(2, 6),
+    reconnectPeriod: 3000
+});
+
+client.on('connect', () => {
+    document.getElementById('mqtt-status').innerHTML =
+        '<span class="status-dot ok"></span><span style="font-size:13px;color:#4CAF50">已连接</span>';
+    client.subscribe(UPLOAD_TOPIC);
+});
+
+client.on('disconnect', () => {
+    document.getElementById('mqtt-status').innerHTML =
+        '<span class="status-dot err"></span><span style="font-size:13px;color:#757575">未连接</span>';
+});
+
+client.on('message', (topic, payload) => {
+    const msg = payload.toString();
+    const parts = msg.split(',');
+
+    if (parts.length >= 15) {
+        updateUI(parts);
+        addLog(msg);
+    }
+});
+
+function updateUI(parts) {
+    // 序号0: 时间戳
+    document.getElementById('time-display').textContent = parts[0];
+
+    // 序号1-2: 温度
+    document.getElementById('temp-current').textContent = parseFloat(parts[1]).toFixed(1);
+    document.getElementById('temp-target').textContent = parseFloat(parts[2]).toFixed(1);
+
+    // 序号3-4: 液位
+    const liquidLevel = parseInt(parts[3]);
+    const liquidThreshold = parseInt(parts[4]);
+    document.getElementById('liquid-level').textContent = liquidLevel;
+    document.getElementById('liquid-threshold').textContent = liquidThreshold;
+
+    // 液位报警判断
+    if (liquidLevel < liquidThreshold) {
+        document.getElementById('liquid-level').classList.add('alarm');
+        document.getElementById('liquid-alarm').style.display = 'block';
+    } else {
+        document.getElementById('liquid-level').classList.remove('alarm');
+        document.getElementById('liquid-alarm').style.display = 'none';
+    }
+
+    // 序号5-6: 时间
+    document.getElementById('time-remain').textContent = parseInt(parts[5]);
+    document.getElementById('time-total').textContent = parseInt(parts[6]);
+
+    // 序号7-8: 震动
+    document.getElementById('vibrate-level-text').textContent = VIBRATE_NAMES[parseInt(parts[7])] || '--';
+    document.getElementById('vibrate-pwm').textContent = parseInt(parts[8]);
+
+    // 序号9: 模式
+    currentMode = parseInt(parts[9]);
+    updateModeButtons();
+
+    // 序号10: 状态
+    document.getElementById('status-text').textContent = STATUS_NAMES[parseInt(parts[10])] || '--';
+
+    // 序号11-13: 设备状态
+    updateDeviceDot('heat-dot', parseInt(parts[11]));
+    updateDeviceDot('cool-dot', parseInt(parts[12]));
+    updateDeviceDot('motor-dot', parseInt(parts[13]));
+
+    // 序号14: 报警
+    const alarmCode = parseInt(parts[14]);
+    updateAlarm(alarmCode);
+}
+
+function updateDeviceDot(id, state) {
+    const dot = document.getElementById(id);
+    if (state === 1) {
+        dot.classList.remove('off');
+        dot.classList.add('on');
+    } else {
+        dot.classList.remove('on');
+        dot.classList.add('off');
+    }
+}
+
+function updateModeButtons() {
+    for (let i = 1; i <= 3; i++) {
+        const btn = document.getElementById('mode-' + i);
+        if (i === currentMode) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    }
+}
+
+function updateAlarm(code) {
+    const card = document.getElementById('alarm-card');
+    const list = document.getElementById('alarm-list');
+
+    if (code === 0) {
+        card.style.display = 'none';
+    } else {
+        card.style.display = 'block';
+        let text = '';
+        if (code === 1) text = '低液位报警';
+        else if (code === 2) text = '温度异常';
+        else if (code === 3) text = '低液位 + 温度异常';
+        list.innerHTML = '<div class="alarm-bar">' + text + '</div>';
+    }
+}
+
+function sendCmd(cmd) {
+    client.publish(CMD_TOPIC, cmd);
+}
+
+function sendParams() {
+    const temp = document.getElementById('param-temp').value || 45;
+    const vibrate = document.getElementById('param-vibrate').value || 65;
+    sendCmd('04,' + temp + ',' + vibrate);
+}
+
+function addLog(msg) {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    logs.unshift(timeStr + '  ' + msg);
+    if (logs.length > 20) logs.pop();
+    renderLogs();
+}
+
+function renderLogs() {
+    const content = document.getElementById('log-content');
+    content.innerHTML = logs.map(l => '<div class="log-item">' + l + '</div>').join('');
+}
+
+function toggleLog() {
+    const content = document.getElementById('log-content');
+    content.classList.toggle('expanded');
+}
+</script>
+</body>
+</html>
