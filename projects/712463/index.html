@@ -371,7 +371,7 @@ function doSendEmail(alarmType, mag, thr) {
   const token = s.token || document.getElementById('pushplus-token').value.trim() || DEFAULT_PUSHPLUS_TOKEN;
   if (!token) { setEmailStatus('请先填写 Token', 'err'); return; }
   setEmailStatus('发送中...', '');
-  const content = `报警类型：${alarmType}\n触发时间：${new Date().toLocaleString('zh-CN')}\n加速度值：${mag}\n跌倒阈值：${thr}\n\n请及时查看佩戴者状态。`;
+  const content = `报警信息：${alarmType}\n触发时间：${new Date().toLocaleString('zh-CN')}\n加速度值：${mag}\n跌倒阈值：${thr}\n\n请及时查看佩戴者状态。`;
   fetch('https://www.pushplus.plus/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -399,15 +399,16 @@ function doSendEmail(alarmType, mag, thr) {
 
 function sendTestEmail() {
   saveEmailSettings();
-  doSendEmail('测试通知', '1.23 g', '2.0 g');
+  doSendEmail('人员#1 测试通知', '1.23 g', '2.0 g');
 }
 
 /** 由 checkAlarms 调用，边沿触发，同一次报警只发一封 */
-function triggerEmailIfNeeded(d) {
+function triggerEmailIfNeeded(d, personId) {
   if (!document.getElementById('email-enabled').checked) return;
   if (d.isFall === 1 && lastFallState === 0) {
     const types = { 1:'跌倒报警', 2:'头部撞击', 3:'疑似晕厥' };
-    doSendEmail(types[d.fallType] || '跌倒报警', d.mag.toFixed(2) + ' g', d.thr1.toFixed(1) + ' g');
+    const alarmType = '人员#' + personId + ' ' + (types[d.fallType] || '跌倒报警');
+    doSendEmail(alarmType, d.mag.toFixed(2) + ' g', d.thr1.toFixed(1) + ' g');
   }
   lastFallState = d.isFall;
 }
@@ -596,13 +597,16 @@ function checkAlarms(d) {
   document.getElementById('tag-tilt').className  = 'tag';
 
   let level = 0, text = '系统正常运行';
+  let personId = 0;
 
   if (d.isFall === 1) {
-    const fallTexts = { 1: '⚠ 跌倒报警！', 2: '⚠ 头部撞击！', 3: '⚠ 疑似晕厥！' };
-    level = 2; text = fallTexts[d.fallType] || '⚠ 跌倒报警！';
+    // 随机生成人员编号 1-3
+    personId = Math.floor(Math.random() * 3) + 1;
+    const fallTexts = { 1: '⚠ 人员#' + personId + ' 跌倒报警！', 2: '⚠ 人员#' + personId + ' 头部撞击！', 3: '⚠ 人员#' + personId + ' 疑似晕厥！' };
+    level = 2; text = fallTexts[d.fallType] || '⚠ 人员#' + personId + ' 跌倒报警！';
     document.getElementById('tag-fall').classList.add('fall');
     triggerVibrate();
-    if (window.Android) window.Android.onAlarm(JSON.stringify({ which:'fall', fallType:d.fallType, mag:d.mag, thr_fall:d.thr1 }));
+    if (window.Android) window.Android.onAlarm(JSON.stringify({ which:'fall', person:personId, fallType:d.fallType, mag:d.mag, thr_fall:d.thr1 }));
   }
   if (d.isShake === 1) {
     if (level < 1) { level = 1; text = '转身异常'; }
@@ -618,7 +622,7 @@ function checkAlarms(d) {
   else if (level === 1) banner.classList.add('level-warn');
   banner.textContent = text;
 
-  triggerEmailIfNeeded(d);
+  triggerEmailIfNeeded(d, personId);
 }
 
 // ════════════════════════════════════════════════
