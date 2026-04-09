@@ -920,16 +920,16 @@
                 }
             }
 
-            // 水位过低
+            // 水位过低（传感器已放入水中才判断，ADC < 5 表示未放入）
             if (currentData.water_level !== null && currentData.water_l !== null) {
-                if (currentData.water_level < currentData.water_l) {
+                if (currentData.water_level >= 5 && currentData.water_level < currentData.water_l) {
                     alarms.push('水位过低报警');
                 }
             }
 
-            // 水位过高
+            // 水位过高（传感器已放入水中才判断）
             if (currentData.water_level !== null && currentData.water_h !== null) {
-                if (currentData.water_level > currentData.water_h) {
+                if (currentData.water_level >= 5 && currentData.water_level > currentData.water_h) {
                     alarms.push('水位过高报警');
                 }
             }
@@ -1011,16 +1011,16 @@
                 }
             }
 
-            // 水位过低
+            // 水位过低（传感器已放入水中才判断，ADC < 5 表示未放入）
             if (currentData.water_level !== null && waterL !== null) {
-                if (currentData.water_level < waterL) {
+                if (currentData.water_level >= 5 && currentData.water_level < waterL) {
                     alarms.push('水位过低报警');
                 }
             }
 
-            // 水位过高
+            // 水位过高（传感器已放入水中才判断）
             if (currentData.water_level !== null && waterH !== null) {
-                if (currentData.water_level > waterH) {
+                if (currentData.water_level >= 5 && currentData.water_level > waterH) {
                     alarms.push('水位过高报警');
                 }
             }
