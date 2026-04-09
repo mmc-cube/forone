@@ -252,9 +252,15 @@
         <span class="data-unit">°C</span>
     </div>
     <div class="param-row">
-        <span class="param-label">震动强度</span>
-        <input type="number" class="param-input" id="param-vibrate" placeholder="65" min="0" max="100">
-        <span class="data-unit">%</span>
+        <span class="param-label">液位阈值</span>
+        <input type="number" class="param-input" id="param-level" placeholder="8" min="1" max="20">
+        <span class="data-unit">cm</span>
+    </div>
+    <div class="param-row">
+        <span class="param-label">预约时间</span>
+        <input type="number" class="param-input" id="param-hour" placeholder="14" min="0" max="23" style="width:50px">
+        <span class="data-unit">:</span>
+        <input type="number" class="param-input" id="param-min" placeholder="30" min="0" max="59" style="width:50px">
     </div>
     <button class="btn btn-secondary" onclick="sendParams()">下发参数</button>
 </div>
@@ -395,8 +401,10 @@ function sendCmd(cmd) {
 
 function sendParams() {
     const temp = document.getElementById('param-temp').value || 45;
-    const vibrate = document.getElementById('param-vibrate').value || 65;
-    sendCmd('04,' + temp + ',' + vibrate);
+    const level = document.getElementById('param-level').value || 8;
+    const hour = document.getElementById('param-hour').value || 0;
+    const min = document.getElementById('param-min').value || 0;
+    sendCmd('04,' + temp + ',' + level + ',' + hour + ',' + min);
 }
 
 function addLog(msg) {
