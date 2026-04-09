@@ -864,7 +864,7 @@
         function setDisplayValueWithAlert(id, value, decimals, isAlert) {
             const el = document.getElementById('val-' + id);
             if (el && value !== null) {
-                el.textContent = (decimals > 0 ? value.toFixed(decimals) : value) + (isAlert ? ' !' : '');
+                el.textContent = decimals > 0 ? value.toFixed(decimals) : value;
                 el.style.color = isAlert ? '#ff4444' : '';  // 超限显示红色
             }
         }
