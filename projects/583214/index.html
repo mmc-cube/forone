@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>星座查找器</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            padding: 12px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* ====== 炫技1：星空背景闪烁 ====== */
+        .stars-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .star-dot {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle 2s infinite ease-in-out;
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            position: relative;
+            z-index: 1;
+        }
+        .card-title {
+            font-size: 14px;
+            color: #757575;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #F44336;
+            animation: pulse 2s infinite;
+        }
+        .status-dot.connected {
+            background: #4CAF50;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .gps-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .gps-label {
+            font-size: 13px;
+            color: #757575;
+        }
+        .gps-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #212121;
+        }
+        .gps-unit {
+            font-size: 13px;
+            color: #757575;
+        }
+        .time-display {
+            font-size: 20px;
+            color: #2196F3;
+            text-align: center;
+            margin: 8px 0;
+            font-family: 'Courier New', monospace;
+        }
+        .star-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .star-item {
+            padding: 12px;
+            border-bottom: 1px solid #EEEEEE;
+            transition: background 0.3s;
+        }
+        .star-item:hover {
+            background: #F5F5F5;
+        }
+        .star-item:last-child {
+            border-bottom: none;
+        }
+        .star-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .star-name {
+            font-size: 16px;
+            font-weight: bold;
+            color: #212121;
+        }
+        .star-rating {
+            font-size: 14px;
+        }
+        .star-rating.best {
+            color: #4CAF50;
+        }
+        .star-rating.good {
+            color: #2196F3;
+        }
+        .star-rating.low {
+            color: #FF9800;
+        }
+        .star-detail {
+            font-size: 13px;
+            color: #757575;
+            margin-top: 8px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        /* ====== 炫技2：方位指示箭头 ====== */
+        .direction-arrow {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background: #2196F3;
+            border-radius: 50%;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 4px;
+            transition: transform 0.5s ease;
+        }
+
+        .star-time {
+            font-size: 13px;
+            color: #9E9E9E;
+            margin-top: 6px;
+        }
+
+        /* ====== 炫技3：观测时长进度条 ====== */
+        .time-bar-container {
+            margin-top: 8px;
+        }
+        .time-bar {
+            height: 6px;
+            background: #E0E0E0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .time-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        .time-bar-fill.best {
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+        }
+        .time-bar-fill.good {
+            background: linear-gradient(90deg, #2196F3, #03A9F4);
+        }
+        .time-bar-fill.low {
+            background: linear-gradient(90deg, #FF9800, #FFC107);
+        }
+
+        .refresh-btn {
+            width: 100%;
+            height: 48px;
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+        }
+        .refresh-btn:active {
+            transform: translateY(0);
+        }
+        .no-signal {
+            text-align: center;
+            padding: 40px 20px;
+            color: #757575;
+        }
+        .no-signal-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .log-card {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-title {
+            cursor: pointer;
+            user-select: none;
+        }
+        .log-content {
+            font-size: 12px;
+            color: #9E9E9E;
+            font-family: monospace;
+            display: none;
+        }
+        .log-content.show {
+            display: block;
+        }
+        .log-item {
+            padding: 4px 0;
+            border-bottom: 1px dashed #E0E0E0;
+        }
+        .count-badge {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .input-label {
+            font-size: 13px;
+            color: #757575;
+            width: 50px;
+        }
+        .input-box {
+            width: 100px;
+            height: 36px;
+            border: 1px solid #E0E0E0;
+            border-radius: 6px;
+            padding: 0 8px;
+            font-size: 16px;
+            text-align: center;
+        }
+        .input-box:focus {
+            border-color: #2196F3;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+        }
+        .apply-btn {
+            height: 36px;
+            background: linear-gradient(135deg, #FF9800, #F57C00);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .apply-btn:hover {
+            transform: scale(1.02);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 炫技1：星空背景 -->
+    <div class="stars-bg" id="starsBg"></div>
+
+    <!-- 状态栏 -->
+    <div class="card">
+        <div class="card-title">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">未连接</span>
+        </div>
+    </div>
+
+    <!-- GPS数据卡 -->
+    <div class="card">
+        <div class="card-title">📍 GPS定位数据</div>
+        <div class="gps-info">
+            <span class="gps-label">GPS状态</span>
+            <span id="gpsStatus" style="font-size:16px;color:#F44336;">无信号</span>
+        </div>
+        <div class="gps-info">
+            <span class="gps-label">纬度</span>
+            <span><span class="gps-value" id="latValue">--</span><span class="gps-unit">°N</span></span>
+        </div>
+        <div class="gps-info">
+            <span class="gps-label">经度</span>
+            <span><span class="gps-value" id="lonValue">--</span><span class="gps-unit">°E</span></span>
+        </div>
+        <div class="time-display" id="utcTime">UTC --:--:--</div>
+    </div>
+
+    <!-- 手动输入位置卡 -->
+    <div class="card" id="manualInputCard">
+        <div class="card-title">✏️ 手动输入位置（无GPS时使用）</div>
+        <div class="input-row">
+            <span class="input-label">纬度</span>
+            <input type="number" class="input-box" id="manualLat" placeholder="如 39.9" step="0.1">
+            <span class="gps-unit">°N</span>
+        </div>
+        <div class="input-row">
+            <span class="input-label">经度</span>
+            <input type="number" class="input-box" id="manualLon" placeholder="如 116.4" step="0.1">
+            <span class="gps-unit">°E</span>
+        </div>
+        <button class="apply-btn" onclick="applyManualLocation()">应用位置</button>
+    </div>
+
+    <!-- 星座列表卡 -->
+    <div class="card">
+        <div class="card-title">
+            🌟 当前可见星座
+            <span class="count-badge" id="starCount">0个</span>
+        </div>
+        <div class="star-list" id="starList">
+            <div class="no-signal">
+                <div class="no-signal-icon">📡</div>
+                <div>等待GPS定位数据...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 刷新按钮 -->
+    <div class="card">
+        <button class="refresh-btn" onclick="refreshData()">🔄 刷新数据</button>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card">
+        <div class="card-title log-title" onclick="toggleLog()">
+            📋 原始数据日志 <span id="logToggle">[展开]</span>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
+
+<script>
+// ==================== 炫技1：生成星空背景 ====================
+function createStars() {
+    const container = document.getElementById('starsBg');
+    for (let i = 0; i < 50; i++) {
+        const star = document.createElement('div');
+        star.className = 'star-dot';
+        star.style.left = Math.random() * 100 + '%';
+        star.style.top = Math.random() * 100 + '%';
+        star.style.width = (Math.random() * 3 + 1) + 'px';
+        star.style.height = star.style.width;
+        star.style.animationDelay = Math.random() * 2 + 's';
+        container.appendChild(star);
+    }
+}
+createStars();
+
+// ==================== 星座数据库 ====================
+const constellationDB = [
+    { name: "URSA_MA", name_cn: "大熊座", ra: 165, dec: 55, magnitude: 2.0 },
+    { name: "URSA_MI", name_cn: "小熊座", ra: 90, dec: 75, magnitude: 2.5 },
+    { name: "ORION", name_cn: "猎户座", ra: 90, dec: 0, magnitude: 4.0 },
+    { name: "SCORPIUS", name_cn: "天蝎座", ra: 240, dec: -30, magnitude: 3.0 },
+    { name: "CYGNUS", name_cn: "天鹅座", ra: 300, dec: 40, magnitude: 2.5 },
+    { name: "LYRA", name_cn: "天琴座", ra: 280, dec: 35, magnitude: 2.0 },
+    { name: "CASSIOPEIA", name_cn: "仙后座", ra: 30, dec: 60, magnitude: 2.5 },
+    { name: "CEPHEUS", name_cn: "仙王座", ra: 60, dec: 70, magnitude: 3.0 },
+    { name: "TAURUS", name_cn: "金牛座", ra: 60, dec: 20, magnitude: 3.0 },
+    { name: "GEMINI", name_cn: "双子座", ra: 90, dec: 25, magnitude: 3.0 },
+    { name: "LEO", name_cn: "狮子座", ra: 150, dec: 15, magnitude: 2.0 },
+    { name: "VIRGO", name_cn: "处女座", ra: 180, dec: 0, magnitude: 3.0 },
+    { name: "AQUILA", name_cn: "天鹰座", ra: 300, dec: 5, magnitude: 3.0 },
+    { name: "SAGITTARIUS", name_cn: "人马座", ra: 280, dec: -30, magnitude: 3.0 },
+    { name: "ARIES", name_cn: "白羊座", ra: 30, dec: 15, magnitude: 4.0 },
+    { name: "CANCER", name_cn: "巨蟹座", ra: 120, dec: 20, magnitude: 4.0 }
+];
+
+// ==================== 核心算法 ====================
+
+// 算法1：星座可见性计算
+function calculateVisible(lat, lon, hour) {
+    const visibleList = [];
+    for (const star of constellationDB) {
+        const hourAngle = ((hour * 15 + lon - star.ra) % 360 + 360) % 360;
+        const adjustedHA = hourAngle > 180 ? 360 - hourAngle : hourAngle;
+        const declinationDist = Math.abs(lat - star.dec);
+        const altitude = 90 - declinationDist - adjustedHA / 6;
+        if (altitude > 0) {
+            visibleList.push({
+                ...star,
+                alt_angle: Math.max(0, altitude),
+                az_angle: calculateAzimuth(lat, lon, hour, star.ra),
+                az_deg: calculateAzimuthDeg(lat, lon, hour, star.ra)
+            });
+        }
+    }
+    return visibleList;
+}
+
+// 算法2：方位角计算（文字）
+function calculateAzimuth(lat, lon, hour, star_ra) {
+    const hourAngle = ((hour * 15 + lon - star_ra) % 360 + 360) % 360;
+    if (hourAngle > 270) return "北" + Math.round(360 - hourAngle) + "°";
+    else if (hourAngle > 180) return "西" + Math.round(hourAngle - 180) + "°";
+    else if (hourAngle > 90) return "南" + Math.round(180 - hourAngle) + "°";
+    else if (hourAngle > 0) return "东" + Math.round(hourAngle) + "°";
+    else return "正北";
+}
+
+// 方位角度数（用于箭头旋转）
+function calculateAzimuthDeg(lat, lon, hour, star_ra) {
+    const hourAngle = ((hour * 15 + lon - star_ra) % 360 + 360) % 360;
+    return Math.round(hourAngle);
+}
+
+// 算法3：亮度排序
+function sortByMagnitude(visibleList) {
+    return visibleList.sort((a, b) => a.magnitude - b.magnitude);
+}
+
+// 算法4：观测评级
+function getObserveRating(alt_angle) {
+    if (alt_angle > 60) return { stars: "★★★", label: "最佳观测", class: "best" };
+    else if (alt_angle > 30) return { stars: "★★", label: "适合观测", class: "good" };
+    else return { stars: "★", label: "较低", class: "low" };
+}
+
+// 算法5：观测时长预测
+function getVisibleTime(alt_angle) {
+    if (alt_angle <= 0) return { text: "已消失", hours: 0 };
+    const hours = Math.floor(alt_angle / 15);
+    if (hours <= 0) return { text: "即将消失", hours: 0.5 };
+    return { text: `还可见: ${hours}小时`, hours: hours };
+}
+
+// ==================== MQTT 连接 ====================
+const UPLOAD_TOPIC = '583214/907651/starlocator/upload';
+
+let client = null;
+let currentData = {
+    gps_valid: 0,
+    lat: null,
+    lon: null,
+    utc_hour: null,
+    utc_minute: null,
+    utc_second: null
+};
+let logEntries = [];
+const MAX_LOG = 20;
+let isManualMode = false;
+
+function connectMQTT() {
+    client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+        clientId: 'starlocator_' + Math.random().toString(36).substr(2, 6),
+        reconnectPeriod: 3000
+    });
+
+    client.on('connect', () => {
+        document.getElementById('statusDot').classList.add('connected');
+        document.getElementById('statusText').textContent = '已连接';
+        client.subscribe(UPLOAD_TOPIC);
+    });
+
+    client.on('close', () => {
+        document.getElementById('statusDot').classList.remove('connected');
+        document.getElementById('statusText').textContent = '未连接';
+    });
+
+    client.on('message', (topic, payload) => {
+        const message = payload.toString();
+        parseMessage(message);
+        addLog(message);
+    });
+}
+
+function parseMessage(message) {
+    try {
+        const data = JSON.parse(message);
+        if (data.gps_valid === 1) {
+            isManualMode = false;
+        }
+        currentData = {
+            gps_valid: data.gps_valid || 0,
+            lat: data.lat,
+            lon: data.lon,
+            utc_hour: data.utc_hour,
+            utc_minute: data.utc_minute,
+            utc_second: data.utc_second
+        };
+        updateUI();
+    } catch (e) {
+        console.error('Parse error:', e);
+    }
+}
+
+function updateUI() {
+    if (isManualMode) return;
+
+    const gpsStatusEl = document.getElementById('gpsStatus');
+    if (currentData.gps_valid === 1) {
+        gpsStatusEl.textContent = '已定位 ✓';
+        gpsStatusEl.style.color = '#4CAF50';
+        document.getElementById('manualInputCard').style.display = 'none';
+    } else {
+        gpsStatusEl.textContent = '无信号';
+        gpsStatusEl.style.color = '#F44336';
+    }
+
+    if (currentData.lat !== null) {
+        document.getElementById('latValue').textContent = currentData.lat.toFixed(1);
+    }
+    if (currentData.lon !== null) {
+        document.getElementById('lonValue').textContent = currentData.lon.toFixed(1);
+    }
+
+    if (currentData.utc_hour !== null) {
+        const h = String(currentData.utc_hour).padStart(2, '0');
+        const m = String(currentData.utc_minute || 0).padStart(2, '0');
+        const s = String(currentData.utc_second || 0).padStart(2, '0');
+        document.getElementById('utcTime').textContent = `UTC ${h}:${m}:${s}`;
+    }
+
+    if (currentData.gps_valid === 1 && currentData.lat !== null && currentData.utc_hour !== null) {
+        calculateAndDisplayStars();
+    } else {
+        showNoSignal();
+    }
+}
+
+function calculateAndDisplayStars() {
+    let visibleStars = calculateVisible(currentData.lat, currentData.lon, currentData.utc_hour);
+    visibleStars = sortByMagnitude(visibleStars);
+
+    document.getElementById('starCount').textContent = visibleStars.length + '个';
+
+    const listEl = document.getElementById('starList');
+    if (visibleStars.length === 0) {
+        listEl.innerHTML = `
+            <div class="no-signal">
+                <div class="no-signal-icon">🌃</div>
+                <div>当前无可见星座</div>
+                <div style="font-size:12px;margin-top:8px;">请稍后再试</div>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    for (const star of visibleStars) {
+        const rating = getObserveRating(star.alt_angle);
+        const timeInfo = getVisibleTime(star.alt_angle);
+        const barWidth = Math.min(timeInfo.hours * 15, 100); // 进度条宽度
+
+        html += `
+            <div class="star-item">
+                <div class="star-header">
+                    <span class="star-name">${star.name_cn} (${star.name})</span>
+                    <span class="star-rating ${rating.class}">${rating.stars} ${rating.label}</span>
+                </div>
+                <div class="star-detail">
+                    <span>
+                        <span class="direction-arrow" style="transform: rotate(${star.az_deg}deg)">↑</span>
+                        ${star.az_angle}
+                    </span>
+                    <span>仰角:${Math.round(star.alt_angle)}°</span>
+                    <span>星等:${star.magnitude}</span>
+                </div>
+                <div class="star-time">⏱ ${timeInfo.text}</div>
+                <div class="time-bar-container">
+                    <div class="time-bar">
+                        <div class="time-bar-fill ${rating.class}" style="width: ${barWidth}%"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    listEl.innerHTML = html;
+}
+
+function showNoSignal() {
+    document.getElementById('starCount').textContent = '0个';
+    document.getElementById('starList').innerHTML = `
+        <div class="no-signal">
+            <div class="no-signal-icon">📡</div>
+            <div>等待GPS定位数据...</div>
+        </div>
+    `;
+}
+
+function addLog(message) {
+    const time = new Date().toLocaleTimeString();
+    logEntries.unshift(`[${time}] ${message}`);
+    if (logEntries.length > MAX_LOG) {
+        logEntries.pop();
+    }
+}
+
+function toggleLog() {
+    const content = document.getElementById('logContent');
+    const toggle = document.getElementById('logToggle');
+    if (content.classList.contains('show')) {
+        content.classList.remove('show');
+        toggle.textContent = '[展开]';
+    } else {
+        let html = '';
+        for (const entry of logEntries) {
+            html += `<div class="log-item">${entry}</div>`;
+        }
+        content.innerHTML = html || '<div class="log-item">暂无数据</div>';
+        content.classList.add('show');
+        toggle.textContent = '[收起]';
+    }
+}
+
+function refreshData() {
+    if (currentData.gps_valid === 1) {
+        updateUI();
+    } else {
+        showNoSignal();
+    }
+}
+
+function applyManualLocation() {
+    const manualLat = parseFloat(document.getElementById('manualLat').value);
+    const manualLon = parseFloat(document.getElementById('manualLon').value);
+
+    if (isNaN(manualLat) || isNaN(manualLon)) {
+        alert('请输入有效的经纬度数值');
+        return;
+    }
+
+    const now = new Date();
+    const utcHour = now.getUTCHours();
+    const utcMinute = now.getUTCMinutes();
+    const utcSecond = now.getUTCSeconds();
+
+    isManualMode = true;
+    currentData = {
+        gps_valid: 1,
+        lat: manualLat,
+        lon: manualLon,
+        utc_hour: utcHour,
+        utc_minute: utcMinute,
+        utc_second: utcSecond
+    };
+
+    document.getElementById('manualInputCard').style.display = 'none';
+
+    const gpsStatusEl = document.getElementById('gpsStatus');
+    gpsStatusEl.textContent = '已定位 ✓';
+    gpsStatusEl.style.color = '#4CAF50';
+
+    document.getElementById('latValue').textContent = currentData.lat.toFixed(1);
+    document.getElementById('lonValue').textContent = currentData.lon.toFixed(1);
+
+    const h = String(currentData.utc_hour).padStart(2, '0');
+    const m = String(currentData.utc_minute).padStart(2, '0');
+    const s = String(currentData.utc_second).padStart(2, '0');
+    document.getElementById('utcTime').textContent = `UTC ${h}:${m}:${s}`;
+
+    calculateAndDisplayStars();
+}
+
+connectMQTT();
+</script>
+
+</body>
+</html>
