@@ -364,30 +364,30 @@
     <div class="card">
         <div class="card-title">阈值设置</div>
         <div class="threshold-row">
-            <span class="data-label">光照阈值</span>
+            <span class="data-label">目标光照</span>
             <div>
-                <input type="number" class="threshold-input" id="luxThresholdInput" value="500" min="0" max="4095">
+                <input type="number" class="threshold-input" id="luxThresholdInput" value="80" min="0" max="100">
                 <button class="btn-small" onclick="setLuxThreshold()">发送</button>
             </div>
         </div>
         <div class="threshold-row">
             <span class="data-label">距离阈值</span>
             <div>
-                <input type="number" class="threshold-input" id="distThresholdInput" value="30" min="10" max="100">
+                <input type="number" class="threshold-input" id="distThresholdInput" value="30" min="10" max="200">
                 <button class="btn-small" onclick="setDistThreshold()">发送</button>
             </div>
         </div>
         <div class="threshold-row">
             <span class="data-label">亮度上限</span>
             <div>
-                <input type="number" class="threshold-input" id="brightnessLimitInput" value="1000" min="0" max="1000">
+                <input type="number" class="threshold-input" id="brightnessLimitInput" value="100" min="0" max="100">
                 <button class="btn-small" onclick="setBrightnessLimit()">发送</button>
             </div>
         </div>
         <div class="threshold-row">
             <span class="data-label">手动亮度</span>
             <div>
-                <input type="number" class="threshold-input" id="brightnessInput" value="500" min="0" max="1000">
+                <input type="number" class="threshold-input" id="brightnessInput" value="50" min="0" max="100">
                 <button class="btn-small" onclick="setBrightness()">发送</button>
             </div>
         </div>
@@ -597,10 +597,9 @@
             if (currentData.dist !== null) {
                 document.getElementById('dist').textContent = currentData.dist;
             }
-            // 亮度（转换为百分比显示）
+            // 亮度（STM32 已发送百分比 0-100，直接显示）
             if (currentData.brightness !== null) {
-                const percent = Math.round(currentData.brightness / 10);
-                document.getElementById('brightness').textContent = percent;
+                document.getElementById('brightness').textContent = currentData.brightness;
             }
             // 模式显示
             if (currentData.mode !== null) {
@@ -618,8 +617,8 @@
                     waitingSync.dist ? pendingValue.dist : currentData.distThreshold;
             }
             if (currentData.brightnessLimit !== null) {
-                const limitPercent = Math.round((waitingSync.limit ? pendingValue.limit : currentData.brightnessLimit) / 10);
-                document.getElementById('brightnessLimitDisplay').textContent = limitPercent;
+                document.getElementById('brightnessLimitDisplay').textContent =
+                    waitingSync.limit ? pendingValue.limit : currentData.brightnessLimit;
             }
         }
 
@@ -748,15 +747,15 @@
         }
 
         function setLuxThreshold() {
-            setThreshold('lux', '02', 'luxThresholdInput', 0, 4095);
+            setThreshold('lux', '02', 'luxThresholdInput', 0, 100);
         }
 
         function setDistThreshold() {
-            setThreshold('dist', '03', 'distThresholdInput', 10, 100);
+            setThreshold('dist', '03', 'distThresholdInput', 0, 200);
         }
 
         function setBrightnessLimit() {
-            setThreshold('limit', '04', 'brightnessLimitInput', 0, 1000);
+            setThreshold('limit', '04', 'brightnessLimitInput', 0, 100);
         }
 
         function setBrightness() {
@@ -764,7 +763,7 @@
                 alert('手动亮度设置仅在 MANUAL 模式下生效');
                 return;
             }
-            setThreshold('brightness', '05', 'brightnessInput', 0, 1000);
+            setThreshold('brightness', '05', 'brightnessInput', 0, 100);
         }
 
         // ==================== 日志 ====================
