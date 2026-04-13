@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>多传感器安全监测报警系统</title>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            padding: 12px;
+            padding-top: 44px;
+        }
+
+        /* 卡片通用 */
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 12px;
+            padding: 16px;
+        }
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: var(--alarm);
+        }
+        .status-dot.connected { background: var(--ok); }
+        .status-text {
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        /* 实时数据卡 */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label {
+            font-size: 13px;
+            color: var(--sub);
+        }
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        .data-value.alarm { color: var(--alarm); }
+        .data-unit {
+            font-size: 13px;
+            color: var(--sub);
+            margin-left: 4px;
+        }
+
+        /* 报警状态卡 */
+        .alarm-ok {
+            color: var(--ok);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .alarm-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .alarm-item {
+            background: rgba(244, 67, 54, 0.1);
+            color: var(--alarm);
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        /* 控制按钮 */
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        .btn {
+            height: 48px;
+            border-radius: 8px;
+            border: none;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:active { transform: scale(0.98); opacity: 0.9; }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-danger {
+            background: var(--alarm);
+            color: white;
+        }
+
+        /* 阈值显示卡 */
+        .threshold-display-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 14px;
+            color: var(--text);
+        }
+        .threshold-display-value {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* 阈值设置卡 */
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .threshold-row:last-child { border-bottom: none; }
+        .threshold-label {
+            font-size: 14px;
+            color: var(--sub);
+        }
+        .threshold-input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .threshold-btn {
+            padding: 8px 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .threshold-btn:active { opacity: 0.8; }
+
+        /* 日志卡 */
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .log-toggle {
+            font-size: 12px;
+            color: var(--primary);
+        }
+        .log-content {
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 12px;
+        }
+        .log-content.show { display: block; }
+        .log-item {
+            font-size: 12px;
+            color: var(--sub);
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .log-item:last-child { border-bottom: none; }
+        .log-time {
+            color: #999;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 状态栏 -->
+    <div class="card status-bar">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <div class="status-dot" id="statusDot"></div>
+            <span class="status-text" id="statusText">未连接</span>
+        </div>
+        <span class="status-text">MQTT: broker.emqx.io</span>
+    </div>
+
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">实时监测数据</div>
+        <div class="data-row">
+            <span class="data-label">烟雾浓度</span>
+            <div><span class="data-value" id="mq2">--</span><span class="data-unit">ADC</span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">水位</span>
+            <div><span class="data-value" id="water">--</span><span class="data-unit">ADC</span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">温度</span>
+            <div><span class="data-value" id="temp">--</span><span class="data-unit">℃</span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">湿度</span>
+            <div><span class="data-value" id="hum">--</span><span class="data-unit">%</span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">光照强度</span>
+            <div><span class="data-value" id="light">--</span><span class="data-unit">ADC</span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">门磁状态</span>
+            <div><span class="data-value" id="door">--</span><span class="data-unit"></span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">声音检测</span>
+            <div><span class="data-value" id="sound">--</span></div>
+        </div>
+    </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card">
+        <div class="card-title">报警状态</div>
+        <div id="alarmContent">
+            <div class="alarm-ok">运行正常 ✓</div>
+        </div>
+    </div>
+
+    <!-- 控制卡 -->
+    <div class="card">
+        <div class="card-title">远程控制</div>
+        <div class="btn-grid">
+            <button class="btn btn-danger" onclick="sendClearAlarm()">消警（关闭蜂鸣器/LED）</button>
+        </div>
+    </div>
+
+    <!-- 阈值显示卡 -->
+    <div class="card">
+        <div class="card-title">当前阈值（下位机上报）</div>
+        <div class="threshold-display-row">
+            <span>烟雾阈值</span>
+            <span class="threshold-display-value" id="smoke_th_display">--</span>
+        </div>
+        <div class="threshold-display-row">
+            <span>水位阈值</span>
+            <span class="threshold-display-value" id="water_th_display">--</span>
+        </div>
+        <div class="threshold-display-row">
+            <span>光照阈值</span>
+            <span class="threshold-display-value" id="light_th_display">--</span>
+        </div>
+        <div class="threshold-display-row">
+            <span>声音阈值</span>
+            <span class="threshold-display-value" id="sound_th_display">--</span>
+        </div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="threshold-row">
+            <span class="threshold-label">烟雾阈值</span>
+            <input type="number" class="threshold-input" id="smoke_th_input" min="0" max="4095" value="1500">
+            <button class="threshold-btn" onclick="setThreshold('smoke', '02')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">水位阈值</span>
+            <input type="number" class="threshold-input" id="water_th_input" min="0" max="4095" value="1500">
+            <button class="threshold-btn" onclick="setThreshold('water', '03')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">光照阈值</span>
+            <input type="number" class="threshold-input" id="light_th_input" min="0" max="4095" value="1500">
+            <button class="threshold-btn" onclick="setThreshold('light', '04')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">声音阈值</span>
+            <input type="number" class="threshold-input" id="sound_th_input" min="0" max="4095" value="1500">
+            <button class="threshold-btn" onclick="setThreshold('sound', '05')">发送</button>
+        </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card">
+        <div class="log-header" onclick="toggleLog()">
+            <span class="card-title">通信日志</span>
+            <span class="log-toggle" id="logToggle">展开</span>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
+
+    <script src="mqtt.min.js"></script>
+    <script>
+        // ==================== MQTT 配置 ====================
+        const UPLOAD_TOPIC = '489385/489385/duochuanganqi-anjianbaoging/upload';
+        const CMD_TOPIC = '489385/489385/duochuanganqi-anjianbaoging/cmd';
+
+        // ==================== 数据状态 ====================
+        let currentData = {
+            mq2: null,
+            water: null,
+            temp: null,
+            hum: null,
+            light: null,
+            door: null,
+            sound: null,
+            smoke_th: null,
+            water_th: null,
+            light_th: null,
+            sound_th: null
+        };
+
+        // ==================== 同步保护状态 ====================
+        let waitingSync = {
+            smoke: false,
+            water: false,
+            light: false,
+            sound: false
+        };
+        let pendingValue = {
+            smoke: null,
+            water: null,
+            light: null,
+            sound: null
+        };
+        let syncTimeoutTimer = {
+            smoke: null,
+            water: null,
+            light: null,
+            sound: null
+        };
+        let lastUserSetTime = {
+            smoke_th: 0,
+            water_th: 0,
+            light_th: 0,
+            sound_th: 0
+        };
+
+        const DEBOUNCE_MS = 500;
+        const SYNC_TIMEOUT_MS = 5000;
+
+        // ==================== 日志系统 ====================
+        let logs = [];
+        const MAX_LOGS = 20;
+
+        function addLog(msg) {
+            const time = new Date().toLocaleTimeString();
+            logs.unshift({ time, msg });
+            if (logs.length > MAX_LOGS) logs.pop();
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logContent');
+            container.innerHTML = logs.map(l =>
+                `<div class="log-item"><span class="log-time">${l.time}</span>${l.msg}</div>`
+            ).join('');
+        }
+
+        function toggleLog() {
+            const content = document.getElementById('logContent');
+            const toggle = document.getElementById('logToggle');
+            if (content.classList.contains('show')) {
+                content.classList.remove('show');
+                toggle.textContent = '展开';
+            } else {
+                content.classList.add('show');
+                toggle.textContent = '收起';
+            }
+        }
+
+        // ==================== MQTT 连接 ====================
+        let client = null;
+
+        function connectMQTT() {
+            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+                clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+                reconnectPeriod: 3000
+            });
+
+            client.on('connect', () => {
+                document.getElementById('statusDot').classList.add('connected');
+                document.getElementById('statusText').textContent = '已连接';
+                client.subscribe(UPLOAD_TOPIC);
+                addLog('已连接并订阅: ' + UPLOAD_TOPIC);
+            });
+
+            client.on('disconnect', () => {
+                document.getElementById('statusDot').classList.remove('connected');
+                document.getElementById('statusText').textContent = '未连接';
+            });
+
+            client.on('message', (topic, payload) => {
+                const msg = payload.toString();
+                addLog('↑ ' + msg);
+                parseMessage(msg);
+            });
+
+            client.on('error', (err) => {
+                addLog('错误: ' + err.message);
+            });
+        }
+
+        // ==================== 解析消息 ====================
+        function parseMessage(message) {
+            const parts = message.split(',');
+            if (parts.length < 11) return;
+
+            const newData = {
+                mq2: parseFloat(parts[0]),
+                water: parseFloat(parts[1]),
+                temp: parseFloat(parts[2]),
+                hum: parseFloat(parts[3]),
+                light: parseFloat(parts[4]),
+                door: parseInt(parts[5]),
+                sound: parseFloat(parts[6]),
+                smoke_th: parseInt(parts[7]),
+                water_th: parseInt(parts[8]),
+                light_th: parseInt(parts[9]),
+                sound_th: parseInt(parts[10])
+            };
+
+            // 传感器值始终更新
+            currentData.mq2 = newData.mq2;
+            currentData.water = newData.water;
+            currentData.temp = newData.temp;
+            currentData.hum = newData.hum;
+            currentData.light = newData.light;
+            currentData.door = newData.door;
+            currentData.sound = newData.sound;
+
+            // 检查阈值同步确认
+            const now = Date.now();
+            let hasPendingSync = false;
+
+            ['smoke', 'water', 'light', 'sound'].forEach(key => {
+                if (waitingSync[key]) {
+                    hasPendingSync = true;
+                    const expected = pendingValue[key];
+                    const received = newData[key + '_th'];
+
+                    if (expected !== null && Math.abs(received - expected) < 1) {
+                        console.log(`Sync confirmed for ${key}: ${received}`);
+                        if (syncTimeoutTimer[key]) {
+                            clearTimeout(syncTimeoutTimer[key]);
+                            syncTimeoutTimer[key] = null;
+                        }
+                        waitingSync[key] = false;
+                        pendingValue[key] = null;
+                        lastUserSetTime[key + '_th'] = 0;
+                    }
+                }
+            });
+
+            // 阈值更新逻辑（三重保护）
+            ['smoke', 'water', 'light', 'sound'].forEach(key => {
+                const thKey = key + '_th';
+                if (!lastUserSetTime[thKey] || (now - lastUserSetTime[thKey]) >= DEBOUNCE_MS) {
+                    if (!waitingSync[key]) {
+                        currentData[thKey] = newData[thKey];
+                    }
+                }
+            });
+
+            updateUI();
+            if (hasPendingSync) {
+                checkAlarmsWithPending();
+            } else {
+                checkAlarms();
+            }
+        }
+
+        // ==================== UI 更新 ====================
+        function updateUI() {
+            // 传感器数值
+            if (currentData.mq2 !== null) {
+                document.getElementById('mq2').textContent = currentData.mq2.toFixed(0);
+            }
+            if (currentData.water !== null) {
+                document.getElementById('water').textContent = currentData.water.toFixed(0);
+            }
+            if (currentData.temp !== null) {
+                document.getElementById('temp').textContent = currentData.temp.toFixed(1);
+            }
+            if (currentData.hum !== null) {
+                document.getElementById('hum').textContent = currentData.hum.toFixed(0);
+            }
+            if (currentData.light !== null) {
+                document.getElementById('light').textContent = currentData.light.toFixed(0);
+            }
+            if (currentData.door !== null) {
+                const doorText = currentData.door === 1 ? '开启' : '关闭';
+                document.getElementById('door').textContent = doorText;
+            }
+            if (currentData.sound !== null) {
+                // 声音传感器：ADC值，超阈值标红
+                document.getElementById('sound').textContent = currentData.sound.toFixed(0);
+            }
+
+            // 阈值显示（等待期间显示预测值）
+            ['smoke', 'water', 'light', 'sound'].forEach(key => {
+                const thKey = key + '_th';
+                const displayId = thKey + '_display';
+                if (currentData[thKey] !== null) {
+                    const value = waitingSync[key] ? pendingValue[key] : currentData[thKey];
+                    document.getElementById(displayId).textContent = value;
+                }
+            });
+        }
+
+        // ==================== 报警判断 ====================
+        function checkAlarms() {
+            const alarms = [];
+
+            if (currentData.mq2 !== null && currentData.smoke_th !== null &&
+                currentData.mq2 > currentData.smoke_th) {
+                alarms.push('烟雾报警');
+            }
+            if (currentData.water !== null && currentData.water_th !== null &&
+                currentData.water > currentData.water_th) {
+                alarms.push('水位报警');
+            }
+            if (currentData.light !== null && currentData.light_th !== null) {
+                // 光照：反转后判断，亮度低于阈值 = 光照不足（需要补光）
+                const lightBrightness = 4095 - currentData.light;
+                if (lightBrightness < currentData.light_th) {
+                    alarms.push('光照不足');
+                }
+            }
+            if (currentData.sound !== null && currentData.sound_th !== null &&
+                currentData.sound > currentData.sound_th) {
+                alarms.push('声音报警');
+            }
+            if (currentData.door !== null && currentData.door === 1) {
+                alarms.push('门磁报警');
+            }
+
+            renderAlarms(alarms);
+            if (alarms.length > 0) {
+                sendAlarmToNative(alarms);
+            }
+        }
+
+        function checkAlarmsWithPending() {
+            const alarms = [];
+
+            const smokeTh = waitingSync.smoke ? pendingValue.smoke : currentData.smoke_th;
+            const waterTh = waitingSync.water ? pendingValue.water : currentData.water_th;
+            const lightTh = waitingSync.light ? pendingValue.light : currentData.light_th;
+            const soundTh = waitingSync.sound ? pendingValue.sound : currentData.sound_th;
+
+            if (currentData.mq2 !== null && smokeTh !== null &&
+                currentData.mq2 > smokeTh) {
+                alarms.push('烟雾报警');
+            }
+            if (currentData.water !== null && waterTh !== null &&
+                currentData.water > waterTh) {
+                alarms.push('水位报警');
+            }
+            if (currentData.light !== null && lightTh !== null) {
+                // 光照：反转后判断，亮度低于阈值 = 光照不足（需要补光）
+                const lightBrightness = 4095 - currentData.light;
+                if (lightBrightness < lightTh) {
+                    alarms.push('光照不足');
+                }
+            }
+            if (currentData.sound !== null && soundTh !== null &&
+                currentData.sound > soundTh) {
+                alarms.push('声音报警');
+            }
+            if (currentData.door !== null && currentData.door === 1) {
+                alarms.push('门磁报警');
+            }
+
+            renderAlarms(alarms);
+        }
+
+        function renderAlarms(alarms) {
+            const container = document.getElementById('alarmContent');
+            if (alarms.length === 0) {
+                container.innerHTML = '<div class="alarm-ok">运行正常 ✓</div>';
+                // 清除报警样式
+                ['mq2', 'water', 'light', 'sound'].forEach(id => {
+                    document.getElementById(id).classList.remove('alarm');
+                });
+                if (currentData.door === 1) {
+                    document.getElementById('door').classList.add('alarm');
+                } else {
+                    document.getElementById('door').classList.remove('alarm');
+                }
+            } else {
+                container.innerHTML = '<div class="alarm-list">' +
+                    alarms.map(a => `<div class="alarm-item">${a}</div>`).join('') +
+                    '</div>';
+
+                // 报警字段标红
+                if (alarms.includes('烟雾报警')) {
+                    document.getElementById('mq2').classList.add('alarm');
+                } else {
+                    document.getElementById('mq2').classList.remove('alarm');
+                }
+                if (alarms.includes('水位报警')) {
+                    document.getElementById('water').classList.add('alarm');
+                } else {
+                    document.getElementById('water').classList.remove('alarm');
+                }
+                if (alarms.includes('光照不足')) {
+                    document.getElementById('light').classList.add('alarm');
+                } else {
+                    document.getElementById('light').classList.remove('alarm');
+                }
+                if (alarms.includes('声音报警')) {
+                    document.getElementById('sound').classList.add('alarm');
+                } else {
+                    document.getElementById('sound').classList.remove('alarm');
+                }
+                if (alarms.includes('门磁报警')) {
+                    document.getElementById('door').classList.add('alarm');
+                } else {
+                    document.getElementById('door').classList.remove('alarm');
+                }
+            }
+        }
+
+        function sendAlarmToNative(alarms) {
+            if (window.Android) {
+                window.Android.onAlarm(JSON.stringify({
+                    alarms: alarms,
+                    mq2: currentData.mq2,
+                    smoke_th: currentData.smoke_th,
+                    door: currentData.door
+                }));
+            }
+        }
+
+        // ==================== 发送指令 ====================
+        function sendCmd(cmd) {
+            if (client && client.connected) {
+                client.publish(CMD_TOPIC, cmd);
+                addLog('↓ ' + cmd);
+            } else {
+                alert('MQTT 未连接');
+            }
+        }
+
+        function sendClearAlarm() {
+            sendCmd('01');
+        }
+
+        // ==================== 阈值设置（带同步保护） ====================
+        function setThreshold(type, cmdCode) {
+            const inputId = type + '_th_input';
+            const value = document.getElementById(inputId).value;
+
+            if (!value || value === '') {
+                alert('请输入阈值');
+                return;
+            }
+
+            const numValue = parseInt(value);
+            if (isNaN(numValue) || numValue < 0 || numValue > 4095) {
+                alert('请输入有效数字（0-4095）');
+                return;
+            }
+
+            if (waitingSync[type]) {
+                console.log(`Already waiting sync for ${type}`);
+                return;
+            }
+
+            // 1. 设置等待同步状态
+            waitingSync[type] = true;
+            pendingValue[type] = numValue;
+
+            // 2. 发送指令
+            sendCmd(`${cmdCode},${numValue}`);
+
+            // 3. 记录用户操作时间（防抖）
+            lastUserSetTime[type + '_th'] = Date.now();
+
+            // 4. 立即更新显示（预测状态）
+            currentData[type + '_th'] = numValue;
+
+            // 5. 立即检查报警
+            checkAlarmsWithPending();
+
+            // 6. 设置超时保护
+            syncTimeoutTimer[type] = setTimeout(() => {
+                if (waitingSync[type]) {
+                    console.warn(`Sync timeout for ${type}, releasing protection`);
+                    waitingSync[type] = false;
+                    pendingValue[type] = null;
+                    syncTimeoutTimer[type] = null;
+                }
+            }, SYNC_TIMEOUT_MS);
+
+            // 关闭输入框焦点
+            document.getElementById(inputId).blur();
+        }
+
+        // ==================== 初始化 ====================
+        connectMQTT();
+    </script>
+</body>
+</html>
