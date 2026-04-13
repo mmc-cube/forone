@@ -76,6 +76,7 @@
             color: var(--text);
         }
         .data-value.alarm { color: var(--alarm); }
+        .data-value.light-low { color: #FF9800; } /* 光照不足提示（橙色） */
         .data-unit {
             font-size: 13px;
             color: var(--sub);
@@ -260,7 +261,7 @@
     <div class="card">
         <div class="card-title">远程控制</div>
         <div class="btn-grid">
-            <button class="btn btn-danger" onclick="sendClearAlarm()">消警（关闭蜂鸣器/LED）</button>
+            <button class="btn btn-danger" onclick="sendClearAlarm()">消警（关闭蜂鸣器）</button>
         </div>
     </div>
 
@@ -550,13 +551,7 @@
                 currentData.water > currentData.water_th) {
                 alarms.push('水位报警');
             }
-            if (currentData.light !== null && currentData.light_th !== null) {
-                // 光照：反转后判断，亮度低于阈值 = 光照不足（需要补光）
-                const lightBrightness = 4095 - currentData.light;
-                if (lightBrightness < currentData.light_th) {
-                    alarms.push('光照不足');
-                }
-            }
+            // 光照不足是提示，不是报警，不加入 alarms
             if (currentData.sound !== null && currentData.sound_th !== null &&
                 currentData.sound > currentData.sound_th) {
                 alarms.push('声音报警');
@@ -566,6 +561,8 @@
             }
 
             renderAlarms(alarms);
+            // 光照不足单独标记显示
+            updateLightIndicator();
             if (alarms.length > 0) {
                 sendAlarmToNative(alarms);
             }
@@ -587,13 +584,7 @@
                 currentData.water > waterTh) {
                 alarms.push('水位报警');
             }
-            if (currentData.light !== null && lightTh !== null) {
-                // 光照：反转后判断，亮度低于阈值 = 光照不足（需要补光）
-                const lightBrightness = 4095 - currentData.light;
-                if (lightBrightness < lightTh) {
-                    alarms.push('光照不足');
-                }
-            }
+            // 光照不足是提示，不是报警，不加入 alarms
             if (currentData.sound !== null && soundTh !== null &&
                 currentData.sound > soundTh) {
                 alarms.push('声音报警');
@@ -603,6 +594,22 @@
             }
 
             renderAlarms(alarms);
+            updateLightIndicator();
+        }
+
+        // ==================== 光照提示（非报警） ====================
+        function updateLightIndicator() {
+            const lightEl = document.getElementById('light');
+            if (currentData.light !== null && currentData.light_th !== null) {
+                const lightBrightness = 4095 - currentData.light;
+                if (lightBrightness < currentData.light_th) {
+                    lightEl.classList.add('light-low');
+                    lightEl.classList.remove('alarm');
+                } else {
+                    lightEl.classList.remove('light-low');
+                    lightEl.classList.remove('alarm');
+                }
+            }
         }
 
         function renderAlarms(alarms) {
@@ -610,7 +617,7 @@
             if (alarms.length === 0) {
                 container.innerHTML = '<div class="alarm-ok">运行正常 ✓</div>';
                 // 清除报警样式
-                ['mq2', 'water', 'light', 'sound'].forEach(id => {
+                ['mq2', 'water', 'sound'].forEach(id => {
                     document.getElementById(id).classList.remove('alarm');
                 });
                 if (currentData.door === 1) {
@@ -633,11 +640,6 @@
                     document.getElementById('water').classList.add('alarm');
                 } else {
                     document.getElementById('water').classList.remove('alarm');
-                }
-                if (alarms.includes('光照不足')) {
-                    document.getElementById('light').classList.add('alarm');
-                } else {
-                    document.getElementById('light').classList.remove('alarm');
                 }
                 if (alarms.includes('声音报警')) {
                     document.getElementById('sound').classList.add('alarm');
