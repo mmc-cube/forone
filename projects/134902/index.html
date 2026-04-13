@@ -306,111 +306,340 @@
             margin-top: 8px;
             font-size: 13px;
         }
+
+        /* 页面切换 */
+        .page-nav {
+            display: flex;
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 4px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .page-nav-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--sub);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .page-nav-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* 7日服药记录页面 */
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .history-clear-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            background: #f5f5f5;
+            color: var(--sub);
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+        }
+
+        .history-day {
+            text-align: center;
+            padding: 12px 6px;
+            border-radius: 10px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .history-day:hover {
+            transform: scale(1.02);
+        }
+
+        .history-day.has-record {
+            background: #E8F5E9;
+        }
+
+        .history-day.today {
+            background: #E3F2FD;
+            border: 2px solid var(--primary);
+        }
+
+        .history-day.selected {
+            border: 2px solid var(--ok);
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+        }
+
+        .history-day.no-record {
+            background: #f5f5f5;
+            color: var(--sub);
+        }
+
+        .history-day-name {
+            font-size: 12px;
+            color: var(--sub);
+        }
+
+        .history-day-date {
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--text);
+            margin-top: 4px;
+        }
+
+        .history-status-dots {
+            display: flex;
+            justify-content: center;
+            gap: 3px;
+            margin-top: 6px;
+        }
+
+        .history-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ddd;
+        }
+
+        .history-dot.ok {
+            background: var(--ok);
+        }
+
+        .history-dot.miss {
+            background: var(--alarm);
+        }
+
+        .history-dot.wait {
+            background: #FF9800;
+        }
+
+        .history-count {
+            font-size: 11px;
+            color: var(--sub);
+            margin-top: 4px;
+        }
+
+        .history-count.all-ok {
+            color: var(--ok);
+            font-weight: bold;
+        }
+
+        /* 详情卡片 */
+        .detail-card {
+            margin-top: 16px;
+        }
+
+        .detail-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--text);
+            margin-bottom: 12px;
+        }
+
+        .detail-time-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .detail-time {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .detail-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
+        .detail-status.ok {
+            background: #E8F5E9;
+            color: var(--ok);
+        }
+
+        .detail-status.miss {
+            background: #FFEBEE;
+            color: var(--alarm);
+        }
+
+        .detail-status.wait {
+            background: #FFF3E0;
+            color: #FF9800;
+        }
+
+        .detail-saved-time {
+            font-size: 12px;
+            color: var(--sub);
+            margin-top: 8px;
+            text-align: right;
+        }
+
+        .no-detail {
+            text-align: center;
+            color: var(--sub);
+            padding: 40px 20px;
+        }
     </style>
 </head>
 <body>
-    <!-- 状态栏 -->
-    <div class="card">
-        <div class="status-bar">
-            <div class="status-dot" id="statusDot"></div>
-            <span class="status-text" id="statusText">未连接</span>
-        </div>
+    <!-- 页面导航 -->
+    <div class="page-nav">
+        <button class="page-nav-btn active" id="navMain" onclick="switchPage('main')">主页面</button>
+        <button class="page-nav-btn" id="navHistory" onclick="switchPage('history')">服药记录</button>
     </div>
 
-    <!-- 提醒状态 -->
-    <div class="card" id="remindCard">
-        <div class="remind-alert">⚠️ 正在提醒 - 请服药</div>
-    </div>
-
-    <!-- 药仓状态 -->
-    <div class="card" id="doorCard">
-        <div class="door-open-alert">📦 药仓已开</div>
-    </div>
-
-    <!-- 实时数据 -->
-    <div class="card">
-        <div class="card-title">实时数据</div>
-        <div class="data-row">
-            <span class="data-label">当前时间</span>
-            <div>
-                <span class="data-value" id="timeValue">--:--:--</span>
+    <!-- 主页面 -->
+    <div class="page active" id="pageMain">
+        <!-- 状态栏 -->
+        <div class="card">
+            <div class="status-bar">
+                <div class="status-dot" id="statusDot"></div>
+                <span class="status-text" id="statusText">未连接</span>
             </div>
         </div>
-        <div class="data-row">
-            <span class="data-label">下次服药</span>
-            <div>
-                <span class="data-value" id="nextTimeValue">--:--</span>
+
+        <!-- 提醒状态 -->
+        <div class="card hidden" id="remindCard">
+            <div class="remind-alert">⚠️ 正在提醒 - 请服药</div>
+        </div>
+
+        <!-- 药仓状态 -->
+        <div class="card hidden" id="doorCard">
+            <div class="door-open-alert">📦 药仓已开</div>
+        </div>
+
+        <!-- 实时数据 -->
+        <div class="card">
+            <div class="card-title">实时数据</div>
+            <div class="data-row">
+                <span class="data-label">当前时间</span>
+                <div>
+                    <span class="data-value" id="timeValue">--:--</span>
+                </div>
+            </div>
+            <div class="data-row">
+                <span class="data-label">下次服药</span>
+                <div>
+                    <span class="data-value" id="nextTimeValue">--:--</span>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- 服药状态 -->
-    <div class="card">
-        <div class="card-title">今日服药状态</div>
-        <div class="status-grid">
-            <div class="status-item" id="status1Item">
-                <div class="status-time" id="time1">--:--</div>
-                <div class="status-text-item wait" id="text1">待服</div>
+        <!-- 服药状态 -->
+        <div class="card">
+            <div class="card-title">今日服药状态</div>
+            <div class="status-grid">
+                <div class="status-item" id="status1Item">
+                    <div class="status-time" id="time1">--:--</div>
+                    <div class="status-text-item wait" id="text1">待服</div>
+                </div>
+                <div class="status-item" id="status2Item">
+                    <div class="status-time" id="time2">--:--</div>
+                    <div class="status-text-item wait" id="text2">待服</div>
+                </div>
+                <div class="status-item" id="status3Item">
+                    <div class="status-time" id="time3">--:--</div>
+                    <div class="status-text-item wait" id="text3">待服</div>
+                </div>
             </div>
-            <div class="status-item" id="status2Item">
-                <div class="status-time" id="time2">--:--</div>
-                <div class="status-text-item wait" id="text2">待服</div>
+        </div>
+
+        <!-- 报警状态 -->
+        <div class="card" id="alarmCard">
+            <div class="card-title">系统状态</div>
+            <div class="alarm-box ok" id="alarmBox">
+                ✓ 运行正常
             </div>
-            <div class="status-item" id="status3Item">
-                <div class="status-time" id="time3">--:--</div>
-                <div class="status-text-item wait" id="text3">待服</div>
+            <div id="alarmList"></div>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="card">
+            <div class="card-title">控制面板</div>
+            <div class="btn-grid">
+                <button class="btn btn-danger" onclick="sendCmd('01')">🔕 消警</button>
+                <button class="btn btn-primary" onclick="sendRemindCmd()">🔔 催服</button>
             </div>
         </div>
-    </div>
 
-    <!-- 报警状态 -->
-    <div class="card" id="alarmCard">
-        <div class="card-title">系统状态</div>
-        <div class="alarm-box ok" id="alarmBox">
-            ✓ 运行正常
+        <!-- 阈值设置 -->
+        <div class="card">
+            <div class="card-title">服药时间设置</div>
+            <div class="setting-row">
+                <span class="setting-label">时间 1</span>
+                <input type="number" class="setting-input" id="t1H" placeholder="时" min="0" max="23" value="8">
+                <input type="number" class="setting-input" id="t1M" placeholder="分" min="0" max="59" value="0">
+                <button class="setting-btn" onclick="setT1()">设置</button>
+            </div>
+            <div class="setting-row">
+                <span class="setting-label">时间 2</span>
+                <input type="number" class="setting-input" id="t2H" placeholder="时" min="0" max="23" value="14">
+                <input type="number" class="setting-input" id="t2M" placeholder="分" min="0" max="59" value="0">
+                <button class="setting-btn" onclick="setT2()">设置</button>
+            </div>
+            <div class="setting-row">
+                <span class="setting-label">时间 3</span>
+                <input type="number" class="setting-input" id="t3H" placeholder="时" min="0" max="23" value="20">
+                <input type="number" class="setting-input" id="t3M" placeholder="分" min="0" max="59" value="0">
+                <button class="setting-btn" onclick="setT3()">设置</button>
+            </div>
         </div>
-        <div id="alarmList"></div>
-    </div>
 
-    <!-- 控制面板 -->
-    <div class="card">
-        <div class="card-title">控制面板</div>
-        <div class="btn-grid">
-            <button class="btn btn-danger" onclick="sendCmd('01')">🔕 消警</button>
-            <button class="btn btn-primary" onclick="sendRemindCmd()">🔔 催服</button>
-        </div>
-    </div>
-
-    <!-- 阈值设置 -->
-    <div class="card">
-        <div class="card-title">服药时间设置</div>
-        <div class="setting-row">
-            <span class="setting-label">时间 1</span>
-            <input type="number" class="setting-input" id="t1H" placeholder="时" min="0" max="23" value="8">
-            <input type="number" class="setting-input" id="t1M" placeholder="分" min="0" max="59" value="0">
-            <button class="setting-btn" onclick="setT1()">设置</button>
-        </div>
-        <div class="setting-row">
-            <span class="setting-label">时间 2</span>
-            <input type="number" class="setting-input" id="t2H" placeholder="时" min="0" max="23" value="14">
-            <input type="number" class="setting-input" id="t2M" placeholder="分" min="0" max="59" value="0">
-            <button class="setting-btn" onclick="setT2()">设置</button>
-        </div>
-        <div class="setting-row">
-            <span class="setting-label">时间 3</span>
-            <input type="number" class="setting-input" id="t3H" placeholder="时" min="0" max="23" value="20">
-            <input type="number" class="setting-input" id="t3M" placeholder="分" min="0" max="59" value="0">
-            <button class="setting-btn" onclick="setT3()">设置</button>
+        <!-- 日志 -->
+        <div class="card log-card">
+            <div class="log-header" onclick="toggleLog()">
+                <span class="card-title">数据日志</span>
+                <span>▼ 点击展开/收起</span>
+            </div>
+            <div class="log-content hidden" id="logContent"></div>
         </div>
     </div>
 
-    <!-- 日志 -->
-    <div class="card log-card">
-        <div class="log-header" onclick="toggleLog()">
-            <span class="card-title">数据日志</span>
-            <span>▼ 点击展开/收起</span>
+    <!-- 服药记录页面 -->
+    <div class="page" id="pageHistory">
+        <div class="card">
+            <div class="history-header">
+                <div class="card-title">7日服药记录</div>
+                <button class="history-clear-btn" onclick="clearAllHistory()">清空记录</button>
+            </div>
+            <div class="history-grid" id="historyGrid"></div>
         </div>
-        <div class="log-content hidden" id="logContent"></div>
+
+        <div class="card detail-card">
+            <div class="detail-title" id="detailTitle">点击日期查看详情</div>
+            <div id="detailContent">
+                <div class="no-detail">请点击上方日期查看当日服药详情</div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -425,6 +654,10 @@
         let logData = [];
         let logVisible = false;
         let lastRemindTime = 0;
+        let selectedHistoryDate = null;
+
+        // localStorage 存储前缀
+        const STORAGE_KEY_PREFIX = 'medRecord_';
 
         // 连接 MQTT
         function connectMQTT() {
@@ -490,14 +723,15 @@
             updateUI();
             checkAlarms();
             addLog(msg);
+            saveTodayRecord();  // 自动保存今日记录
         }
 
         // 更新 UI
         function updateUI() {
             const d = currentData;
 
-            // 时间
-            const timeStr = `${pad(d.hour)}:${pad(d.minute)}:${pad(d.second)}`;
+            // 时间（只显示时分）
+            const timeStr = `${pad(d.hour)}:${pad(d.minute)}`;
             document.getElementById('timeValue').textContent = timeStr;
 
             // 下次服药时间（T3 已服就不显示）
@@ -686,7 +920,225 @@
         }
 
         // 初始化
+        fillMockHistory();  // 填充模拟历史数据
         connectMQTT();
+        render7DayHistory();
+
+        // ========== 页面切换 ==========
+        function switchPage(page) {
+            const navMain = document.getElementById('navMain');
+            const navHistory = document.getElementById('navHistory');
+            const pageMain = document.getElementById('pageMain');
+            const pageHistory = document.getElementById('pageHistory');
+
+            if (page === 'main') {
+                navMain.classList.add('active');
+                navHistory.classList.remove('active');
+                pageMain.classList.add('active');
+                pageHistory.classList.remove('active');
+            } else {
+                navMain.classList.remove('active');
+                navHistory.classList.add('active');
+                pageMain.classList.remove('active');
+                pageHistory.classList.add('active');
+                render7DayHistory();
+            }
+        }
+
+        // ========== localStorage 存储功能 ==========
+
+        // 填充模拟历史数据（仅在没有数据时）
+        function fillMockHistory() {
+            const mockData = [
+                { daysAgo: 6, ok: 3, miss: 0 },   // 全服
+                { daysAgo: 5, ok: 2, miss: 1 },   // 漏服一次
+                { daysAgo: 4, ok: 3, miss: 0 },   // 全服
+                { daysAgo: 3, ok: 1, miss: 2 },   // 漏服两次
+                { daysAgo: 2, ok: 3, miss: 0 },   // 全服
+                { daysAgo: 1, ok: 2, miss: 1 },   // 漏服一次
+            ];
+
+            mockData.forEach(mock => {
+                const date = new Date();
+                date.setDate(date.getDate() - mock.daysAgo);
+                const dateStr = getDateString(date);
+
+                // 如果已有数据则跳过
+                if (localStorage.getItem(STORAGE_KEY_PREFIX + dateStr)) return;
+
+                // 生成模拟状态：先填已服，再填漏服，最后填待服
+                const statuses = [];
+                for (let i = 0; i < mock.ok; i++) statuses.push(1);  // 已服
+                for (let i = 0; i < mock.miss; i++) statuses.push(2); // 漏服
+                while (statuses.length < 3) statuses.push(0);  // 待服
+
+                const record = {
+                    date: formatDateDisplay(dateStr),
+                    times: [
+                        { time: '08:00', status: statuses[0] },
+                        { time: '14:00', status: statuses[1] },
+                        { time: '20:00', status: statuses[2] }
+                    ],
+                    savedAt: '23:59:00'
+                };
+
+                localStorage.setItem(STORAGE_KEY_PREFIX + dateStr, JSON.stringify(record));
+            });
+        }
+
+        // 获取日期字符串 (YYYYMMDD)
+        function getDateString(date) {
+            const d = date || new Date();
+            return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+        }
+
+        // 格式化显示日期 (YYYY-MM-DD)
+        function formatDateDisplay(dateStr) {
+            return `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+        }
+
+        // 保存今日服药记录
+        function saveTodayRecord() {
+            if (!currentData.hour) return; // 数据不完整
+
+            const dateStr = getDateString();
+            const record = {
+                date: formatDateDisplay(dateStr),
+                times: [
+                    { time: `${pad(currentData.t1_h)}:${pad(currentData.t1_m)}`, status: currentData.status1 },
+                    { time: `${pad(currentData.t2_h)}:${pad(currentData.t2_m)}`, status: currentData.status2 },
+                    { time: `${pad(currentData.t3_h)}:${pad(currentData.t3_m)}`, status: currentData.status3 }
+                ],
+                savedAt: `${pad(currentData.hour)}:${pad(currentData.minute)}:${pad(currentData.second)}`
+            };
+
+            localStorage.setItem(STORAGE_KEY_PREFIX + dateStr, JSON.stringify(record));
+        }
+
+        // 获取某天的记录
+        function getRecord(dateStr) {
+            const data = localStorage.getItem(STORAGE_KEY_PREFIX + dateStr);
+            return data ? JSON.parse(data) : null;
+        }
+
+        // 清空所有记录
+        function clearAllHistory() {
+            if (confirm('确定要清空所有服药记录吗？')) {
+                for (let i = 0; i < 7; i++) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    const dateStr = getDateString(date);
+                    localStorage.removeItem(STORAGE_KEY_PREFIX + dateStr);
+                }
+                selectedHistoryDate = null;
+                render7DayHistory();
+                renderHistoryDetail(null);
+            }
+        }
+
+        // ========== 7日记录渲染 ==========
+        function render7DayHistory() {
+            const grid = document.getElementById('historyGrid');
+            const days = ['日', '一', '二', '三', '四', '五', '六'];
+            const today = new Date();
+
+            let html = '';
+            // 从今天往前推6天，共7天
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                const dateStr = getDateString(date);
+                const dayIndex = date.getDay();
+                const record = getRecord(dateStr);
+
+                const isToday = i === 0;
+                const isSelected = selectedHistoryDate === dateStr;
+                const hasRecord = record !== null;
+
+                // 计算服药状态点
+                let dotsHtml = '';
+                let okCount = 0;
+                let totalCount = 3;
+
+                if (hasRecord) {
+                    record.times.forEach(t => {
+                        if (t.status === 1) okCount++;
+                        dotsHtml += `<div class="history-dot ${getStatusClass(t.status)}"></div>`;
+                    });
+                } else {
+                    dotsHtml = '<span style="font-size:10px;color:#999">--</span>';
+                }
+
+                html += `
+                    <div class="history-day ${isToday ? 'today' : ''} ${hasRecord ? 'has-record' : 'no-record'} ${isSelected ? 'selected' : ''}"
+                         onclick="selectHistoryDay('${dateStr}')">
+                        <div class="history-day-name">${days[dayIndex]}</div>
+                        <div class="history-day-date">${date.getDate()}</div>
+                        <div class="history-status-dots">${dotsHtml}</div>
+                        <div class="history-count ${hasRecord && okCount === totalCount ? 'all-ok' : ''}">
+                            ${hasRecord ? `${okCount}/${totalCount}` : '无'}
+                        </div>
+                    </div>
+                `;
+            }
+
+            grid.innerHTML = html;
+        }
+
+        function getStatusClass(status) {
+            if (status === 1) return 'ok';
+            if (status === 2) return 'miss';
+            return 'wait';
+        }
+
+        function getStatusText(status) {
+            if (status === 1) return '已服';
+            if (status === 2) return '漏服';
+            return '待服';
+        }
+
+        // 选择某天查看详情
+        function selectHistoryDay(dateStr) {
+            selectedHistoryDate = dateStr;
+            render7DayHistory();
+            renderHistoryDetail(dateStr);
+        }
+
+        // 渲染详情
+        function renderHistoryDetail(dateStr) {
+            const titleEl = document.getElementById('detailTitle');
+            const contentEl = document.getElementById('detailContent');
+
+            if (!dateStr) {
+                titleEl.textContent = '点击日期查看详情';
+                contentEl.innerHTML = '<div class="no-detail">请点击上方日期查看当日服药详情</div>';
+                return;
+            }
+
+            const record = getRecord(dateStr);
+            const displayDate = formatDateDisplay(dateStr);
+
+            titleEl.textContent = `${displayDate} 服药详情`;
+
+            if (!record) {
+                contentEl.innerHTML = '<div class="no-detail">当日无服药记录</div>';
+                return;
+            }
+
+            let html = '';
+            record.times.forEach((t, idx) => {
+                html += `
+                    <div class="detail-time-row">
+                        <span class="detail-time">T${idx + 1} ${t.time}</span>
+                        <span class="detail-status ${getStatusClass(t.status)}">${getStatusText(t.status)}</span>
+                    </div>
+                `;
+            });
+
+            html += `<div class="detail-saved-time">记录保存时间: ${record.savedAt}</div>`;
+
+            contentEl.innerHTML = html;
+        }
     </script>
 </body>
 </html>
