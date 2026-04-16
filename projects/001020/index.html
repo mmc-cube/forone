@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>智能空气质量监测报警系统</title>
+<script src="mqtt.min.js"></script>
+<style>
+:root {
+  --bg: #F5F5F5;
+  --card: #FFFFFF;
+  --primary: #2196F3;
+  --alarm: #F44336;
+  --ok: #4CAF50;
+  --text: #212121;
+  --sub: #757575;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --radius: 12px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 0 12px 24px;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.topbar {
+  padding: 44px 0 10px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg);
+}
+.topbar h1 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.card-title {
+  font-size: 14px;
+  color: var(--sub);
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+/* 状态栏 */
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--sub);
+}
+.dot.connected { background: var(--ok); }
+.dot.disconnected { background: var(--alarm); }
+.status-text { font-size: 13px; }
+/* 实时数据 */
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.data-row:last-child { border-bottom: none; }
+.data-label { font-size: 13px; color: var(--sub); }
+.data-value { font-size: 28px; font-weight: bold; }
+.data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+.data-value.alarm { color: var(--alarm); }
+/* 报警卡 */
+.alarm-normal {
+  color: var(--ok);
+  font-size: 15px;
+  font-weight: 500;
+  text-align: center;
+  padding: 8px 0;
+}
+.alarm-active {
+  background: #FFF3F0;
+  color: var(--alarm);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px;
+}
+/* 控制卡 */
+.ctrl-btn {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: all 0.15s;
+}
+.ctrl-btn:active { transform: scale(0.97); }
+.ctrl-btn.primary { background: var(--primary); color: #fff; }
+.ctrl-btn.alarm { background: var(--alarm); color: #fff; }
+.ctrl-btn.secondary { background: #E0E0E0; color: var(--text); }
+.ctrl-btn.success { background: var(--ok); color: #fff; }
+.ctrl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.btn-row .ctrl-btn { flex: 1; margin-bottom: 0; }
+/* 模式标签 */
+.mode-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+.mode-auto { background: #E3F2FD; color: #1976D2; }
+.mode-manual { background: #FFF3E0; color: #F57C00; }
+/* 阈值显示卡 */
+.thresh-display-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.thresh-display-row:last-child { border-bottom: none; }
+.thresh-label { font-size: 13px; color: var(--sub); }
+.thresh-value { font-size: 16px; font-weight: 600; }
+/* 阈值设置卡 */
+.thresh-set-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.thresh-set-row:last-child { margin-bottom: 0; }
+.thresh-set-label { font-size: 13px; color: var(--sub); min-width: 80px; }
+.thresh-set-input {
+  width: 80px;
+  height: 40px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 14px;
+  text-align: center;
+}
+.thresh-set-btn {
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.thresh-set-btn:active { transform: scale(0.95); }
+/* 日志卡 */
+.log-toggle {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+.log-arrow { transition: transform 0.2s; font-size: 12px; }
+.log-arrow.open { transform: rotate(90deg); }
+.log-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+.log-content.open { max-height: 600px; }
+.log-item {
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--sub);
+  padding: 4px 0;
+  border-bottom: 1px solid #f5f5f5;
+  word-break: break-all;
+}
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>智能空气质量监测报警系统</h1>
+</div>
+
+<!-- 状态栏 -->
+<div class="card">
+  <div class="status-row">
+    <span class="dot disconnected" id="connDot"></span>
+    <span class="status-text" id="connText">未连接</span>
+  </div>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+  <div class="card-title">实时数据</div>
+  <div class="data-row">
+    <span class="data-label">PM2.5</span>
+    <div><span class="data-value" id="pm25">--</span><span class="data-unit">μg/m³</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">甲醛</span>
+    <div><span class="data-value" id="ch2o">--</span><span class="data-unit">ppb</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">风扇状态</span>
+    <div><span class="data-value" id="fan_state" style="font-size:18px">--</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">系统模式</span>
+    <div>
+      <span class="data-value" id="sys_mode" style="font-size:18px">--</span>
+    </div>
+  </div>
+</div>
+
+<!-- 报警状态卡 -->
+<div class="card" id="alarmCard">
+  <div class="card-title">报警状态</div>
+  <div id="alarmContent">
+    <div class="alarm-normal" id="alarmNormal">空气质量正常 ✓</div>
+  </div>
+</div>
+
+<!-- 控制卡 -->
+<div class="card">
+  <div class="card-title">远程控制</div>
+
+  <!-- 消警按钮 -->
+  <button class="ctrl-btn alarm" onclick="sendCmd('01')">消警</button>
+
+  <!-- 模式切换 -->
+  <button class="ctrl-btn primary" id="modeBtn" onclick="toggleMode()">切换系统模式</button>
+
+  <!-- 手动模式控制区 -->
+  <div id="manualControls" class="hidden">
+    <div class="btn-row">
+      <button class="ctrl-btn" id="fanOffBtn" onclick="setFanGear('off')" style="background:#E0E0E0;color:var(--text)">OFF</button>
+      <button class="ctrl-btn" id="fanMedBtn" onclick="setFanGear('med')" style="background:#FF9800;color:#fff">MED</button>
+      <button class="ctrl-btn" id="fanHghBtn" onclick="setFanGear('hgh')" style="background:#2196F3;color:#fff">HGH</button>
+    </div>
+  </div>
+</div>
+
+<!-- 阈值显示卡（只读，显示下位机实际上报值） -->
+<div class="card">
+  <div class="card-title">当前阈值（下位机上报）</div>
+  <div class="thresh-display-row">
+    <span class="thresh-label">PM25H</span>
+    <span class="thresh-value" id="pm25h_display">-- μg/m³</span>
+  </div>
+  <div class="thresh-display-row">
+    <span class="thresh-label">CH2OH</span>
+    <span class="thresh-value" id="ch2oh_display">-- ppb</span>
+  </div>
+</div>
+
+<!-- 阈值设置卡 -->
+<div class="card">
+  <div class="card-title">阈值设置</div>
+  <div class="thresh-set-row">
+    <span class="thresh-set-label">PM25H (μg/m³)</span>
+    <input type="number" class="thresh-set-input" id="pm25h_input" placeholder="100">
+    <button class="thresh-set-btn" onclick="setThreshold('pm25h','02')">发送</button>
+  </div>
+  <div class="thresh-set-row">
+    <span class="thresh-set-label">CH2OH (ppb)</span>
+    <input type="number" class="thresh-set-input" id="ch2oh_input" placeholder="50">
+    <button class="thresh-set-btn" onclick="setThreshold('ch2oh','03')">发送</button>
+  </div>
+</div>
+
+<!-- 日志卡（默认折叠） -->
+<div class="card">
+  <div class="log-toggle" onclick="toggleLog()">
+    <div class="card-title" style="margin-bottom:0">运行日志</div>
+    <span class="log-arrow" id="logArrow">▶</span>
+  </div>
+  <div class="log-content" id="logContent">
+    <div id="logList"></div>
+  </div>
+</div>
+
+<script>
+// ==================== MQTT 配置 ====================
+const UPLOAD_TOPIC = '753284/401657/kongqizhiliang/upload';
+const CMD_TOPIC    = '753284/401657/kongqizhiliang/cmd';
+
+let client = null;
+let currentData = {
+  pm25: null,
+  ch2o: null,
+  fan_state: null,
+  sys_mode: null,
+  pm25h: null,
+  ch2oh: null
+};
+
+// ==================== 同步保护状态 ====================
+let waitingSync = { pm25h: false, ch2oh: false };
+let pendingValue = { pm25h: null, ch2oh: null };
+let syncTimeoutTimer = { pm25h: null, ch2oh: null };
+let lastUserSetTime = { pm25h: 0, ch2oh: 0 };
+
+const DEBOUNCE_MS = 500;
+const SYNC_TIMEOUT_MS = 5000;
+
+// ==================== 日志 ====================
+const MAX_LOG_ITEMS = 20;
+let logItems = [];
+
+function addLog(msg) {
+  const now = new Date().toLocaleTimeString();
+  logItems.unshift(`[${now}] ${msg}`);
+  if (logItems.length > MAX_LOG_ITEMS) logItems.pop();
+  renderLogs();
+}
+
+function renderLogs() {
+  const el = document.getElementById('logList');
+  el.innerHTML = logItems.map(l => `<div class="log-item">${l}</div>`).join('');
+}
+
+function toggleLog() {
+  const content = document.getElementById('logContent');
+  const arrow = document.getElementById('logArrow');
+  content.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+// ==================== MQTT 连接 ====================
+function connectMQTT() {
+  const clientId = 'webview_' + Math.random().toString(36).substr(2, 6);
+  client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: clientId,
+    reconnectPeriod: 3000
+  });
+
+  client.on('connect', () => {
+    document.getElementById('connDot').className = 'dot connected';
+    document.getElementById('connText').textContent = '已连接';
+    client.subscribe(UPLOAD_TOPIC, () => {
+      addLog('已订阅: ' + UPLOAD_TOPIC);
+    });
+  });
+
+  client.on('message', (topic, payload) => {
+    const msg = payload.toString();
+    parseMessage(msg);
+  });
+
+  client.on('close', () => {
+    document.getElementById('connDot').className = 'dot disconnected';
+    document.getElementById('connText').textContent = '未连接';
+  });
+
+  client.on('error', (err) => {
+    document.getElementById('connText').textContent = '连接错误';
+    addLog('MQTT 错误: ' + err.message);
+  });
+
+  client.on('reconnect', () => {
+    document.getElementById('connText').textContent = '重连中...';
+  });
+}
+
+// ==================== 发送指令 ====================
+function sendCmd(cmd) {
+  if (!client || !client.connected) {
+    addLog('MQTT 未连接，发送失败: ' + cmd);
+    alert('MQTT 未连接');
+    return;
+  }
+  client.publish(CMD_TOPIC, cmd);
+  addLog('发送: ' + cmd);
+}
+
+// ==================== 阈值设置（带同步保护） ====================
+function setThreshold(type, cmdCode) {
+  const inputId = type + '_input';
+  const value = document.getElementById(inputId).value;
+
+  if (!value || value === '') {
+    alert('请输入阈值');
+    return;
+  }
+
+  const numValue = parseFloat(value);
+  if (isNaN(numValue)) {
+    alert('请输入有效数字');
+    return;
+  }
+
+  if (waitingSync[type]) {
+    addLog('正在等待 ' + type + ' 同步，请勿重复发送');
+    return;
+  }
+
+  // 1. 设置等待同步状态
+  waitingSync[type] = true;
+  pendingValue[type] = numValue;
+
+  // 2. 发送指令
+  sendCmd(`${cmdCode},${numValue}`);
+
+  // 3. 记录用户操作时间（防抖）
+  lastUserSetTime[type] = Date.now();
+
+  // 4. 立即更新显示（预测状态）
+  currentData[type] = numValue;
+  updateUI();
+
+  // 5. 立即检查报警（即时反馈）
+  checkAlarmsWithPending();
+
+  // 6. 设置超时保护
+  syncTimeoutTimer[type] = setTimeout(() => {
+    if (waitingSync[type]) {
+      addLog(type + ' 同步超时，自动释放保护');
+      waitingSync[type] = false;
+      pendingValue[type] = null;
+      syncTimeoutTimer[type] = null;
+    }
+  }, SYNC_TIMEOUT_MS);
+
+  document.getElementById(inputId).blur();
+}
+
+// ==================== 模式切换 ====================
+function toggleMode() {
+  sendCmd('04');
+}
+
+// ==================== 风扇三挡控制 ====================
+let currentFanGear = 'off'; // off / med / hgh
+
+function setFanGear(gear) {
+  if (gear === 'off') {
+    sendCmd('06');
+    currentFanGear = 'off';
+  } else if (gear === 'med') {
+    sendCmd('07,66');
+    currentFanGear = 'med';
+  } else if (gear === 'hgh') {
+    sendCmd('05');
+    currentFanGear = 'hgh';
+  }
+  updateFanGearUI();
+}
+
+function updateFanGearUI() {
+  const offBtn = document.getElementById('fanOffBtn');
+  const medBtn = document.getElementById('fanMedBtn');
+  const hghBtn = document.getElementById('fanHghBtn');
+
+  offBtn.style.border = currentFanGear === 'off' ? '3px solid var(--text)' : 'none';
+  medBtn.style.border = currentFanGear === 'med' ? '3px solid var(--text)' : 'none';
+  hghBtn.style.border = currentFanGear === 'hgh' ? '3px solid var(--text)' : 'none';
+}
+
+// ==================== 解析消息 ====================
+function parseMessage(message) {
+  const parts = message.split(',');
+  if (parts.length < 6) {
+    addLog('数据字段不足，忽略: ' + message);
+    return;
+  }
+
+  const newData = {
+    pm25: parseFloat(parts[0]),
+    ch2o: parseFloat(parts[1]),
+    fan_state: parts[2],
+    sys_mode: parts[3],
+    pm25h: parseFloat(parts[4]),
+    ch2oh: parseFloat(parts[5])
+  };
+
+  // 传感器值始终更新
+  currentData.pm25 = newData.pm25;
+  currentData.ch2o = newData.ch2o;
+  currentData.fan_state = newData.fan_state;
+  currentData.sys_mode = newData.sys_mode;
+
+  // 检查是否有正在等待同步的阈值
+  let hasPendingSync = false;
+  for (const [key, isWaiting] of Object.entries(waitingSync)) {
+    if (isWaiting) {
+      hasPendingSync = true;
+      const expectedValue = pendingValue[key];
+      const receivedValue = newData[key];
+
+      if (expectedValue !== null && Math.abs(receivedValue - expectedValue) < 0.5) {
+        addLog(key + ' 同步确认: ' + receivedValue);
+
+        if (syncTimeoutTimer[key]) {
+          clearTimeout(syncTimeoutTimer[key]);
+          syncTimeoutTimer[key] = null;
+        }
+
+        waitingSync[key] = false;
+        pendingValue[key] = null;
+        lastUserSetTime[key] = 0;
+      }
+    }
+  }
+
+  // 阈值更新逻辑（三重保护）
+  const now = Date.now();
+  if (!lastUserSetTime.pm25h || (now - lastUserSetTime.pm25h) >= DEBOUNCE_MS) {
+    if (!waitingSync.pm25h) {
+      currentData.pm25h = newData.pm25h;
+    }
+  }
+  if (!lastUserSetTime.ch2oh || (now - lastUserSetTime.ch2oh) >= DEBOUNCE_MS) {
+    if (!waitingSync.ch2oh) {
+      currentData.ch2oh = newData.ch2oh;
+    }
+  }
+
+  updateUI();
+
+  // 报警判断
+  if (hasPendingSync) {
+    checkAlarmsWithPending();
+  } else {
+    checkAlarms();
+  }
+
+  addLog('收到: ' + message);
+}
+
+// ==================== UI 更新 ====================
+function updateUI() {
+  // PM2.5
+  if (currentData.pm25 !== null) {
+    const el = document.getElementById('pm25');
+    const isAlarm = currentData.pm25h !== null && currentData.pm25 > currentData.pm25h;
+    el.textContent = currentData.pm25 + (isAlarm ? '!' : '');
+    el.className = 'data-value' + (isAlarm ? ' alarm' : '');
+  }
+
+  // 甲醛
+  if (currentData.ch2o !== null) {
+    const el = document.getElementById('ch2o');
+    const isAlarm = currentData.ch2oh !== null && currentData.ch2o > currentData.ch2oh;
+    el.textContent = currentData.ch2o + (isAlarm ? '!' : '');
+    el.className = 'data-value' + (isAlarm ? ' alarm' : '');
+  }
+
+  // 风扇状态
+  if (currentData.fan_state !== null) {
+    document.getElementById('fan_state').textContent = currentData.fan_state === '1' ? 'ON' : 'OFF';
+  }
+
+  // 系统模式
+  if (currentData.sys_mode !== null) {
+    const modeEl = document.getElementById('sys_mode');
+    modeEl.textContent = currentData.sys_mode;
+    // 控制区显隐
+    const manualDiv = document.getElementById('manualControls');
+    if (currentData.sys_mode === 'MANUAL') {
+      manualDiv.classList.remove('hidden');
+    } else {
+      manualDiv.classList.add('hidden');
+    }
+  }
+
+  // 阈值显示（等待期间显示预测值）
+  const pm25hDisplay = document.getElementById('pm25h_display');
+  pm25hDisplay.textContent = (waitingSync.pm25h ? pendingValue.pm25h : currentData.pm25h) + ' μg/m³';
+
+  const ch2ohDisplay = document.getElementById('ch2oh_display');
+  ch2ohDisplay.textContent = (waitingSync.ch2oh ? pendingValue.ch2oh : currentData.ch2oh) + ' ppb';
+}
+
+// ==================== 报警判断 ====================
+function checkAlarms() {
+  const alarms = [];
+
+  if (currentData.pm25 !== null && currentData.pm25h !== null && currentData.pm25 > currentData.pm25h) {
+    alarms.push('PM2.5 超标');
+  }
+  if (currentData.ch2o !== null && currentData.ch2oh !== null && currentData.ch2o > currentData.ch2oh) {
+    alarms.push('甲醛超标');
+  }
+
+  renderAlarms(alarms);
+
+  if (alarms.length > 0) {
+    sendAlarmToNative({
+      which: alarms.join(','),
+      pm25: currentData.pm25,
+      pm25h: currentData.pm25h,
+      ch2o: currentData.ch2o,
+      ch2oh: currentData.ch2oh
+    });
+  }
+}
+
+function checkAlarmsWithPending() {
+  const alarms = [];
+
+  const pm25h = waitingSync.pm25h ? pendingValue.pm25h : currentData.pm25h;
+  const ch2oh = waitingSync.ch2oh ? pendingValue.ch2oh : currentData.ch2oh;
+
+  if (currentData.pm25 !== null && pm25h !== null && currentData.pm25 > pm25h) {
+    alarms.push('PM2.5 超标');
+  }
+  if (currentData.ch2o !== null && ch2oh !== null && currentData.ch2o > ch2oh) {
+    alarms.push('甲醛超标');
+  }
+
+  renderAlarms(alarms);
+
+  if (alarms.length > 0) {
+    sendAlarmToNative({
+      which: alarms.join(','),
+      pm25: currentData.pm25,
+      pm25h: pm25h,
+      ch2o: currentData.ch2o,
+      ch2oh: ch2oh
+    });
+  }
+}
+
+function renderAlarms(alarms) {
+  const container = document.getElementById('alarmContent');
+  if (alarms.length === 0) {
+    container.innerHTML = '<div class="alarm-normal" id="alarmNormal">空气质量正常 ✓</div>';
+  } else {
+    container.innerHTML = alarms.map(a => `<div class="alarm-active">${a}</div>`).join('');
+  }
+}
+
+// ==================== JS Bridge（Android WebView 通知） ====================
+function sendAlarmToNative(data) {
+  if (window.Android && typeof window.Android.onAlarm === 'function') {
+    window.Android.onAlarm(JSON.stringify(data));
+  } else if (window.Notification && Notification.permission === 'granted') {
+    new Notification('告警', { body: data.which + ' - 空气质量异常' });
+  }
+}
+
+// ==================== 启动 ====================
+connectMQTT();
+</script>
+</body>
+</html>
