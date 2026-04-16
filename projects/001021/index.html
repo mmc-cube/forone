@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>智能家居环境控制系统</title>
+<script src="mqtt.min.js"></script>
+<style>
+:root {
+  --bg: #F5F5F5; --card: #FFFFFF; --primary: #2196F3; --primary-active: #1976D2;
+  --alarm: #F44336; --ok: #4CAF50; --text: #212121; --sub: #757575;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08); --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'Helvetica Neue', sans-serif; background: var(--bg); color: var(--text); padding: 12px; padding-top: 54px; max-width: 420px; margin: 0 auto; }
+
+/* Topbar */
+.topbar { position: fixed; top: 0; left: 0; right: 0; background: var(--card); z-index: 100; box-shadow: var(--shadow); padding: 44px 16px 10px; display: flex; align-items: center; justify-content: space-between; }
+.topbar h1 { font-size: 16px; font-weight: 600; }
+.conn-status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--sub); }
+.conn-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--alarm); }
+.conn-dot.connected { background: var(--ok); }
+
+/* Cards */
+.card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px; }
+.card-title { font-size: 14px; font-weight: 600; color: var(--sub); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Data rows */
+.data-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+.data-row:last-child { border-bottom: none; }
+.data-label { font-size: 13px; color: var(--sub); }
+.data-value { font-size: 28px; font-weight: bold; }
+.data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+.data-value.alarm { color: var(--alarm); }
+
+/* Alarm card */
+.alarm-ok { color: var(--ok); font-size: 14px; text-align: center; padding: 8px; }
+.alarm-item { background: #FFEBEE; color: var(--alarm); padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; font-size: 14px; }
+.alarm-item:last-child { margin-bottom: 0; }
+
+/* Control buttons */
+.ctrl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ctrl-btn { padding: 14px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; min-height: 48px; color: #fff; }
+.ctrl-btn:active { transform: scale(0.96); opacity: 0.85; }
+.ctrl-btn.ac-on { background: #E53935; }
+.ctrl-btn.ac-off { background: #1E88E5; }
+.ctrl-btn.fan-on { background: #43A047; }
+.ctrl-btn.fan-off { background: #FB8C00; }
+.ctrl-btn.mode-auto { background: #7B1FA2; }
+.ctrl-btn.mode-manual { background: #F57C00; }
+.ctrl-btn.pending { animation: btn-pulse 0.6s ease infinite; }
+@keyframes btn-pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+
+/* Threshold display */
+.thr-display-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+.thr-display-label { font-size: 13px; color: var(--sub); }
+.thr-display-value { font-size: 18px; font-weight: 600; }
+.thr-display-value.syncing { color: var(--primary); }
+
+/* Threshold setting */
+.thr-setting-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; gap: 8px; }
+.thr-setting-label { font-size: 13px; color: var(--sub); min-width: 70px; }
+.thr-setting-input { width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; text-align: center; }
+.thr-send-btn { padding: 8px 16px; border: none; border-radius: 6px; background: var(--primary); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; min-height: 48px; }
+.thr-send-btn:active { background: var(--primary-active); transform: scale(0.96); }
+.thr-send-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+/* Log card */
+.log-toggle { cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; }
+.log-toggle::after { content: '\25BC'; font-size: 12px; transition: transform 0.2s; }
+.log-toggle.open::after { transform: rotate(180deg); }
+.log-content { display: none; margin-top: 8px; max-height: 300px; overflow-y: auto; background: #FAFAFA; border-radius: 8px; padding: 8px; }
+.log-content.open { display: block; }
+.log-line { font-size: 11px; font-family: monospace; padding: 3px 0; border-bottom: 1px solid #eee; color: var(--sub); }
+.log-line:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div class="topbar">
+  <h1>智能家居环境控制</h1>
+  <div class="conn-status">
+    <div class="conn-dot" id="connDot"></div>
+    <span id="connText">未连接</span>
+  </div>
+</div>
+
+<!-- Status card -->
+<div class="card">
+  <div class="card-title">系统状态</div>
+  <div class="data-row">
+    <span class="data-label">系统模式</span>
+    <span><span class="data-value" id="mode" style="font-size:18px;">--</span></span>
+  </div>
+  <div class="data-row">
+    <span class="data-label">WiFi 状态</span>
+    <span><span class="data-value" id="wifi" style="font-size:18px;">--</span></span>
+  </div>
+</div>
+
+<!-- Real-time data card -->
+<div class="card">
+  <div class="card-title">实时数据</div>
+  <div class="data-row">
+    <span class="data-label">温度</span>
+    <div><span class="data-value" id="temp">--</span><span class="data-unit">&#8451;</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">湿度</span>
+    <div><span class="data-value" id="humi">--</span><span class="data-unit">%</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">光照</span>
+    <div><span class="data-value" id="lux">--</span><span class="data-unit">lux</span></div>
+  </div>
+</div>
+
+<!-- Device status card -->
+<div class="card">
+  <div class="card-title">设备状态</div>
+  <div class="data-row">
+    <span class="data-label">空调</span>
+    <span><span class="data-value" id="ac" style="font-size:18px;">--</span></span>
+  </div>
+  <div class="data-row">
+    <span class="data-label">风扇</span>
+    <span><span class="data-value" id="fan" style="font-size:18px;">--</span></span>
+  </div>
+</div>
+
+<!-- Alarm card -->
+<div class="card" id="alarmCard">
+  <div class="card-title">报警状态</div>
+  <div id="alarmArea"><div class="alarm-ok">运行正常 &#10003;</div></div>
+</div>
+
+<!-- Control card -->
+<div class="card">
+  <div class="card-title">远程控制</div>
+  <div class="ctrl-grid">
+    <button class="ctrl-btn ac-on" id="btnACOn" onclick="ctrlAC('on')">开空调</button>
+    <button class="ctrl-btn ac-off" id="btnACOff" onclick="ctrlAC('off')">关空调</button>
+    <button class="ctrl-btn fan-on" id="btnFanOn" onclick="ctrlFan('on')">开风扇</button>
+    <button class="ctrl-btn fan-off" id="btnFanOff" onclick="ctrlFan('off')">关风扇</button>
+    <button class="ctrl-btn mode-auto" id="btnAuto" onclick="ctrlMode('auto')">自动模式</button>
+    <button class="ctrl-btn mode-manual" id="btnManual" onclick="ctrlMode('manual')">手动模式</button>
+  </div>
+</div>
+
+<!-- Threshold display card -->
+<div class="card">
+  <div class="card-title">当前阈值</div>
+  <div class="thr-display-row">
+    <span class="thr-display-label">温度上限</span>
+    <span class="thr-display-value" id="temph_display">-- &#8451;</span>
+  </div>
+  <div class="thr-display-row">
+    <span class="thr-display-label">湿度上限</span>
+    <span class="thr-display-value" id="humih_display">-- %</span>
+  </div>
+  <div class="thr-display-row">
+    <span class="thr-display-label">光照上限</span>
+    <span class="thr-display-value" id="luxh_display">-- lux</span>
+  </div>
+</div>
+
+<!-- Threshold setting card -->
+<div class="card">
+  <div class="card-title">阈值设置</div>
+  <div class="thr-setting-row">
+    <span class="thr-setting-label">温度上限 &#8451;</span>
+    <input class="thr-setting-input" id="temph_input" type="number" min="0" max="50" step="1">
+    <button class="thr-send-btn" id="temph_btn" onclick="setThreshold('temph', 8)">发送</button>
+  </div>
+  <div class="thr-setting-row">
+    <span class="thr-setting-label">湿度上限 %</span>
+    <input class="thr-setting-input" id="humih_input" type="number" min="0" max="100" step="1">
+    <button class="thr-send-btn" id="humih_btn" onclick="setThreshold('humih', 9)">发送</button>
+  </div>
+  <div class="thr-setting-row">
+    <span class="thr-setting-label">光照上限 lux</span>
+    <input class="thr-setting-input" id="luxh_input" type="number" min="0" max="2000" step="50">
+    <button class="thr-send-btn" id="luxh_btn" onclick="setThreshold('luxh', 10)">发送</button>
+  </div>
+</div>
+
+<!-- Log card -->
+<div class="card">
+  <div class="card-title log-toggle" id="logToggle" onclick="toggleLog()">通信日志</div>
+  <div class="log-content" id="logContent"></div>
+</div>
+
+<script>
+// ============================================================
+//  Topic 硬编码（以下位机 app_esp8266.h 为准）
+// ============================================================
+const UPLOAD_TOPIC = 'stm32/smarthome/upload';
+const CMD_TOPIC    = 'stm32/smarthome/cmd';
+
+// ============================================================
+// 状态变量
+// ============================================================
+let currentData = {
+  temp: null, humi: null, lux: null,
+  ac: '--', fan: '--', mode: '--', wifi: '--',
+  temph: null, humih: null, luxh: null
+};
+
+// ============================================================
+// 乐观刷新 - 防抖保护
+// 用户操作后，DEBOUNCE_MS 内忽略对应字段的自动回写
+// 防止下位机旧数据覆盖用户刚设置的值
+// ============================================================
+const DEBOUNCE_MS = 2000;          // 防抖窗口：覆盖 STM32 4 个上报周期，确保指令已到达并被处理
+const SYNC_TIMEOUT_MS = 5000;      // 同步超时
+
+// 记录用户操作时间戳 { fieldKey: timestamp }
+let lastUserAction = {};
+
+/** 标记用户操作，后续 DEBOUNCE_MS 内忽略该字段自动回写 */
+function markUserAction(key) {
+  lastUserAction[key] = Date.now();
+}
+
+/** 判断字段是否在防抖保护期 */
+function isDebounced(key) {
+  return lastUserAction[key] && (Date.now() - lastUserAction[key]) < DEBOUNCE_MS;
+}
+
+/**
+ * MODE 字专用：不回退保护
+ * 用户主动切换模式后，只有当 MQTT 上报的模式与用户设置一致时才接受
+ * 防止 STM32 在指令到达前上报的旧状态覆盖用户操作
+ * 5 秒超时后自动释放保护
+ */
+let modeSync = {
+  pending: false,       // 是否正在等待 STM32 确认
+  expected: null,       // 用户期望的模式
+  timer: null           // 超时定时器
+};
+
+/** 标记模式切换操作，锁定 MODE 字段防止旧数据回退 */
+function markModeSwitch(expectedMode) {
+  modeSync.pending = true;
+  modeSync.expected = expectedMode;
+  if (modeSync.timer) clearTimeout(modeSync.timer);
+  modeSync.timer = setTimeout(() => {
+    modeSync.pending = false;
+    modeSync.expected = null;
+    console.log('Mode sync timeout released');
+  }, 5000);
+}
+
+/** 检查 MQTT 上报的模式是否可以接受 */
+function shouldAcceptMode(recvMode) {
+  if (!modeSync.pending) return true;                    // 无保护，直接接受
+  if (recvMode === modeSync.expected) {                  // 与用户设置一致 → 确认同步，释放保护
+    modeSync.pending = false;
+    modeSync.expected = null;
+    if (modeSync.timer) { clearTimeout(modeSync.timer); modeSync.timer = null; }
+    return true;
+  }
+  return false;  // 与用户设置不一致 → 旧数据，拒绝
+}
+
+// ============================================================
+// 乐观刷新 - 预测-同步-接管 三步状态机（阈值专用）
+// ============================================================
+let waitingSync = { temph: false, humih: false, luxh: false };
+let pendingValue = { temph: null, humih: null, luxh: null };
+let syncTimers = { temph: null, humih: null, luxh: null };
+
+// ============================================================
+// MQTT 连接
+// ============================================================
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+  clientId: 'web_' + Math.random().toString(36).substr(2, 8),
+  reconnectPeriod: 3000
+});
+
+client.on('connect', () => {
+  document.getElementById('connDot').classList.add('connected');
+  document.getElementById('connText').textContent = '已连接';
+  client.subscribe(UPLOAD_TOPIC, (err) => {
+    if (!err) addLog('SUBSCRIBE: ' + UPLOAD_TOPIC);
+  });
+  // 连接后立即查询一次状态
+  sendCmd('07');
+});
+
+client.on('close', () => {
+  document.getElementById('connDot').classList.remove('connected');
+  document.getElementById('connText').textContent = '未连接';
+});
+
+client.on('reconnect', () => {
+  document.getElementById('connText').textContent = '重连中...';
+});
+
+client.on('message', (topic, payload) => {
+  if (topic === UPLOAD_TOPIC) {
+    parseMessage(payload.toString());
+  }
+});
+
+// ============================================================
+// 消息解析（带防抖 + 同步确认）
+// ============================================================
+function parseMessage(raw) {
+  let msg;
+  try {
+    msg = JSON.parse(raw);
+  } catch (e) {
+    addLog('PARSE_ERR: ' + raw);
+    return;
+  }
+
+  // --- 传感器值：始终更新（不受防抖影响） ---
+  if (msg.TEMP !== undefined) currentData.temp = parseFloat(msg.TEMP);
+  if (msg.HUMI !== undefined) currentData.humi = parseFloat(msg.HUMI);
+  if (msg.LUX !== undefined)  currentData.lux  = parseFloat(msg.LUX);
+  if (msg.WIFI !== undefined) currentData.wifi = String(msg.WIFI);
+
+  // --- 设备状态：检查防抖 ---
+  if (msg.AC !== undefined && !isDebounced('ac')) {
+    currentData.ac = String(msg.AC);
+  }
+  if (msg.FAN !== undefined && !isDebounced('fan')) {
+    currentData.fan = String(msg.FAN);
+  }
+  // MODE 特殊处理：防抖 + 不回退保护
+  // 防止 STM32 在指令到达前上报的旧状态覆盖用户操作
+  if (msg.MODE !== undefined) {
+    const recvMode = String(msg.MODE);
+    if (!isDebounced('mode')) {
+      // 防抖过期后，进一步检查 modeSync 保护
+      if (shouldAcceptMode(recvMode)) {
+        currentData.mode = recvMode;
+      }
+      // 否则：旧数据被拒绝，保持用户设置的模式
+    }
+  }
+
+  // --- 阈值：三重保护 ---
+  // 1. 防抖期间：不更新（避免用户刚设置的值被旧数据覆盖）
+  // 2. 等待同步期间：不更新（保持预测值，等待下位机确认）
+  // 3. 正常期间：更新为下位机上报的值
+  const thrMap = [
+    { dataKey: 'temph', syncKey: 'temph', msgKey: 'TEMPH' },
+    { dataKey: 'humih', syncKey: 'humih', msgKey: 'HUMIH' },
+    { dataKey: 'luxh',  syncKey: 'luxh',  msgKey: 'LUXH'  }
+  ];
+
+  thrMap.forEach(t => {
+    if (msg[t.msgKey] !== undefined) {
+      const receivedVal = parseFloat(msg[t.msgKey]);
+
+      // 检查是否正在等待下位机同步确认
+      if (waitingSync[t.syncKey] && pendingValue[t.syncKey] !== null) {
+        // 下位机确认了新值（允许 +/-0.5 误差）
+        if (Math.abs(receivedVal - pendingValue[t.syncKey]) < 0.5) {
+          console.log('Sync confirmed for ' + t.syncKey + ': ' + receivedVal);
+          if (syncTimers[t.syncKey]) {
+            clearTimeout(syncTimers[t.syncKey]);
+            syncTimers[t.syncKey] = null;
+          }
+          waitingSync[t.syncKey] = false;
+          pendingValue[t.syncKey] = null;
+          lastUserAction[t.syncKey] = 0;  // 清除防抖，后续正常更新
+          currentData[t.dataKey] = receivedVal;
+        }
+        // 否则保持预测值不变，不下发旧数据
+      } else if (!isDebounced(t.syncKey)) {
+        // 正常更新
+        currentData[t.dataKey] = receivedVal;
+      }
+    }
+  });
+
+  updateUI();
+  checkAlarms();
+  addLog('RX: ' + raw);
+}
+
+// ============================================================
+// UI 更新
+// ============================================================
+function updateUI() {
+  // 传感器
+  if (currentData.temp !== null) document.getElementById('temp').textContent = currentData.temp.toFixed(1);
+  if (currentData.humi !== null) document.getElementById('humi').textContent = currentData.humi.toFixed(0);
+  if (currentData.lux !== null)  document.getElementById('lux').textContent = currentData.lux.toFixed(0);
+
+  // 设备状态
+  document.getElementById('ac').textContent = currentData.ac;
+  document.getElementById('fan').textContent = currentData.fan;
+  document.getElementById('mode').textContent = currentData.mode;
+  document.getElementById('wifi').textContent = currentData.wifi;
+
+  // 阈值显示：等待同步期间显示预测值，否则显示下位机上报值
+  const thrEls = [
+    { dataKey: 'temph', elId: 'temph_display', unit: ' \u2103' },
+    { dataKey: 'humih', elId: 'humih_display', unit: ' %' },
+    { dataKey: 'luxh',  elId: 'luxh_display',  unit: ' lux' }
+  ];
+  thrEls.forEach(t => {
+    const el = document.getElementById(t.elId);
+    if (waitingSync[t.dataKey]) {
+      // 等待同步期间显示预测值
+      el.textContent = pendingValue[t.dataKey].toFixed(0) + t.unit;
+      el.classList.add('syncing');
+    } else if (currentData[t.dataKey] !== null) {
+      el.textContent = currentData[t.dataKey].toFixed(0) + t.unit;
+      el.classList.remove('syncing');
+    }
+  });
+
+  // 超限感叹号样式（与 OLED 一致）
+  updateAlarmClass('temp', currentData.temp, currentData.temph, '>');
+  updateAlarmClass('humi', currentData.humi, currentData.humih, '>');
+  updateAlarmClass('lux', currentData.lux, currentData.luxh, '<');
+}
+
+function updateAlarmClass(id, value, threshold, op) {
+  const el = document.getElementById(id);
+  if (!el || value === null || threshold === null) return;
+  const exceeded = op === '>' ? (value > threshold) : (value < threshold);
+  if (exceeded) el.classList.add('alarm');
+  else el.classList.remove('alarm');
+}
+
+// ============================================================
+// 报警判断（PRD 第四层规则）
+// 等待同步期间使用预测值进行报警判断
+// ============================================================
+function checkAlarms() {
+  const alarms = [];
+
+  // 等待同步期间使用预测值，否则使用当前值
+  const temph = waitingSync.temph ? pendingValue.temph : currentData.temph;
+  const humih = waitingSync.humih ? pendingValue.humih : currentData.humih;
+  const luxh  = waitingSync.luxh  ? pendingValue.luxh  : currentData.luxh;
+
+  if (currentData.temp !== null && temph !== null && currentData.temp > temph) alarms.push('温度超限');
+  if (currentData.humi !== null && humih !== null && currentData.humi > humih) alarms.push('湿度超限');
+  if (currentData.lux !== null && luxh !== null && currentData.lux < luxh) alarms.push('光照不足');
+
+  renderAlarms(alarms);
+
+  // WebView 环境通知
+  if (alarms.length > 0) {
+    sendAlarmToNative({ alarms, temp: currentData.temp, humi: currentData.humi, lux: currentData.lux, temph, humih, luxh });
+  }
+}
+
+function renderAlarms(alarms) {
+  const area = document.getElementById('alarmArea');
+  if (alarms.length === 0) {
+    area.innerHTML = '<div class="alarm-ok">运行正常 &#10003;</div>';
+  } else {
+    area.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+  }
+}
+
+// ============================================================
+// 控制按钮操作（带乐观刷新 + 防抖）
+// ============================================================
+function ctrlAC(action) {
+  const cmd = action === 'on' ? '01' : '02';
+  markUserAction('ac');
+  currentData.ac = action === 'on' ? 'ON' : 'OFF';
+  if (action === 'on') {
+    currentData.mode = 'MANUAL';
+    markUserAction('mode');
+    markModeSwitch('MANUAL');  // 锁定 MODE，防止旧数据回退
+  }
+  updateUI();
+  checkAlarms();
+  sendCmd(cmd);
+}
+
+function ctrlFan(action) {
+  const cmd = action === 'on' ? '03' : '04';
+  markUserAction('fan');
+  currentData.fan = action === 'on' ? 'ON' : 'OFF';
+  if (action === 'on') {
+    currentData.mode = 'MANUAL';
+    markUserAction('mode');
+    markModeSwitch('MANUAL');  // 锁定 MODE，防止旧数据回退
+  }
+  updateUI();
+  checkAlarms();
+  sendCmd(cmd);
+}
+
+function ctrlMode(mode) {
+  const cmd = mode === 'auto' ? '05' : '06';
+  const newMode = mode === 'auto' ? 'AUTO' : 'MANUAL';
+  markUserAction('mode');
+  markModeSwitch(newMode);     // 锁定 MODE，防止旧数据回退
+  currentData.mode = newMode;
+  updateUI();
+  checkAlarms();
+  sendCmd(cmd);
+}
+
+// ============================================================
+// 发送指令
+// ============================================================
+function sendCmd(cmd) {
+  if (client && client.connected) {
+    client.publish(CMD_TOPIC, cmd);
+    addLog('TX: ' + cmd);
+  } else {
+    addLog('TX FAILED: ' + cmd);
+  }
+}
+
+// ============================================================
+// 阈值设置（完整 6 步流程：状态→发送→记录→预测→报警→超时）
+// ============================================================
+function setThreshold(type, cmdCode) {
+  const inputId = type + '_input';
+  const inputEl = document.getElementById(inputId);
+  const value = inputEl.value;
+
+  if (!value || value === '') { alert('请输入阈值'); return; }
+  const numValue = parseFloat(value);
+  if (isNaN(numValue)) { alert('请输入有效数字'); return; }
+
+  // 检查是否正在等待同步（防止重复发送）
+  if (waitingSync[type]) {
+    console.log('Already waiting sync for ' + type);
+    return;
+  }
+
+  // 1. 设置等待同步状态
+  waitingSync[type] = true;
+  pendingValue[type] = numValue;
+
+  // 2. 发送指令（格式：cmdCode,KEY,value，与 STM32 str_field(buf,2) 对齐）
+  const keyMap = { temph: 'TEMPH', humih: 'HUMIH', luxh: 'LUXH' };
+  const payload = cmdCode + ',' + keyMap[type] + ',' + numValue;
+  sendCmd(payload);
+
+  // 3. 记录用户操作时间（防抖保护）
+  markUserAction(type);
+
+  // 4. 立即更新显示（预测状态 - 用户立即看到预期值）
+  currentData[type] = numValue;
+  updateUI();
+
+  // 5. 立即检查报警（即时反馈 - 使用预测值）
+  checkAlarms();
+
+  // 6. 设置超时保护（5 秒后自动释放，防止下位机未响应导致永久等待）
+  syncTimers[type] = setTimeout(() => {
+    if (waitingSync[type]) {
+      console.warn('Sync timeout for ' + type + ', releasing protection');
+      waitingSync[type] = false;
+      pendingValue[type] = null;
+      syncTimers[type] = null;
+      updateUI();
+    }
+  }, SYNC_TIMEOUT_MS);
+
+  inputEl.blur();
+}
+
+// ============================================================
+// 日志
+// ============================================================
+let logLines = [];
+const MAX_LOG = 20;
+
+function addLog(msg) {
+  const now = new Date().toLocaleTimeString();
+  logLines.unshift('[' + now + '] ' + msg);
+  if (logLines.length > MAX_LOG) logLines.pop();
+  renderLog();
+}
+
+function renderLog() {
+  const el = document.getElementById('logContent');
+  el.innerHTML = logLines.map(l => '<div class="log-line">' + l + '</div>').join('');
+}
+
+function toggleLog() {
+  const el = document.getElementById('logContent');
+  const toggle = document.getElementById('logToggle');
+  el.classList.toggle('open');
+  toggle.classList.toggle('open');
+}
+
+// ============================================================
+// JS Bridge (Android WebView 通知)
+// ============================================================
+function sendAlarmToNative(data) {
+  if (window.Android && typeof window.Android.onAlarm === 'function') {
+    window.Android.onAlarm(JSON.stringify(data));
+  } else if (window.Notification && Notification.permission === 'granted') {
+    new Notification('告警', { body: JSON.stringify(data) });
+  }
+}
+</script>
+</body>
+</html>
