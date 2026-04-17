@@ -380,8 +380,8 @@
                 waterHeight: parseInt(p[0]), waterVolume: parseInt(p[1]),
                 temperature: parseInt(p[2]), humidity:    parseInt(p[3]),
                 light:       parseInt(p[4]), soil:        parseInt(p[5]),
-                co2:         parseInt(p[6]), rainPump:    parseInt(p[7]),
-                tapPump:     parseInt(p[8]), fanLed:      parseInt(p[9]),
+                co2:         parseInt(p[6]), rainPump:    parseInt(p[8]),
+                tapPump:     parseInt(p[7]), fanLed:      parseInt(p[9]),
                 thresholds:  p[10].split('|').map(x => parseInt(x))
             };
             updateUI();
