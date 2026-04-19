@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智能木屋环境监控系统</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --warn: #FF9800;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 12px;
+            padding-top: 56px;
+        }
+
+        .topbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--card);
+            padding: 44px 16px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: var(--shadow);
+            z-index: 100;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--sub);
+        }
+
+        .status-dot.connected {
+            background: var(--ok);
+        }
+
+        .settings-btn {
+            font-size: 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            padding: 4px 8px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            font-size: 14px;
+            color: var(--sub);
+        }
+
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+
+        .data-value.small {
+            font-size: 20px;
+        }
+
+        .data-unit {
+            font-size: 13px;
+            color: var(--sub);
+            margin-left: 4px;
+        }
+
+        .data-value.alarm {
+            color: var(--alarm);
+        }
+
+        .aqi-display {
+            text-align: center;
+            padding: 8px 0;
+        }
+
+        .aqi-score {
+            font-size: 48px;
+            font-weight: bold;
+        }
+
+        .aqi-level {
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .aqi-level.excellent { color: var(--ok); }
+        .aqi-level.good { color: #8BC34A; }
+        .aqi-level.medium { color: var(--warn); }
+        .aqi-level.bad { color: var(--alarm); }
+
+        .alarm-item {
+            background: var(--alarm);
+            color: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .alarm-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .normal-status {
+            color: var(--ok);
+            font-size: 14px;
+            padding: 10px 0;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            min-height: 48px;
+            transition: opacity 0.2s;
+        }
+
+        .btn:active {
+            opacity: 0.8;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-alarm {
+            background: var(--alarm);
+            color: white;
+            font-size: 18px;
+        }
+
+        .btn-on {
+            background: var(--ok);
+            color: white;
+        }
+
+        .btn-off {
+            background: #9E9E9E;
+            color: white;
+        }
+
+        .mode-display {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .mode-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 15px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .mode-badge.auto {
+            background: var(--primary);
+        }
+
+        .mode-badge.manual {
+            background: var(--warn);
+        }
+
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+        }
+
+        .threshold-label {
+            font-size: 14px;
+            color: var(--sub);
+            min-width: 80px;
+        }
+
+        .threshold-input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            width: 80px;
+        }
+
+        .threshold-send-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            min-height: 44px;
+        }
+
+        .threshold-display-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .threshold-display-row:last-child {
+            border-bottom: none;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--text);
+        }
+
+        .time-filters {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .time-filter-btn {
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            background: white;
+        }
+
+        .time-filter-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .log-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+
+        .log-arrow {
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+
+        .log-arrow.open {
+            transform: rotate(90deg);
+        }
+
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s;
+        }
+
+        .log-content.open {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            font-size: 12px;
+            color: var(--sub);
+            padding: 4px 0;
+            border-bottom: 1px solid #f5f5f5;
+            font-family: monospace;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: var(--radius);
+            padding: 24px;
+            width: 90%;
+            max-width: 360px;
+        }
+
+        .modal h3 {
+            margin-bottom: 16px;
+        }
+
+        .modal input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .modal-btns {
+            display: flex;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部状态栏 -->
+    <div class="topbar">
+        <div class="status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">未连接</span>
+        </div>
+        <div>
+            <button class="settings-btn" onclick="sendTestMessage()" title="发送测试消息">🧪</button>
+            <button class="settings-btn" onclick="showTopicModal()">⚙</button>
+        </div>
+    </div>
+
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-label">温度</span>
+            <div>
+                <span class="data-value" id="temp">--.-</span>
+                <span class="data-unit">°C</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">湿度</span>
+            <div>
+                <span class="data-value" id="humi">--.-</span>
+                <span class="data-unit">%RH</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">CO₂</span>
+            <div>
+                <span class="data-value" id="co2">---</span>
+                <span class="data-unit">ppm</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">PM2.5</span>
+            <div>
+                <span class="data-value" id="pm25">---</span>
+                <span class="data-unit">μg/m³</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">光照</span>
+            <div>
+                <span class="data-value small" id="light">----</span>
+                <span class="data-unit">ADC</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">人体检测</span>
+            <div>
+                <span class="data-value small" id="pir">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- AQI 评分卡 -->
+    <div class="card">
+        <div class="card-title">空气质量</div>
+        <div class="aqi-display">
+            <div class="aqi-score" id="aqiScore">--</div>
+            <div class="aqi-level" id="aqiLevel">等待数据...</div>
+        </div>
+    </div>
+
+    <!-- 模式切换卡 -->
+    <div class="card">
+        <div class="card-title">控制模式</div>
+        <div class="mode-display">
+            <span class="mode-badge" id="modeBadge">等待数据</span>
+            <button class="btn btn-primary" id="modeBtn" onclick="toggleMode()" style="flex:0; padding: 10px 20px;">切换模式</button>
+        </div>
+    </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card">
+        <div class="card-title">报警状态</div>
+        <div id="alarmList">
+            <div class="normal-status">运行正常 ✓</div>
+        </div>
+    </div>
+
+    <!-- 继电器控制卡 -->
+    <div class="card">
+        <div class="card-title">设备控制</div>
+        <div class="btn-row">
+            <span class="data-label" style="min-width: 60px; line-height: 48px;">窗帘</span>
+            <button class="btn btn-on" id="curtainOnBtn" onclick="setRelay(1, 1)">开</button>
+            <button class="btn btn-off" id="curtainOffBtn" onclick="setRelay(1, 0)">关</button>
+        </div>
+        <div class="btn-row">
+            <span class="data-label" style="min-width: 60px; line-height: 48px;">风扇</span>
+            <button class="btn btn-on" id="fanOnBtn" onclick="setRelay(2, 1)">开</button>
+            <button class="btn btn-off" id="fanOffBtn" onclick="setRelay(2, 0)">关</button>
+        </div>
+        <div class="btn-row">
+            <span class="data-label" style="min-width: 60px; line-height: 48px;">灯光</span>
+            <button class="btn btn-on" id="lightOnBtn" onclick="setRelay(3, 1)">开</button>
+            <button class="btn btn-off" id="lightOffBtn" onclick="setRelay(3, 0)">关</button>
+        </div>
+    </div>
+
+    <!-- 阈值显示卡 -->
+    <div class="card">
+        <div class="card-title">当前阈值</div>
+        <div class="threshold-display-row">
+            <span class="data-label">温度阈值</span>
+            <span><span id="thr_temp_display">--</span> <span class="data-unit">°C</span></span>
+        </div>
+        <div class="threshold-display-row">
+            <span class="data-label">湿度阈值</span>
+            <span><span id="thr_humi_display">--</span> <span class="data-unit">%RH</span></span>
+        </div>
+        <div class="threshold-display-row">
+            <span class="data-label">CO₂阈值</span>
+            <span><span id="thr_co2_display">----</span> <span class="data-unit">ppm</span></span>
+        </div>
+        <div class="threshold-display-row">
+            <span class="data-label">PM2.5 阈值</span>
+            <span><span id="thr_pm25_display">---</span> <span class="data-unit">μg/m³</span></span>
+        </div>
+        <div class="threshold-display-row">
+            <span class="data-label">光照阈值</span>
+            <span><span id="thr_light_display">----</span> <span class="data-unit">ADC</span></span>
+        </div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">阈值设置（湿度）</div>
+        <div class="threshold-row">
+            <span class="threshold-label">湿度</span>
+            <input type="number" class="threshold-input" id="thr_humi_input" placeholder="%RH">
+            <button class="threshold-send-btn" onclick="setHumiThreshold()">发送</button>
+        </div>
+    </div>
+
+    <!-- 消警按钮 -->
+    <div class="card">
+        <div class="card-title">报警处理</div>
+        <button class="btn btn-alarm" onclick="dismissAlarm()">🔔 消警</button>
+    </div>
+
+    <!-- 今日统计卡 -->
+    <div class="card">
+        <div class="card-title">今日统计</div>
+        <div class="data-row">
+            <span class="data-label">人员进入次数</span>
+            <div>
+                <span class="stat-value" id="activityCount">0</span>
+                <span class="data-unit">次</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">AQI 等级</span>
+            <div>
+                <span class="data-value small" id="aqiLevelStat">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据统计卡（平均值+个数） -->
+    <div class="card">
+        <div class="card-title">数据统计</div>
+        <div class="time-filters">
+            <button class="time-filter-btn" onclick="setTimeRange(1)">1h</button>
+            <button class="time-filter-btn active" onclick="setTimeRange(6)">6h</button>
+            <button class="time-filter-btn" onclick="setTimeRange(24)">24h</button>
+        </div>
+        <div class="data-row">
+            <span class="data-label">温度平均</span>
+            <div>
+                <span class="data-value small" id="statTemp">--.-</span>
+                <span class="data-unit">°C</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">湿度平均</span>
+            <div>
+                <span class="data-value small" id="statHumi">--.-</span>
+                <span class="data-unit">%RH</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">CO₂平均</span>
+            <div>
+                <span class="data-value small" id="statCo2">---</span>
+                <span class="data-unit">ppm</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">PM2.5平均</span>
+            <div>
+                <span class="data-value small" id="statPm25">---</span>
+                <span class="data-unit">μg/m³</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">AQI 平均</span>
+            <div>
+                <span class="data-value small" id="statAqi">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日志卡（折叠） -->
+    <div class="card">
+        <div class="log-toggle" onclick="toggleLog()">
+            <div class="card-title" style="margin-bottom: 0;">日志</div>
+            <span class="log-arrow" id="logArrow">▶</span>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
+
+    <!-- Topic 配置弹窗 -->
+    <div class="modal-overlay" id="topicModal">
+        <div class="modal">
+            <h3>Topic 配置</h3>
+            <label style="font-size: 13px; color: var(--sub);">数字 1</label>
+            <input type="text" id="topicNum1" value="753284">
+            <label style="font-size: 13px; color: var(--sub);">数字 2</label>
+            <input type="text" id="topicNum2" value="401657">
+            <label style="font-size: 13px; color: var(--sub);">标识</label>
+            <input type="text" id="topicId" value="zhinumumuwu">
+            <div class="modal-btns">
+                <button class="btn btn-primary" onclick="saveTopic()">保存并重新连接</button>
+                <button class="btn btn-off" onclick="hideTopicModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Topic 配置
+        let TOPIC_NUM1 = '753284';
+        let TOPIC_NUM2 = '401657';
+        let TOPIC_ID = 'zhinumumuwu';
+        let UPLOAD_TOPIC = TOPIC_NUM1 + '/' + TOPIC_NUM2 + '/' + TOPIC_ID + '/upload';
+        let CMD_TOPIC = TOPIC_NUM1 + '/' + TOPIC_NUM2 + '/' + TOPIC_ID + '/cmd';
+
+        // 数据状态
+        let currentData = {
+            temp: 0, humi: 0, co2: 0, pm25: 0, light: 0, pir: 0,
+            relay1: 0, relay2: 0, relay3: 0,
+            thr_temp: 30, thr_humi: 60, thr_co2: 1000, thr_pm25: 75, thr_light: 2000,
+            mode: 0, activity_count: 0, aqi_score: 0, alarm_flag: 0
+        };
+
+        let lastUserSetTime = {};
+        const DEBOUNCE_MS = 500;
+        let client;
+        let logs = [];
+        let logOpen = false;
+        let timeRange = 6;
+        let db;
+
+        function connectMQTT() {
+            UPLOAD_TOPIC = TOPIC_NUM1 + '/' + TOPIC_NUM2 + '/' + TOPIC_ID + '/upload';
+            CMD_TOPIC = TOPIC_NUM1 + '/' + TOPIC_NUM2 + '/' + TOPIC_ID + '/cmd';
+            const clientId = 'web_' + Math.random().toString(36).substr(2, 6);
+            addLog('正在连接 wss://broker.emqx.io:8084/mqtt');
+            addLog('订阅: ' + UPLOAD_TOPIC);
+            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+                clientId: clientId, reconnectPeriod: 3000, clean: true
+            });
+            client.on('connect', () => {
+                document.getElementById('statusDot').classList.add('connected');
+                document.getElementById('statusText').textContent = '已连接';
+                client.subscribe(UPLOAD_TOPIC, { qos: 0 }, (err) => {
+                    if (err) {
+                        addLog('ERR: 订阅失败: ' + err.message);
+                    } else {
+                        addLog('订阅成功: ' + UPLOAD_TOPIC);
+                    }
+                });
+                addLog('MQTT 已连接');
+            });
+            client.on('disconnect', () => {
+                document.getElementById('statusDot').classList.remove('connected');
+                document.getElementById('statusText').textContent = '未连接';
+                addLog('MQTT 已断开');
+            });
+            client.on('error', (err) => {
+                document.getElementById('statusDot').classList.remove('connected');
+                document.getElementById('statusText').textContent = '连接错误';
+                addLog('ERR: ' + err.message);
+            });
+            client.on('message', (topic, payload) => {
+                // 兼容不同 mqtt.js 版本的 payload 类型
+                let message;
+                if (typeof payload === 'string') {
+                    message = payload;
+                } else if (payload instanceof Uint8Array || payload instanceof ArrayBuffer) {
+                    message = new TextDecoder('utf-8').decode(payload);
+                } else if (typeof payload.toString === 'function') {
+                    message = payload.toString();
+                } else {
+                    addLog('ERR: 未知 payload 类型: ' + typeof payload);
+                    return;
+                }
+                message = message.trim();
+                addLog('RX: ' + message);
+                parseAndUpdate(message);
+            });
+        }
+
+        function parseAndUpdate(message) {
+            const parts = message.split(',');
+            if (parts.length < 18) {
+                addLog('ERR: 字段数不足, 期望18, 实际' + parts.length + ' | 原文: ' + message);
+                return;
+            }
+            const now = Date.now();
+            currentData.temp = parseFloat(parts[0]) || 0;
+            currentData.humi = parseFloat(parts[1]) || 0;
+            currentData.co2 = parseInt(parts[2]) || 0;
+            currentData.pm25 = parseInt(parts[3]) || 0;
+            currentData.light = parseInt(parts[4]) || 0;
+            currentData.pir = parseInt(parts[5]) || 0;
+            currentData.relay1 = parseInt(parts[6]) || 0;
+            currentData.relay2 = parseInt(parts[7]) || 0;
+            currentData.relay3 = parseInt(parts[8]) || 0;
+            currentData.mode = parseInt(parts[14]) || 0;
+            currentData.activity_count = parseInt(parts[15]) || 0;
+            currentData.aqi_score = parseInt(parts[16]) || 0;
+            currentData.alarm_flag = parseInt(parts[17]) || 0;
+            if (!lastUserSetTime.thr_temp || (now - lastUserSetTime.thr_temp) >= DEBOUNCE_MS)
+                currentData.thr_temp = parseInt(parts[9]) || 0;
+            if (!lastUserSetTime.thr_humi || (now - lastUserSetTime.thr_humi) >= DEBOUNCE_MS)
+                currentData.thr_humi = parseInt(parts[10]) || 0;
+            if (!lastUserSetTime.thr_co2 || (now - lastUserSetTime.thr_co2) >= DEBOUNCE_MS)
+                currentData.thr_co2 = parseInt(parts[11]) || 0;
+            if (!lastUserSetTime.thr_pm25 || (now - lastUserSetTime.thr_pm25) >= DEBOUNCE_MS)
+                currentData.thr_pm25 = parseInt(parts[12]) || 0;
+            if (!lastUserSetTime.thr_light || (now - lastUserSetTime.thr_light) >= DEBOUNCE_MS)
+                currentData.thr_light = parseInt(parts[13]) || 0;
+            updateUI();
+            checkAlarms();
+            saveToDb();
+            renderStats();
+        }
+
+        function updateUI() {
+            document.getElementById('temp').textContent = currentData.temp.toFixed(1);
+            document.getElementById('humi').textContent = currentData.humi.toFixed(1);
+            document.getElementById('co2').textContent = currentData.co2;
+            document.getElementById('pm25').textContent = currentData.pm25;
+            document.getElementById('light').textContent = currentData.light;
+            document.getElementById('pir').textContent = currentData.pir === 1 ? '有人' : '无人';
+            const aqi = currentData.aqi_score;
+            document.getElementById('aqiScore').textContent = aqi;
+            const level = getAqiLevel(aqi);
+            const aqiEl = document.getElementById('aqiLevel');
+            aqiEl.textContent = level.text;
+            aqiEl.className = 'aqi-level ' + level.cls;
+            document.getElementById('aqiLevelStat').textContent = level.text;
+            const modeEl = document.getElementById('modeBadge');
+            if (currentData.mode === 0) {
+                modeEl.textContent = '自动模式';
+                modeEl.className = 'mode-badge auto';
+            } else {
+                modeEl.textContent = '手动模式';
+                modeEl.className = 'mode-badge manual';
+            }
+            document.getElementById('thr_temp_display').textContent = currentData.thr_temp;
+            document.getElementById('thr_humi_display').textContent = currentData.thr_humi;
+            document.getElementById('thr_co2_display').textContent = currentData.thr_co2;
+            document.getElementById('thr_pm25_display').textContent = currentData.thr_pm25;
+            document.getElementById('thr_light_display').textContent = currentData.thr_light;
+            document.getElementById('activityCount').textContent = currentData.activity_count;
+        }
+
+        function getAqiLevel(score) {
+            if (score >= 80) return { text: '优', cls: 'excellent' };
+            if (score >= 60) return { text: '良', cls: 'good' };
+            if (score >= 40) return { text: '中', cls: 'medium' };
+            return { text: '差', cls: 'bad' };
+        }
+
+        function checkAlarms() {
+            const alarms = [];
+            if (currentData.temp > 35) alarms.push('🔥 温度过高：' + currentData.temp.toFixed(1) + '°C > 35°C');
+            if (currentData.temp < 0) alarms.push('❄️ 温度过低：' + currentData.temp.toFixed(1) + '°C < 0°C');
+            if (currentData.humi > currentData.thr_humi) alarms.push('💧 湿度超标：' + currentData.humi.toFixed(1) + '%RH > ' + currentData.thr_humi + '%RH');
+            if (currentData.co2 > 1200) alarms.push('☁️ CO₂超标：' + currentData.co2 + 'ppm > 1200ppm');
+            if (currentData.pm25 > 150) alarms.push('😷 PM2.5 超标：' + currentData.pm25 + 'μg/m³ > 150μg/m³');
+            const list = document.getElementById('alarmList');
+            if (alarms.length === 0) {
+                list.innerHTML = '<div class="normal-status">运行正常 ✓</div>';
+            } else {
+                list.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+            }
+        }
+
+        function sendTestMessage() {
+            if (client && client.connected) {
+                const testPayload = '25.0,50.0,800,35,2000,1,0,0,0,30,50,1000,75,2000,0,0,85,0';
+                client.publish(UPLOAD_TOPIC, testPayload);
+                addLog('TEST: 发送测试消息: ' + testPayload);
+            } else {
+                addLog('TEST: MQTT 未连接，无法发送');
+            }
+        }
+
+        function sendCmd(cmd) {
+            if (client && client.connected) {
+                client.publish(CMD_TOPIC, cmd);
+                addLog('TX: ' + cmd);
+            }
+        }
+
+        function setHumiThreshold() {
+            const input = document.getElementById('thr_humi_input');
+            const value = parseInt(input.value);
+            if (isNaN(value)) { alert('请输入有效数值'); return; }
+            sendCmd('03,' + value);
+            lastUserSetTime['thr_humi'] = Date.now();
+            input.value = '';
+        }
+
+        function toggleMode() {
+            sendCmd('08,' + (currentData.mode === 0 ? 1 : 0));
+        }
+
+        function setRelay(relayNum, state) {
+            const cmdCode = relayNum === 1 ? 6 : relayNum === 2 ? 7 : 10;
+            sendCmd(cmdCode + ',' + state);
+        }
+
+        function dismissAlarm() {
+            sendCmd('01');
+            addLog('发送消警指令');
+        }
+
+        // IndexedDB
+        async function initDb() {
+            return new Promise((resolve) => {
+                const request = indexedDB.open('WoodHouseHistory', 1);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('sensors')) {
+                        const store = db.createObjectStore('sensors', { keyPath: 'id', autoIncrement: true });
+                        store.createIndex('time', 'time');
+                    }
+                };
+                request.onsuccess = () => { db = request.result; resolve(db); };
+                request.onerror = () => resolve(null);
+            });
+        }
+
+        function saveToDb() {
+            if (!db) return;
+            const tx = db.transaction('sensors', 'readwrite');
+            tx.objectStore('sensors').add({
+                time: Date.now(),
+                temp: currentData.temp, humi: currentData.humi,
+                co2: currentData.co2, pm25: currentData.pm25,
+                aqi: currentData.aqi_score
+            });
+        }
+
+        async function loadStats(hours) {
+            if (!db) return null;
+            return new Promise((resolve) => {
+                const tx = db.transaction('sensors', 'readonly');
+                const store = tx.objectStore('sensors');
+                const index = store.index('time');
+                const range = IDBKeyRange.lowerBound(Date.now() - hours * 3600000);
+                const request = index.getAll(range);
+                request.onsuccess = () => resolve(request.result);
+            });
+        }
+
+        async function renderStats() {
+            const data = await loadStats(timeRange);
+            if (!data || data.length === 0) {
+                document.getElementById('statTemp').textContent = '--.-';
+                document.getElementById('statHumi').textContent = '--.-';
+                document.getElementById('statCo2').textContent = '---';
+                document.getElementById('statPm25').textContent = '---';
+                document.getElementById('statAqi').textContent = '--';
+                return;
+            }
+            const n = data.length;
+            const avg = (key) => data.reduce((s, d) => s + d[key], 0) / n;
+            document.getElementById('statTemp').textContent = avg('temp').toFixed(1);
+            document.getElementById('statHumi').textContent = avg('humi').toFixed(1);
+            document.getElementById('statCo2').textContent = Math.round(avg('co2'));
+            document.getElementById('statPm25').textContent = Math.round(avg('pm25'));
+            document.getElementById('statAqi').textContent = Math.round(avg('aqi'));
+        }
+
+        function setTimeRange(hours) {
+            timeRange = hours;
+            document.querySelectorAll('.time-filter-btn').forEach(el => el.classList.remove('active'));
+            event.target.classList.add('active');
+            renderStats();
+        }
+
+        // 日志
+        function addLog(msg) {
+            const time = new Date().toLocaleTimeString();
+            logs.unshift('[' + time + '] ' + msg);
+            if (logs.length > 100) logs.pop();
+            renderLog();
+        }
+
+        function renderLog() {
+            const el = document.getElementById('logContent');
+            el.innerHTML = logs.slice(0, 50).map(l => '<div class="log-entry">' + l + '</div>').join('');
+        }
+
+        function toggleLog() {
+            logOpen = !logOpen;
+            document.getElementById('logContent').classList.toggle('open', logOpen);
+            document.getElementById('logArrow').classList.toggle('open', logOpen);
+        }
+
+        // Topic 配置
+        function showTopicModal() {
+            document.getElementById('topicModal').classList.add('show');
+        }
+
+        function hideTopicModal() {
+            document.getElementById('topicModal').classList.remove('show');
+        }
+
+        function saveTopic() {
+            TOPIC_NUM1 = document.getElementById('topicNum1').value || '753284';
+            TOPIC_NUM2 = document.getElementById('topicNum2').value || '401657';
+            TOPIC_ID = document.getElementById('topicId').value || 'zhinumumuwu';
+            hideTopicModal();
+            if (client) client.end();
+            connectMQTT();
+        }
+
+        // 初始化
+        window.addEventListener('load', async () => {
+            await initDb();
+            connectMQTT();
+            setInterval(renderStats, 30000);
+        });
+    </script>
+</body>
+</html>
