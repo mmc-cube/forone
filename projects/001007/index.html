@@ -475,12 +475,6 @@
                 <input type="number" class="threshold-input" id="waterTime_input" placeholder="10">
                 <button class="threshold-btn" onclick="setThreshold('water', '06', 1, 60)">发送</button>
             </div>
-            <div class="threshold-row">
-                <span class="threshold-label">通风启动阈值</span>
-                <input type="number" class="threshold-input" id="ventGasThresh_input" placeholder="1500">
-                <button class="threshold-btn" onclick="setThreshold('ventGas', '07', 500, 4000)">发送</button>
-            </div>
-        </div>
 
         <!-- 日志卡 -->
         <div class="card">
@@ -598,8 +592,8 @@
     <script src="mqtt.min.js"></script>
     <script>
         // ==================== MQTT 配置 ====================
-        const UPLOAD_TOPIC = '001/001/dulaojiankang/upload';
-        const CMD_TOPIC = '001/001/dulaojiankang/cmd';
+        const UPLOAD_TOPIC = '593/327/dulaojiankang/upload';
+        const CMD_TOPIC = '593/327/dulaojiankang/cmd';
 
         const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
             clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
@@ -614,7 +608,7 @@
             temp: null, humi: null, soil: null, light: null, gas: null,
             heat: false, fan: false, pump: false, vent: false,
             threshTempL: null, threshTempH: null, threshSoil: null,
-            threshGas: null, waterTime: null, ventGasThresh: null
+            threshGas: null, waterTime: null
         };
 
         // ==================== MQTT 连接回调 ====================
@@ -674,7 +668,7 @@
         // ==================== 解析消息（带同步保护） ====================
         function parseMessage(message) {
             const parts = message.split(',');
-            if (parts.length < 15) return;
+            if (parts.length < 14) return;
 
             const now = Date.now();
 
@@ -692,8 +686,7 @@
                 threshTempH: parseInt(parts[10]),
                 threshSoil: parseInt(parts[11]),
                 threshGas: parseInt(parts[12]),
-                waterTime: parseInt(parts[13]),
-                ventGasThresh: parseInt(parts[14])
+                waterTime: parseInt(parts[13])
             };
 
             // 传感器值始终更新
@@ -713,7 +706,6 @@
             currentData.threshSoil = newData.threshSoil;
             currentData.threshGas = newData.threshGas;
             currentData.waterTime = newData.waterTime;
-            currentData.ventGasThresh = newData.ventGasThresh;
 
             updateUI();
 
@@ -756,7 +748,6 @@
             updateThreshDisplay('soil', 'threshSoil');
             updateThreshDisplay('gas', 'threshGas');
             updateThreshDisplay('water', 'waterTime');
-            updateThreshDisplay('ventGas', 'ventGasThresh');
         }
 
         function updateActuator(type, state) {
@@ -881,8 +872,7 @@
                 tempH: 'threshTempH_input',
                 soil: 'threshSoil_input',
                 gas: 'threshGas_input',
-                water: 'waterTime_input',
-                ventGas: 'ventGasThresh_input'
+                water: 'waterTime_input'
             };
 
             const inputId = inputIdMap[type];
