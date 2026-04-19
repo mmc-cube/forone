@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>智能语音风扇</title>
+<script src="mqtt.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #F5F5F5;
+    color: #212121;
+    max-width: 420px;
+    margin: 0 auto;
+    min-height: 100vh;
+    padding: 12px;
+}
+.card {
+    background: #FFFFFF;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+.card-title {
+    font-size: 14px;
+    color: #757575;
+    margin-bottom: 12px;
+    font-weight: 500;
+}
+
+/* Status Bar */
+.status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+}
+.status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #F44336;
+    transition: background 0.3s;
+}
+.status-dot.connected { background: #4CAF50; }
+.status-text { font-size: 13px; color: #757575; }
+
+/* Real-time Data */
+.data-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+.data-row:last-child { border-bottom: none; }
+.data-label { font-size: 13px; color: #757575; }
+.data-value { font-size: 28px; font-weight: bold; color: #212121; }
+.data-value .unit { font-size: 13px; font-weight: normal; color: #757575; margin-left: 2px; }
+.data-value.alarm { color: #F44336; }
+.data-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 500;
+}
+.badge-auto { background: #E3F2FD; color: #1976D2; }
+.badge-manual { background: #FFF3E0; color: #F57C00; }
+.badge-yes { background: #E8F5E9; color: #388E3C; }
+.badge-no { background: #F5F5F5; color: #757575; }
+.badge-off { background: #F5F5F5; color: #757575; }
+.badge-1 { background: #E3F2FD; color: #1976D2; }
+.badge-2 { background: #E8F5E9; color: #388E3C; }
+
+/* Alarm */
+.alarm-ok { color: #4CAF50; font-size: 14px; text-align: center; padding: 8px; }
+.alarm-item {
+    background: #FFEBEE;
+    color: #F44336;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* Buttons */
+.btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.btn {
+    flex: 1;
+    min-width: 0;
+    height: 48px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: #fff;
+}
+.btn:active { transform: scale(0.96); opacity: 0.8; }
+.btn-primary { background: #2196F3; }
+.btn-warning { background: #FF9800; }
+.btn-danger { background: #F44336; }
+.btn-success { background: #4CAF50; }
+.btn-gray { background: #9E9E9E; }
+
+/* Threshold */
+.thr-display-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+.thr-display-row:last-child { border-bottom: none; }
+.thr-label { font-size: 13px; color: #757575; }
+.thr-val { font-size: 18px; font-weight: bold; color: #212121; }
+.thr-val .unit { font-size: 12px; color: #757575; margin-left: 2px; }
+
+.thr-set-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+.thr-set-row:last-child { border-bottom: none; }
+.thr-set-label { font-size: 13px; color: #757575; flex: 1; }
+.thr-set-input {
+    width: 80px;
+    height: 36px;
+    border: 1px solid #E0E0E0;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 14px;
+    outline: none;
+}
+.thr-set-input:focus { border-color: #2196F3; }
+.thr-set-btn {
+    height: 36px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 6px;
+    background: #2196F3;
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+}
+.thr-set-btn:active { opacity: 0.8; }
+
+/* Log */
+.log-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+.log-arrow { transition: transform 0.2s; font-size: 12px; color: #757575; }
+.log-arrow.open { transform: rotate(90deg); }
+.log-content { display: none; margin-top: 8px; max-height: 300px; overflow-y: auto; }
+.log-content.open { display: block; }
+.log-line {
+    font-size: 11px;
+    color: #757575;
+    padding: 3px 0;
+    border-bottom: 1px solid #F5F5F5;
+    font-family: monospace;
+}
+</style>
+</head>
+<body>
+
+<!-- Status Bar -->
+<div class="status-bar card">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">未连接</span>
+</div>
+
+<!-- Real-time Data -->
+<div class="card">
+    <div class="card-title">实时数据</div>
+    <div class="data-row">
+        <span class="data-label">温度</span>
+        <span class="data-value" id="temp">--<span class="unit">&deg;C</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">湿度</span>
+        <span class="data-value" id="humi">--<span class="unit">%RH</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">人体检测</span>
+        <span id="body"><span class="data-badge badge-no">无人</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">风扇档位</span>
+        <span id="fan_gear"><span class="data-badge badge-off">OFF</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">系统模式</span>
+        <span id="sys_mode"><span class="data-badge badge-auto">AUTO</span></span>
+    </div>
+</div>
+
+<!-- Alarm Status -->
+<div class="card" id="alarmCard">
+    <div class="card-title">报警状态</div>
+    <div id="alarmBody">
+        <div class="alarm-ok">运行正常 &#10003;</div>
+    </div>
+</div>
+
+<!-- Controls -->
+<div class="card">
+    <div class="card-title">远程控制</div>
+    <div class="btn-row" style="margin-bottom:8px">
+        <button class="btn btn-primary" onclick="toggleMode()">切换模式</button>
+        <button class="btn btn-success" onclick="fanToggle()">风扇开关</button>
+    </div>
+    <div class="btn-row" style="margin-bottom:8px">
+        <button class="btn btn-warning" onclick="setFanGear(1)">1 档</button>
+        <button class="btn btn-warning" onclick="setFanGear(2)">2 档</button>
+    </div>
+</div>
+
+<!-- Threshold Display (Read-only) -->
+<div class="card">
+    <div class="card-title">当前阈值</div>
+    <div class="thr-display-row">
+        <span class="thr-label">温度阈值</span>
+        <span class="thr-val" id="temp_thr_display">--<span class="unit">&deg;C</span></span>
+    </div>
+    <div class="thr-display-row">
+        <span class="thr-label">湿度阈值</span>
+        <span class="thr-val" id="humi_thr_display">--<span class="unit">%RH</span></span>
+    </div>
+</div>
+
+<!-- Threshold Settings -->
+<div class="card">
+    <div class="card-title">阈值设置</div>
+    <div class="thr-set-row">
+        <span class="thr-set-label">温度阈值 (&deg;C)</span>
+        <input type="number" class="thr-set-input" id="temp_thr_input" step="0.5" placeholder="30.0">
+        <button class="thr-set-btn" onclick="setThreshold('temp')">发送</button>
+    </div>
+    <div class="thr-set-row">
+        <span class="thr-set-label">湿度阈值 (%RH)</span>
+        <input type="number" class="thr-set-input" id="humi_thr_input" step="1" placeholder="70">
+        <button class="thr-set-btn" onclick="setThreshold('humi')">发送</button>
+    </div>
+</div>
+
+<!-- Log -->
+<div class="card">
+    <div class="log-toggle" onclick="toggleLog()">
+        <span class="card-title" style="margin-bottom:0">通信日志</span>
+        <span class="log-arrow" id="logArrow">&#9654;</span>
+    </div>
+    <div class="log-content" id="logContent"></div>
+</div>
+
+<script>
+// ==================== MQTT Topic (hardcoded from PRD) ====================
+const UPLOAD_TOPIC = '753284/401657/zhiyuyinfengshan/upload';
+const CMD_TOPIC = '753284/401657/zhiyuyinfengshan/cmd';
+
+// ==================== Current Data ====================
+let currentData = {
+    temp: null, humi: null, body: null,
+    fan_gear: null, fan_sw: null, sys_mode: null,
+    temp_thr: null, humi_thr: null
+};
+
+// ==================== Sync Protection State ====================
+let waitingSync = { temp: false, humi: false };
+let pendingValue = { temp: null, humi: null };
+let syncTimeoutTimer = { temp: null, humi: null };
+
+// ==================== Debounce Protection ====================
+let lastUserSetTime = { temp_thr: 0, humi_thr: 0 };
+const DEBOUNCE_MS = 500;
+const SYNC_TIMEOUT_MS = 5000;
+
+// ==================== Log ====================
+let logLines = [];
+let logOpen = false;
+
+// ==================== MQTT Connect ====================
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: 'fan_web_' + Math.random().toString(36).substr(2, 8),
+    reconnectPeriod: 3000
+});
+
+client.on('connect', () => {
+    document.getElementById('statusDot').classList.add('connected');
+    document.getElementById('statusText').textContent = '已连接';
+    client.subscribe(UPLOAD_TOPIC);
+});
+
+client.on('close', () => {
+    document.getElementById('statusDot').classList.remove('connected');
+    document.getElementById('statusText').textContent = '未连接';
+});
+
+client.on('error', () => {
+    document.getElementById('statusDot').classList.remove('connected');
+    document.getElementById('statusText').textContent = '连接失败';
+});
+
+client.on('message', (topic, payload) => {
+    const msg = payload.toString();
+    parseMessage(msg);
+});
+
+// ==================== Parse Message ====================
+function parseMessage(message) {
+    const parts = message.split(',');
+    if (parts.length < 8) return;
+
+    const newData = {
+        temp: parseFloat(parts[0]),
+        humi: parseInt(parts[1]),
+        body: parseInt(parts[2]),
+        fan_gear: parseInt(parts[3]),
+        fan_sw: parseInt(parts[4]),
+        sys_mode: parts[5],
+        temp_thr: parseFloat(parts[6]),
+        humi_thr: parseInt(parts[7])
+    };
+
+    // Sensor values always update
+    currentData.temp = newData.temp;
+    currentData.humi = newData.humi;
+    currentData.body = newData.body;
+    currentData.fan_gear = newData.fan_gear;
+    currentData.fan_sw = newData.fan_sw;
+    currentData.sys_mode = newData.sys_mode;
+
+    // Check sync confirmation for thresholds
+    let hasPendingSync = false;
+    for (const [key, isWaiting] of Object.entries(waitingSync)) {
+        if (isWaiting) {
+            hasPendingSync = true;
+            const expectedValue = pendingValue[key];
+            const receivedValue = newData[key + '_thr'];
+
+            if (expectedValue !== null && Math.abs(receivedValue - expectedValue) < 0.5) {
+                console.log(`Sync confirmed for ${key}: ${receivedValue}`);
+                if (syncTimeoutTimer[key]) {
+                    clearTimeout(syncTimeoutTimer[key]);
+                    syncTimeoutTimer[key] = null;
+                }
+                waitingSync[key] = false;
+                pendingValue[key] = null;
+                lastUserSetTime[key + '_thr'] = 0;
+            }
+        }
+    }
+
+    // Threshold update with triple protection
+    const now = Date.now();
+    if (!lastUserSetTime.temp_thr || (now - lastUserSetTime.temp_thr) >= DEBOUNCE_MS) {
+        if (!waitingSync.temp) {
+            currentData.temp_thr = newData.temp_thr;
+        }
+    }
+    if (!lastUserSetTime.humi_thr || (now - lastUserSetTime.humi_thr) >= DEBOUNCE_MS) {
+        if (!waitingSync.humi) {
+            currentData.humi_thr = newData.humi_thr;
+        }
+    }
+
+    updateUI();
+
+    if (hasPendingSync) {
+        checkAlarmsWithPending();
+    } else {
+        checkAlarms();
+    }
+
+    addLog(message);
+}
+
+// ==================== Update UI ====================
+function updateUI() {
+    // Temperature
+    const tempEl = document.getElementById('temp');
+    if (currentData.temp !== null) {
+        const isAlarm = currentData.temp_thr !== null && currentData.temp > currentData.temp_thr;
+        tempEl.innerHTML = currentData.temp.toFixed(1) + '<span class="unit">&deg;C</span>' + (isAlarm ? '!' : '');
+        tempEl.className = 'data-value' + (isAlarm ? ' alarm' : '');
+    }
+
+    // Humidity
+    const humiEl = document.getElementById('humi');
+    if (currentData.humi !== null) {
+        const isAlarm = currentData.humi_thr !== null && currentData.humi > currentData.humi_thr;
+        humiEl.innerHTML = currentData.humi + '<span class="unit">%RH</span>' + (isAlarm ? '!' : '');
+        humiEl.className = 'data-value' + (isAlarm ? ' alarm' : '');
+    }
+
+    // Body
+    const bodyEl = document.getElementById('body');
+    if (currentData.body !== null) {
+        bodyEl.innerHTML = currentData.body === 1
+            ? '<span class="data-badge badge-yes">有人</span>'
+            : '<span class="data-badge badge-no">无人</span>';
+    }
+
+    // Fan gear
+    const gearEl = document.getElementById('fan_gear');
+    if (currentData.fan_gear !== null) {
+        const labels = ['OFF', '1 档', '2 档'];
+        const classes = ['badge-off', 'badge-1', 'badge-2'];
+        const idx = Math.min(currentData.fan_gear, 2);
+        gearEl.innerHTML = `<span class="data-badge ${classes[idx]}">${labels[idx]}</span>`;
+    }
+
+    // System mode
+    const modeEl = document.getElementById('sys_mode');
+    if (currentData.sys_mode) {
+        const isAuto = currentData.sys_mode === 'AUTO';
+        modeEl.innerHTML = `<span class="data-badge ${isAuto ? 'badge-auto' : 'badge-manual'}">${currentData.sys_mode}</span>`;
+    }
+
+    // Threshold display (show pending value if waiting sync)
+    const tempThrDisp = document.getElementById('temp_thr_display');
+    if (currentData.temp_thr !== null) {
+        const showVal = waitingSync.temp ? pendingValue.temp : currentData.temp_thr;
+        tempThrDisp.innerHTML = showVal.toFixed(1) + '<span class="unit">&deg;C</span>';
+    }
+    const humiThrDisp = document.getElementById('humi_thr_display');
+    if (currentData.humi_thr !== null) {
+        const showVal = waitingSync.humi ? pendingValue.humi : currentData.humi_thr;
+        humiThrDisp.innerHTML = showVal + '<span class="unit">%RH</span>';
+    }
+}
+
+// ==================== Alarm Check ====================
+function checkAlarms() {
+    const alarms = [];
+    if (currentData.temp !== null && currentData.temp_thr !== null && currentData.temp > currentData.temp_thr) {
+        alarms.push('温度超标: ' + currentData.temp.toFixed(1) + '&deg;C > ' + currentData.temp_thr.toFixed(1) + '&deg;C');
+    }
+    if (currentData.humi !== null && currentData.humi_thr !== null && currentData.humi > currentData.humi_thr) {
+        alarms.push('湿度超标: ' + currentData.humi + '%RH > ' + currentData.humi_thr + '%RH');
+    }
+    renderAlarms(alarms);
+}
+
+function checkAlarmsWithPending() {
+    const alarms = [];
+    const tempThr = waitingSync.temp ? pendingValue.temp : currentData.temp_thr;
+    const humiThr = waitingSync.humi ? pendingValue.humi : currentData.humi_thr;
+
+    if (currentData.temp !== null && tempThr !== null && currentData.temp > tempThr) {
+        alarms.push('温度超标: ' + currentData.temp.toFixed(1) + '&deg;C > ' + tempThr.toFixed(1) + '&deg;C');
+    }
+    if (currentData.humi !== null && humiThr !== null && currentData.humi > humiThr) {
+        alarms.push('湿度超标: ' + currentData.humi + '%RH > ' + humiThr + '%RH');
+    }
+    renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+    const body = document.getElementById('alarmBody');
+    if (alarms.length === 0) {
+        body.innerHTML = '<div class="alarm-ok">运行正常 &#10003;</div>';
+    } else {
+        body.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
+    }
+}
+
+// ==================== Send Command ====================
+function sendCmd(cmd) {
+    if (!client.connected) {
+        alert('MQTT 未连接');
+        return;
+    }
+    client.publish(CMD_TOPIC, cmd);
+}
+
+// ==================== Control Functions ====================
+function toggleMode() {
+    sendCmd('04');
+}
+
+function fanToggle() {
+    if (currentData.sys_mode !== 'MANUAL') {
+        alert('仅在手动模式下有效');
+        return;
+    }
+    sendCmd('05');
+}
+
+function setFanGear(gear) {
+    if (currentData.sys_mode !== 'MANUAL') {
+        alert('仅在手动模式下有效');
+        return;
+    }
+    sendCmd('06,' + gear);
+}
+
+function setThreshold(type) {
+    const inputId = type === 'temp' ? 'temp_thr_input' : 'humi_thr_input';
+    const value = document.getElementById(inputId).value;
+
+    if (!value || value === '') {
+        alert('请输入阈值');
+        return;
+    }
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) {
+        alert('请输入有效数字');
+        return;
+    }
+    if (waitingSync[type]) {
+        alert('正在等待下位机确认，请稍候');
+        return;
+    }
+
+    const cmdCode = type === 'temp' ? '02' : '03';
+
+    // 1. Set waiting sync state
+    waitingSync[type] = true;
+    pendingValue[type] = numValue;
+
+    // 2. Send command
+    sendCmd(`${cmdCode},${numValue}`);
+
+    // 3. Record user action time (debounce)
+    lastUserSetTime[type + '_thr'] = Date.now();
+
+    // 4. Immediately update display (predictive)
+    currentData[type + '_thr'] = numValue;
+    updateUI();
+
+    // 5. Immediately check alarms (instant feedback)
+    checkAlarmsWithPending();
+
+    // 6. Set timeout protection (5s auto-release)
+    syncTimeoutTimer[type] = setTimeout(() => {
+        if (waitingSync[type]) {
+            console.warn(`Sync timeout for ${type}, releasing protection`);
+            waitingSync[type] = false;
+            pendingValue[type] = null;
+            syncTimeoutTimer[type] = null;
+        }
+    }, SYNC_TIMEOUT_MS);
+
+    document.getElementById(inputId).blur();
+}
+
+// ==================== Log ====================
+function addLog(message) {
+    logLines.unshift(message);
+    if (logLines.length > 20) logLines.pop();
+    renderLog();
+}
+
+function renderLog() {
+    const el = document.getElementById('logContent');
+    el.innerHTML = logLines.map(l => `<div class="log-line">${l}</div>`).join('');
+}
+
+function toggleLog() {
+    logOpen = !logOpen;
+    document.getElementById('logContent').classList.toggle('open', logOpen);
+    document.getElementById('logArrow').classList.toggle('open', logOpen);
+}
+</script>
+</body>
+</html>
