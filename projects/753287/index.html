@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>盘山公路行车安全智能监控与预警系统</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 12px;
+            max-width: 420px;
+            margin: 0 auto;
+            min-height: 100vh;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 12px 16px; background: var(--card);
+            border-radius: var(--radius); box-shadow: var(--shadow);
+            margin-bottom: 12px;
+        }
+        .status-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--alarm);
+        }
+        .status-dot.connected { background: var(--ok); }
+        .status-text { font-size: 14px; color: var(--sub); }
+
+        /* 卡片通用 */
+        .card {
+            background: var(--card); border-radius: var(--radius);
+            box-shadow: var(--shadow); padding: 16px;
+            margin-bottom: 12px;
+        }
+        .card-title {
+            font-size: 15px; font-weight: 600;
+            margin-bottom: 12px; color: var(--text);
+            display: flex; align-items: center; gap: 6px;
+        }
+
+        /* 实时数据 */
+        .data-row {
+            display: flex; justify-content: space-between;
+            align-items: center; padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 13px; color: var(--sub); }
+        .data-value { font-size: 28px; font-weight: bold; }
+        .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+        .data-value.alarm { color: var(--alarm); }
+
+        /* 报警状态 */
+        .alarm-normal {
+            text-align: center; padding: 12px;
+            color: var(--ok); font-size: 15px; font-weight: 500;
+        }
+        .alarm-item {
+            background: #ffebee; color: var(--alarm);
+            padding: 10px 14px; border-radius: 8px;
+            margin-bottom: 6px; font-size: 14px; font-weight: 500;
+        }
+        .alarm-item:last-child { margin-bottom: 0; }
+
+        /* 控制按钮 */
+        .ctrl-btn {
+            width: 100%; padding: 14px; border: none; border-radius: 8px;
+            background: var(--primary); color: #fff;
+            font-size: 15px; font-weight: 500;
+            cursor: pointer; transition: background 0.15s;
+            margin-bottom: 8px;
+        }
+        .ctrl-btn:last-child { margin-bottom: 0; }
+        .ctrl-btn:active { background: #1976D2; }
+        .ctrl-btn.danger { background: var(--alarm); }
+        .ctrl-btn.danger:active { background: #D32F2F; }
+        .ctrl-btn.success { background: var(--ok); }
+        .ctrl-btn.success:active { background: #388E3C; }
+
+        /* 阈值显示 */
+        .thresh-row {
+            display: flex; justify-content: space-between;
+            align-items: center; padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .thresh-row:last-child { border-bottom: none; }
+        .thresh-label { font-size: 13px; color: var(--sub); }
+        .thresh-value { font-size: 18px; font-weight: 600; }
+        .thresh-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+
+        /* 阈值设置 */
+        .thresh-set-row {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 10px;
+        }
+        .thresh-set-row:last-child { margin-bottom: 0; }
+        .thresh-set-label { font-size: 13px; color: var(--sub); min-width: 80px; }
+        .thresh-set-input {
+            width: 80px; padding: 8px 10px; border: 1px solid #ddd;
+            border-radius: 8px; font-size: 14px; text-align: center;
+            outline: none;
+        }
+        .thresh-set-input:focus { border-color: var(--primary); }
+        .thresh-set-btn {
+            padding: 8px 16px; border: none; border-radius: 8px;
+            background: var(--primary); color: #fff;
+            font-size: 13px; cursor: pointer; white-space: nowrap;
+        }
+        .thresh-set-btn:active { background: #1976D2; }
+
+        /* 日志 */
+        .log-toggle {
+            cursor: pointer; user-select: none;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .log-toggle .arrow { transition: transform 0.2s; font-size: 12px; color: var(--sub); }
+        .log-toggle .arrow.open { transform: rotate(180deg); }
+        .log-content { display: none; max-height: 200px; overflow-y: auto; margin-top: 10px; }
+        .log-content.show { display: block; }
+        .log-item {
+            font-size: 12px; color: var(--sub); padding: 4px 0;
+            border-bottom: 1px solid #f5f5f5;
+            font-family: monospace;
+        }
+        .log-item:last-child { border-bottom: none; }
+
+        /* 消警按钮红色 */
+        .alarm-btn { background: #FF9800; }
+        .alarm-btn:active { background: #F57C00; }
+    </style>
+</head>
+<body>
+
+    <!-- 状态栏 -->
+    <div class="status-bar">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-text" id="statusText">未连接</span>
+    </div>
+
+    <!-- 实时数据 -->
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-label">车速</span>
+            <div><span class="data-value" id="vehicle_speed">--</span><span class="data-unit">km/h</span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">光照强度</span>
+            <div><span class="data-value" id="light_intensity">--</span><span class="data-unit"></span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">驾驶时间</span>
+            <div><span class="data-value" id="drive_time" style="font-size:20px;">--</span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">PWM占空比</span>
+            <div><span class="data-value" id="pwm_duty">--</span><span class="data-unit">%</span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">电机状态</span>
+            <div><span class="data-value" id="motor_status" style="font-size:18px;">--</span></div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">消警状态</span>
+            <div><span class="data-value" id="silenced" style="font-size:18px;">--</span></div>
+        </div>
+    </div>
+
+    <!-- 报警状态 -->
+    <div class="card" id="alarmCard">
+        <div class="card-title">报警状态</div>
+        <div id="alarmContent">
+            <div class="alarm-normal">运行正常 ✓</div>
+        </div>
+    </div>
+
+    <!-- 控制 -->
+    <div class="card">
+        <div class="card-title">远程控制</div>
+        <button class="ctrl-btn alarm-btn" id="silenceBtn" onclick="sendCmd('01')">消警（静音）</button>
+        <button class="ctrl-btn success" onclick="sendCmd('05')">启动电机</button>
+        <button class="ctrl-btn danger" onclick="sendCmd('06')">停止电机</button>
+        <button class="ctrl-btn" onclick="sendCmd('07')">清零驾驶时间</button>
+    </div>
+
+    <!-- 阈值显示 -->
+    <div class="card">
+        <div class="card-title">当前阈值</div>
+        <div class="thresh-row">
+            <span class="thresh-label">速度阈值</span>
+            <div><span class="thresh-value" id="speed_threshold_display">--</span><span class="thresh-unit">km/h</span></div>
+        </div>
+        <div class="thresh-row">
+            <span class="thresh-label">光照阈值</span>
+            <div><span class="thresh-value" id="light_threshold_display">--</span><span class="thresh-unit">ADC</span></div>
+        </div>
+        <div class="thresh-row">
+            <span class="thresh-label">疲劳阈值</span>
+            <div><span class="thresh-value" id="drive_threshold_display">--</span><span class="thresh-unit">分钟</span></div>
+        </div>
+    </div>
+
+    <!-- 阈值设置 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="thresh-set-row">
+            <span class="thresh-set-label">速度阈值</span>
+            <input class="thresh-set-input" id="speed_threshold_input" type="number" placeholder="km/h">
+            <button class="thresh-set-btn" onclick="setThreshold('speed','02')">发送</button>
+        </div>
+        <div class="thresh-set-row">
+            <span class="thresh-set-label">光照阈值</span>
+            <input class="thresh-set-input" id="light_threshold_input" type="number" placeholder="ADC">
+            <button class="thresh-set-btn" onclick="setThreshold('light','03')">发送</button>
+        </div>
+        <div class="thresh-set-row">
+            <span class="thresh-set-label">疲劳阈值</span>
+            <input class="thresh-set-input" id="drive_threshold_input" type="number" placeholder="分钟">
+            <button class="thresh-set-btn" onclick="setThreshold('drive','08')">发送</button>
+        </div>
+    </div>
+
+    <!-- 日志 -->
+    <div class="card">
+        <div class="card-title log-toggle" onclick="toggleLog()">
+            <span>数据日志</span>
+            <span class="arrow" id="logArrow">▼</span>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
+
+<script>
+// ==================== MQTT 配置 ====================
+const UPLOAD_TOPIC = '753284/401657/panshangonglu/upload';
+const CMD_TOPIC    = '753284/401657/panshangonglu/cmd';
+
+// ==================== 当前数据 ====================
+let currentData = {
+    vehicle_speed: null,
+    light_intensity: null,
+    drive_time: '--',
+    pwm_duty: null,
+    motor_status: null,
+    speed_threshold: null,
+    light_threshold: null,
+    silenced: null,
+    drive_threshold: null
+};
+
+// ==================== 同步保护状态（防旧数据覆盖新值） ====================
+// 用户修改阈值后，5秒内忽略MQTT旧数据，STM32同步后自动放开
+let thresholdLockUntil = { speed_threshold: 0, light_threshold: 0, drive_threshold: 0 };
+// 控制指令乐观更新锁：用户点按钮后立即更新UI，STM32同步前忽略旧数据
+let controlLockUntil = { motor_status: 0, silenced: 0, drive_time: 0 };
+const LOCK_DURATION_MS = 5000;  // 锁定期5秒
+
+// 控制指令映射
+const CONTROL_MAP = {
+    '01': { field: 'silenced', toggle: true, lockMs: 5000 },    // 消警→切换
+    '05': { field: 'motor_status', value: 1, lockMs: 5000 },    // 启动→motor=1
+    '06': { field: 'motor_status', value: 0, lockMs: 5000 },    // 停止→motor=0
+    '07': { field: 'drive_time', value: '00:00', lockMs: 8000 },  // 清零→00:00
+};
+
+// 阈值设置映射
+const THRESHOLD_MAP = {
+    speed:  { cmd: '02', field: 'speed_threshold',  index: 5 },
+    light:  { cmd: '03', field: 'light_threshold',  index: 6 },
+    drive:  { cmd: '08', field: 'drive_threshold',  index: 8 }
+};
+
+// ==================== 日志 ====================
+let logs = [];
+
+function addLog(msg) {
+    logs.unshift(msg);
+    if (logs.length > 20) logs.pop();
+    renderLog();
+}
+
+function renderLog() {
+    const el = document.getElementById('logContent');
+    el.innerHTML = logs.map(l => `<div class="log-item">${l}</div>`).join('');
+}
+
+function toggleLog() {
+    const el = document.getElementById('logContent');
+    const arrow = document.getElementById('logArrow');
+    el.classList.toggle('show');
+    arrow.classList.toggle('open');
+}
+
+// ==================== MQTT 连接 ====================
+const client = mqtt.connect('ws://broker.emqx.io:8083/mqtt', {
+    clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+    reconnectPeriod: 3000
+});
+
+client.on('connect', () => {
+    document.getElementById('statusDot').classList.add('connected');
+    document.getElementById('statusText').textContent = '已连接';
+    client.subscribe(UPLOAD_TOPIC);
+    // 立即下发时间戳指令09，之后每60秒重复
+    const sendTimeSync = () => {
+        const ts = Math.floor(Date.now() / 1000);
+        client.publish(CMD_TOPIC, '09,' + ts);
+        console.log('Time sync:', ts);
+    };
+    sendTimeSync();
+    setInterval(sendTimeSync, 60000);
+});
+
+client.on('close', () => {
+    document.getElementById('statusDot').classList.remove('connected');
+    document.getElementById('statusText').textContent = '未连接';
+});
+
+client.on('error', () => {
+    document.getElementById('statusDot').classList.remove('connected');
+    document.getElementById('statusText').textContent = '连接错误';
+});
+
+client.on('message', (topic, payload) => {
+    const msg = payload.toString();
+    parseMessage(msg);
+});
+
+// ==================== 消息解析 ====================
+function parseMessage(message) {
+    const parts = message.split(',');
+    if (parts.length < 9) return;
+
+    const newData = {
+        vehicle_speed: parseFloat(parts[0]),
+        light_intensity: parseFloat(parts[1]),
+        drive_time: parts[2],
+        pwm_duty: parseFloat(parts[3]),
+        motor_status: parseInt(parts[4]),
+        speed_threshold: parseFloat(parts[5]),
+        light_threshold: parseFloat(parts[6]),
+        silenced: parseInt(parts[7]),
+        drive_threshold: parseFloat(parts[8])
+    };
+
+    // 传感器值和状态始终更新
+    currentData.vehicle_speed = newData.vehicle_speed;
+    currentData.light_intensity = newData.light_intensity;
+
+    // PWM 始终更新（本地按键可改）
+    currentData.pwm_duty = newData.pwm_duty;
+
+    // 控制状态更新：锁定期内忽略旧数据，锁过期后采用STM32同步值
+    const now = Date.now();
+    ['motor_status', 'silenced', 'drive_time'].forEach(field => {
+        if (now < controlLockUntil[field]) return;  // 锁定期内，忽略旧数据
+        currentData[field] = newData[field];
+        controlLockUntil[field] = 0;  // 同步成功，释放锁
+    });
+
+    // 阈值更新：锁定期内忽略旧数据，锁过期后采用STM32同步值
+    ['speed_threshold', 'light_threshold', 'drive_threshold'].forEach(field => {
+        if (newData[field] === null || newData[field] === undefined) return;
+        if (now < thresholdLockUntil[field]) return;  // 锁定期内，忽略旧数据
+        currentData[field] = newData[field];
+        thresholdLockUntil[field] = 0;  // 同步成功，释放锁
+    });
+
+    updateUI();
+    checkAlarms();
+
+    addLog(message);
+}
+
+// ==================== UI 更新 ====================
+function updateUI() {
+    // 车速
+    const spdEl = document.getElementById('vehicle_speed');
+    if (currentData.vehicle_speed !== null) {
+        spdEl.textContent = currentData.vehicle_speed.toFixed(1);
+        spdEl.classList.toggle('alarm', currentData.speed_threshold !== null && currentData.vehicle_speed > currentData.speed_threshold);
+    }
+
+    // 光照
+    const luxEl = document.getElementById('light_intensity');
+    if (currentData.light_intensity !== null) {
+        luxEl.textContent = currentData.light_intensity.toFixed(0);
+        luxEl.classList.toggle('alarm', currentData.light_threshold !== null && currentData.light_intensity < currentData.light_threshold);
+    }
+
+    // 驾驶时间
+    if (currentData.drive_time !== '--') {
+        document.getElementById('drive_time').textContent = currentData.drive_time;
+    }
+
+    // PWM
+    if (currentData.pwm_duty !== null) {
+        document.getElementById('pwm_duty').textContent = currentData.pwm_duty.toFixed(0);
+    }
+
+    // 电机状态
+    if (currentData.motor_status !== null) {
+        document.getElementById('motor_status').textContent = currentData.motor_status === 1 ? '运行' : '停止';
+    }
+
+    // 消警状态 + 按钮文字
+    if (currentData.silenced !== null) {
+        document.getElementById('silenced').textContent = currentData.silenced === 1 ? '已静音' : '正常';
+        document.getElementById('silenceBtn').textContent = currentData.silenced === 1 ? '取消静音' : '消警（静音）';
+    }
+
+    // 阈值显示（锁定期内显示乐观值，同步后显示实际值）
+    const now = Date.now();
+    if (currentData.speed_threshold !== null) {
+        document.getElementById('speed_threshold_display').textContent = Math.round(currentData.speed_threshold);
+    }
+    if (currentData.light_threshold !== null) {
+        document.getElementById('light_threshold_display').textContent = Math.round(currentData.light_threshold);
+    }
+    if (currentData.drive_threshold !== null) {
+        document.getElementById('drive_threshold_display').textContent = Math.round(currentData.drive_threshold);
+    }
+}
+
+// ==================== 报警判断 ====================
+function checkAlarms() {
+    const alarms = [];
+
+    if (currentData.vehicle_speed !== null && currentData.speed_threshold !== null &&
+        currentData.vehicle_speed > currentData.speed_threshold) {
+        alarms.push('车速超限报警！当前 ' + currentData.vehicle_speed.toFixed(1) + ' km/h > 阈值 ' + currentData.speed_threshold.toFixed(0) + ' km/h');
+    }
+
+    if (currentData.light_intensity !== null && currentData.light_threshold !== null &&
+        currentData.light_intensity < currentData.light_threshold) {
+        alarms.push('光照不足报警！当前 ' + currentData.light_intensity.toFixed(0) + ' < 阈值 ' + currentData.light_threshold.toFixed(0));
+    }
+
+    /* 疲劳驾驶报警：驾驶时间 >= 疲劳阈值 */
+    if (currentData.drive_time !== '--' && currentData.drive_threshold !== null) {
+        const parts = currentData.drive_time.split(':');
+        const totalMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        if (totalMin >= currentData.drive_threshold) {
+            alarms.push('疲劳驾驶报警！当前 ' + currentData.drive_time + ' >= 阈值 ' + currentData.drive_threshold.toFixed(0) + '分钟');
+        }
+    }
+
+    renderAlarms(alarms);
+
+    if (alarms.length > 0) {
+        sendAlarmToNative({ alarms: alarms, data: currentData });
+    }
+}
+
+function renderAlarms(alarms) {
+    const el = document.getElementById('alarmContent');
+    if (alarms.length === 0) {
+        el.innerHTML = '<div class="alarm-normal">运行正常 ✓</div>';
+    } else {
+        el.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
+    }
+}
+
+function sendAlarmToNative(data) {
+    if (window.Android && typeof window.Android.onAlarm === 'function') {
+        window.Android.onAlarm(JSON.stringify(data));
+    } else if (window.Notification && Notification.permission === 'granted') {
+        new Notification('告警', { body: JSON.stringify(data) });
+    }
+}
+
+// ==================== 发送指令（控制指令乐观更新） ====================
+function sendCmd(cmd) {
+    if (client.connected) {
+        client.publish(CMD_TOPIC, cmd);
+    }
+    // 乐观更新：立即修改UI，加锁防止旧数据覆盖
+    const map = CONTROL_MAP[cmd];
+    if (map) {
+        if (map.toggle) {
+            currentData[map.field] = currentData[map.field] ? 0 : 1;
+        } else {
+            currentData[map.field] = map.value;
+        }
+        controlLockUntil[map.field] = Date.now() + map.lockMs;
+        updateUI();
+        if (map.field !== 'silenced') checkAlarms();
+    }
+}
+
+// ==================== 设置阈值（乐观更新 + 防旧数据覆盖） ====================
+function setThreshold(type, cmdCode) {
+    const map = THRESHOLD_MAP[type];
+    if (!map) return;
+
+    const inputId = type + '_threshold_input';
+    const value = document.getElementById(inputId).value;
+    if (!value || value === '') { alert('请输入阈值'); return; }
+
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) { alert('请输入有效数字'); return; }
+
+    // 1. 乐观更新：立即更新显示
+    currentData[map.field] = numValue;
+
+    // 2. 加锁：锁定期内忽略MQTT旧数据
+    thresholdLockUntil[map.field] = Date.now() + LOCK_DURATION_MS;
+
+    // 3. 发送指令
+    sendCmd(`${map.cmd},${numValue}`);
+
+    // 4. 更新报警判断
+    updateUI();
+    checkAlarms();
+
+    document.getElementById(inputId).blur();
+}
+</script>
+</body>
+</html>
