@@ -75,6 +75,66 @@ body {
 .badge-1 { background: #E3F2FD; color: #1976D2; }
 .badge-2 { background: #E8F5E9; color: #388E3C; }
 
+/* Fan Slider */
+.fan-control-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0 4px;
+}
+.fan-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    border-radius: 4px;
+    background: linear-gradient(to right, #9E9E9E 0%, #9E9E9E var(--val, 0%), #2196F3 var(--val, 0%), #2196F3 100%);
+    outline: none;
+}
+.fan-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #2196F3;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(33,150,243,0.4);
+}
+.fan-slider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #2196F3;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 6px rgba(33,150,243,0.4);
+}
+.fan-pct {
+    font-size: 22px;
+    font-weight: bold;
+    color: #212121;
+    min-width: 48px;
+    text-align: right;
+}
+.fan-micro-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+.btn-fine {
+    flex: 1;
+    height: 40px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    color: #fff;
+}
+.btn-fine:active { transform: scale(0.96); opacity: 0.8; }
+.btn-fine-dec { background: #78909C; }
+.btn-fine-inc { background: #42A5F5; }
+
 /* Alarm */
 .alarm-ok { color: #4CAF50; font-size: 14px; text-align: center; padding: 8px; }
 .alarm-item {
@@ -221,13 +281,18 @@ body {
 <!-- Controls -->
 <div class="card">
     <div class="card-title">远程控制</div>
-    <div class="btn-row" style="margin-bottom:8px">
+    <div class="btn-row" style="margin-bottom:12px">
         <button class="btn btn-primary" onclick="toggleMode()">切换模式</button>
         <button class="btn btn-success" onclick="fanToggle()">风扇开关</button>
     </div>
-    <div class="btn-row" style="margin-bottom:8px">
-        <button class="btn btn-warning" onclick="setFanGear(1)">1 档</button>
-        <button class="btn btn-warning" onclick="setFanGear(2)">2 档</button>
+    <div class="fan-control-row">
+        <input type="range" class="fan-slider" id="fanSlider" min="0" max="100" value="0"
+               oninput="onSliderInput()" onchange="onSliderChange()">
+        <span class="fan-pct" id="fanPct">OFF</span>
+    </div>
+    <div class="fan-micro-row">
+        <button class="btn-fine btn-fine-dec" onclick="fanFine(-2)">－ 2%</button>
+        <button class="btn-fine btn-fine-inc" onclick="fanFine(2)">＋ 2%</button>
     </div>
 </div>
 
@@ -290,36 +355,74 @@ let lastUserSetTime = { temp_thr: 0, humi_thr: 0 };
 const DEBOUNCE_MS = 500;
 const SYNC_TIMEOUT_MS = 5000;
 
+// ==================== Fan Optimistic Update Protection ====================
+let fan_gear_user_time = 0;     // 最后一次用户手动设置风扇占空比的时间戳
+const FAN_SYNC_TIMEOUT_MS = 3000;  // 超时后允许设备数据回写
+
 // ==================== Log ====================
 let logLines = [];
 let logOpen = false;
 
 // ==================== MQTT Connect ====================
-const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-    clientId: 'fan_web_' + Math.random().toString(36).substr(2, 8),
-    reconnectPeriod: 3000
-});
+let client;
+let lastMsgTick = 0;        // 最后一次收到消息的时间戳
+let msgWatchdog = null;     // 心跳看门狗定时器
+const MSG_TIMEOUT_MS = 1000; // 1秒无消息自动重连
 
-client.on('connect', () => {
-    document.getElementById('statusDot').classList.add('connected');
-    document.getElementById('statusText').textContent = '已连接';
-    client.subscribe(UPLOAD_TOPIC);
-});
+function initMQTT() {
+    client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+        clientId: 'fan_web_' + Math.random().toString(36).substr(2, 8),
+        reconnectPeriod: 1000,        // 意外断线后 1s 重连（兜底）
+        connectTimeout: 5000          // 连接超时 5s
+    });
 
-client.on('close', () => {
-    document.getElementById('statusDot').classList.remove('connected');
-    document.getElementById('statusText').textContent = '未连接';
-});
+    client.on('connect', () => {
+        document.getElementById('statusDot').classList.add('connected');
+        document.getElementById('statusText').textContent = '已连接';
+        client.subscribe(UPLOAD_TOPIC);
+        // 启动心跳看门狗
+        lastMsgTick = Date.now();
+        startWatchdog();
+    });
 
-client.on('error', () => {
-    document.getElementById('statusDot').classList.remove('connected');
-    document.getElementById('statusText').textContent = '连接失败';
-});
+    client.on('message', (topic, payload) => {
+        const msg = payload.toString();
+        lastMsgTick = Date.now();  // 刷新最后收到时间
+        parseMessage(msg);
+    });
 
-client.on('message', (topic, payload) => {
-    const msg = payload.toString();
-    parseMessage(msg);
-});
+    client.on('close', () => {
+        document.getElementById('statusDot').classList.remove('connected');
+        document.getElementById('statusText').textContent = '未连接';
+        stopWatchdog();
+    });
+
+    client.on('error', (err) => {
+        document.getElementById('statusDot').classList.remove('connected');
+        document.getElementById('statusText').textContent = '连接失败';
+        stopWatchdog();
+    });
+}
+
+// ==================== 心跳看门狗 ====================
+function startWatchdog() {
+    stopWatchdog();
+    msgWatchdog = setInterval(() => {
+        if (Date.now() - lastMsgTick > MSG_TIMEOUT_MS && client.connected) {
+            // 超过 1s 没收到消息，强制重连
+            console.warn('[MQTT] 看门狗超时，强制重连');
+            document.getElementById('statusText').textContent = '重连中...';
+            try { client.reconnect(); } catch(e) {}
+        }
+    }, 500);  // 每 500ms 检查一次
+}
+
+function stopWatchdog() {
+    if (msgWatchdog) {
+        clearInterval(msgWatchdog);
+        msgWatchdog = null;
+    }
+}
 
 // ==================== Parse Message ====================
 function parseMessage(message) {
@@ -341,7 +444,20 @@ function parseMessage(message) {
     currentData.temp = newData.temp;
     currentData.humi = newData.humi;
     currentData.body = newData.body;
-    currentData.fan_gear = newData.fan_gear;
+
+    // Fan gear: optimistic update protection
+    // 如果用户刚手动改过，忽略旧的设备回传数据
+    const now = Date.now();
+    const fanUserSetRecently = (now - fan_gear_user_time) < FAN_SYNC_TIMEOUT_MS;
+    if (!fanUserSetRecently || newData.fan_gear === currentData.fan_gear ||
+        newData.fan_gear === (currentData.fan_gear_pending || newData.fan_gear)) {
+        // 设备值与预期一致（或无保护）→ 更新并解除保护
+        currentData.fan_gear = newData.fan_gear;
+        delete currentData.fan_gear_pending;
+        fan_gear_user_time = 0;
+    }
+    // 否则：设备值 != 预期值且用户在保护期内 → 丢弃旧数据，保持当前 UI
+
     currentData.fan_sw = newData.fan_sw;
     currentData.sys_mode = newData.sys_mode;
 
@@ -367,7 +483,6 @@ function parseMessage(message) {
     }
 
     // Threshold update with triple protection
-    const now = Date.now();
     if (!lastUserSetTime.temp_thr || (now - lastUserSetTime.temp_thr) >= DEBOUNCE_MS) {
         if (!waitingSync.temp) {
             currentData.temp_thr = newData.temp_thr;
@@ -416,13 +531,25 @@ function updateUI() {
             : '<span class="data-badge badge-no">无人</span>';
     }
 
-    // Fan gear
+    // Fan duty (0-100% stepless)
     const gearEl = document.getElementById('fan_gear');
     if (currentData.fan_gear !== null) {
-        const labels = ['OFF', '1 档', '2 档'];
-        const classes = ['badge-off', 'badge-1', 'badge-2'];
-        const idx = Math.min(currentData.fan_gear, 2);
-        gearEl.innerHTML = `<span class="data-badge ${classes[idx]}">${labels[idx]}</span>`;
+        const duty = currentData.fan_gear;
+        const isOn = duty > 0;
+        gearEl.innerHTML = isOn
+            ? `<span class="data-badge badge-1">${duty}%</span>`
+            : '<span class="data-badge badge-off">OFF</span>';
+    }
+
+    // Sync slider to latest device state (only when not user-dragging and not in optimistic period)
+    const slider = document.getElementById('fanSlider');
+    if (slider && !slider.matches(':active')) {
+        const fanUserSetRecently = (Date.now() - fan_gear_user_time) < FAN_SYNC_TIMEOUT_MS;
+        if (!fanUserSetRecently || newData.fan_gear === currentData.fan_gear) {
+            slider.value = currentData.fan_gear || 0;
+            updateSliderBg(slider.value);
+            document.getElementById('fanPct').textContent = (currentData.fan_gear > 0) ? currentData.fan_gear + '%' : 'OFF';
+        }
     }
 
     // System mode
@@ -500,14 +627,75 @@ function fanToggle() {
         return;
     }
     sendCmd('05');
+    // Optimistic update
+    currentData.fan_gear = currentData.fan_gear > 0 ? 0 : 50;
+    currentData.fan_gear_pending = currentData.fan_gear;
+    fan_gear_user_time = Date.now();
 }
 
-function setFanGear(gear) {
+// ==================== Slider Control Functions ====================
+let sliderSendTimer = null;  // throttle MQTT sends during drag
+
+function onSliderInput() {
+    const v = parseInt(document.getElementById('fanSlider').value);
+    // 1. 乐观更新：立即同步到所有 UI 组件
+    currentData.fan_gear = v;
+    currentData.fan_gear_pending = v;
+    fan_gear_user_time = Date.now();
+    updateSliderBg(v);
+    document.getElementById('fanPct').textContent = (v > 0) ? v + '%' : 'OFF';
+    // 同步更新实时数据区的风扇占空比 badge
+    const gearEl = document.getElementById('fan_gear');
+    if (gearEl) {
+        gearEl.innerHTML = v > 0
+            ? `<span class="data-badge badge-1">${v}%</span>`
+            : '<span class="data-badge badge-off">OFF</span>';
+    }
+
+    // 2. 节流发送（300ms 内最多发一次，避免 MQTT 洪水）
+    if (currentData.sys_mode === 'MANUAL' && client.connected) {
+        if (sliderSendTimer) return;
+        sendCmd('06,' + v);
+        sliderSendTimer = setTimeout(() => { sliderSendTimer = null; }, 300);
+    }
+}
+
+function onSliderChange() {
+    // 松手后补发最终值，确保和设备一致
+    const v = parseInt(document.getElementById('fanSlider').value);
+    if (currentData.sys_mode === 'MANUAL' && client.connected) {
+        sendCmd('06,' + v);
+    }
+    // 清掉节流定时器
+    if (sliderSendTimer) { clearTimeout(sliderSendTimer); sliderSendTimer = null; }
+    currentData.fan_gear = v;
+    currentData.fan_gear_pending = v;
+    fan_gear_user_time = Date.now();
+}
+
+function updateSliderBg(val) {
+    document.getElementById('fanSlider').style.setProperty('--val', val + '%');
+}
+
+// ==================== Fine Adjust (±2%) ====================
+function fanFine(delta) {
     if (currentData.sys_mode !== 'MANUAL') {
         alert('仅在手动模式下有效');
         return;
     }
-    sendCmd('06,' + gear);
+    const cmd = delta > 0 ? '07' : '08';
+    sendCmd(cmd);
+    // Predictive local update
+    let newDuty = (currentData.fan_gear || 0) + delta;
+    if (newDuty < 0) newDuty = 0;
+    if (newDuty > 100) newDuty = 100;
+    currentData.fan_gear = newDuty;
+    currentData.fan_gear_pending = newDuty;
+    fan_gear_user_time = Date.now();
+    const slider = document.getElementById('fanSlider');
+    slider.value = newDuty;
+    updateSliderBg(newDuty);
+    document.getElementById('fanPct').textContent = (newDuty > 0) ? newDuty + '%' : 'OFF';
 }
 
 function setThreshold(type) {
@@ -577,6 +765,9 @@ function toggleLog() {
     document.getElementById('logContent').classList.toggle('open', logOpen);
     document.getElementById('logArrow').classList.toggle('open', logOpen);
 }
+
+// ==================== 初始化 ====================
+initMQTT();
 </script>
 </body>
 </html>
