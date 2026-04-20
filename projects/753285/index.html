@@ -464,14 +464,6 @@
                     <span class="data-label">补光灯 (LED)</span>
                     <span class="state-badge state-off" id="light_state">OFF</span>
                 </div>
-                <div class="data-row">
-                    <span class="data-label">投喂机</span>
-                    <span class="state-badge state-off" id="feed_state">OFF</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">水泵</span>
-                    <span class="state-badge state-off" id="water_state">OFF</span>
-                </div>
             </div>
 
             <div class="card alarm-card" id="alarmCard" style="display: none;">
@@ -1103,7 +1095,7 @@
             if (currentData.lux !== null) document.getElementById('lux').textContent = currentData.lux.toFixed(0);
             if (currentData.water_level !== null) document.getElementById('water_level').textContent = currentData.water_level.toFixed(0);
 
-            ['wind_state', 'light_state', 'feed_state', 'water_state'].forEach(id => {
+            ['wind_state', 'light_state'].forEach(id => {
                 const el = document.getElementById(id);
                 el.textContent = currentData[id] === 1 ? 'ON' : 'OFF';
                 el.className = 'state-badge ' + (currentData[id] === 1 ? 'state-on' : 'state-off');
