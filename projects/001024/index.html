@@ -341,7 +341,7 @@ const CMD_TOPIC = '753284/401657/zhiyuyinfengshan/cmd';
 // ==================== Current Data ====================
 let currentData = {
     temp: null, humi: null, body: null,
-    fan_gear: null, fan_sw: null, sys_mode: null,
+    fan_gear: null, fan_sw: null, sys_mode: 0,
     temp_thr: null, humi_thr: null
 };
 
@@ -400,7 +400,7 @@ function parseMessage(message) {
         body: parseInt(parts[2]),
         fan_gear: parseInt(parts[3]),
         fan_sw: parseInt(parts[4]),
-        sys_mode: parts[5],
+        sys_mode: parseInt(parts[5]),
         temp_thr: parseFloat(parts[6]),
         humi_thr: parseInt(parts[7])
     };
@@ -519,10 +519,10 @@ function updateUI() {
 
     // System mode
     const modeEl = document.getElementById('sys_mode');
-    if (currentData.sys_mode) {
-        const isAuto = currentData.sys_mode === 'AUTO';
-        modeEl.innerHTML = `<span class="data-badge ${isAuto ? 'badge-auto' : 'badge-manual'}">${currentData.sys_mode}</span>`;
-    }
+    const isAuto = currentData.sys_mode === 0;
+    modeEl.innerHTML = isAuto
+        ? '<span class="data-badge badge-auto">AUTO</span>'
+        : '<span class="data-badge badge-manual">MANUAL</span>';
 
     // Threshold display (show pending value if waiting sync)
     const tempThrDisp = document.getElementById('temp_thr_display');
@@ -587,7 +587,7 @@ function toggleMode() {
 }
 
 function fanToggle() {
-    if (currentData.sys_mode !== 'MANUAL') {
+    if (currentData.sys_mode !== 1) {
         alert('仅在手动模式下有效');
         return;
     }
@@ -618,7 +618,7 @@ function onSliderInput() {
     }
 
     // 2. 节流发送（300ms 内最多发一次，避免 MQTT 洪水）
-    if (currentData.sys_mode === 'MANUAL' && client.connected) {
+    if (currentData.sys_mode === 1 && client.connected) {
         if (sliderSendTimer) return;
         sendCmd('06,' + v);
         sliderSendTimer = setTimeout(() => { sliderSendTimer = null; }, 300);
@@ -628,7 +628,7 @@ function onSliderInput() {
 function onSliderChange() {
     // 松手后补发最终值，确保和设备一致
     const v = parseInt(document.getElementById('fanSlider').value);
-    if (currentData.sys_mode === 'MANUAL' && client.connected) {
+    if (currentData.sys_mode === 1 && client.connected) {
         sendCmd('06,' + v);
     }
     // 清掉节流定时器
@@ -644,7 +644,7 @@ function updateSliderBg(val) {
 
 // ==================== Fine Adjust (±2%) ====================
 function fanFine(delta) {
-    if (currentData.sys_mode !== 'MANUAL') {
+    if (currentData.sys_mode !== 1) {
         alert('仅在手动模式下有效');
         return;
     }
