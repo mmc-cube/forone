@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>粮仓玉米烘干自动控制系统</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            padding: 44px 12px 12px 12px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .status-dot.ok { background: var(--ok); }
+        .status-dot.err { background: var(--alarm); }
+        .mode-badge {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .mode-auto { background: #E3F2FD; color: #1565C0; }
+        .mode-manual { background: #FFF3E0; color: #E65100; }
+        /* 实时数据卡 */
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .data-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .data-label {
+            font-size: 13px;
+            color: var(--sub);
+        }
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+            margin-top: 4px;
+        }
+        .data-value.alarm { color: var(--alarm); }
+        .data-unit {
+            font-size: 13px;
+            color: var(--sub);
+            font-weight: normal;
+        }
+        .status-row {
+            display: flex;
+            gap: 16px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #E0E0E0;
+        }
+        .device-status {
+            font-size: 13px;
+            color: var(--sub);
+        }
+        .device-status.on { color: var(--ok); font-weight: 600; }
+        .device-status.off { color: #9E9E9E; }
+        /* 报警状态卡 */
+        .alarm-ok {
+            color: var(--ok);
+            font-size: 15px;
+            font-weight: 500;
+        }
+        .alarm-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .alarm-item {
+            background: #FFEBEE;
+            color: var(--alarm);
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .alarm-btn {
+            margin-top: 12px;
+            width: 100%;
+            height: 48px;
+            background: var(--alarm);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .alarm-btn:active { background: #D32F2F; }
+        /* 控制卡 */
+        .control-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .control-btn {
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .control-btn.on {
+            background: var(--ok);
+            color: white;
+        }
+        .control-btn.off {
+            background: #E0E0E0;
+            color: var(--sub);
+        }
+        .control-btn:active { transform: scale(0.98); }
+        .mode-btn {
+            width: 100%;
+            height: 48px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 12px;
+        }
+        .mode-btn:active { background: #1976D2; }
+        /* 阈值显示卡 */
+        .threshold-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .threshold-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+        .threshold-value {
+            font-weight: 600;
+            color: var(--text);
+        }
+        /* 阈值设置卡 */
+        .threshold-setting {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .threshold-row label {
+            font-size: 14px;
+            color: var(--text);
+            width: 80px;
+        }
+        .threshold-row input {
+            width: 80px;
+            height: 40px;
+            border: 1px solid #E0E0E0;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .threshold-row button {
+            width: 60px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .threshold-row button:active { background: #1976D2; }
+        /* 日志卡 */
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .log-toggle {
+            font-size: 12px;
+            color: var(--sub);
+        }
+        .log-content {
+            display: none;
+            margin-top: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            color: var(--sub);
+            background: #FAFAFA;
+            padding: 8px;
+            border-radius: 6px;
+        }
+        .log-content.show { display: block; }
+        .log-item {
+            padding: 4px 0;
+            border-bottom: 1px solid #E0E0E0;
+        }
+    </style>
+</head>
+<body>
+    <!-- 状态栏 -->
+    <div class="card">
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot err" id="connDot"></div>
+                <span id="connText">未连接</span>
+            </div>
+            <div class="status-item">
+                <span class="mode-badge mode-auto" id="modeBadge">AUTO</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-grid">
+            <div class="data-item">
+                <span class="data-label">温度</span>
+                <span class="data-value" id="temp">--<span class="data-unit">°C</span></span>
+            </div>
+            <div class="data-item">
+                <span class="data-label">湿度</span>
+                <span class="data-value" id="humi">--<span class="data-unit">%</span></span>
+            </div>
+            <div class="data-item">
+                <span class="data-label">水分</span>
+                <span class="data-value" id="mois">--<span class="data-unit">%</span></span>
+            </div>
+            <div class="data-item">
+                <span class="data-label">烟雾</span>
+                <span class="data-value" id="smoke">--<span class="data-unit">%</span></span>
+            </div>
+        </div>
+        <div class="status-row">
+            <span class="device-status" id="dryStatus">烘干: --</span>
+            <span class="device-status" id="ventStatus">通风: --</span>
+            <span class="device-status" id="pumpStatus">水泵: --</span>
+            <span class="device-status" id="heatStatus">加热: --</span>
+        </div>
+        <div class="status-row" id="dryLevelRow" style="display:none;">
+            <span class="device-status">烘干强度: <span id="dryLevelDisplay">--</span></span>
+        </div>
+        <div class="status-row" id="dryProgressRow" style="display:none;">
+            <span class="device-status">烘干剩余: <span id="dryRemainDisplay">--</span> 秒</span>
+        </div>
+    </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card">
+        <div class="card-title">报警状态</div>
+        <div id="alarmContent">
+            <span class="alarm-ok">运行正常 ✓</span>
+        </div>
+        <button class="alarm-btn" id="alarmBtn" style="display:none;">消警</button>
+    </div>
+
+    <!-- 控制卡 -->
+    <div class="card" id="controlCard" style="display:none;">
+        <div class="card-title">设备控制（MANUAL 模式）</div>
+        <div class="card-title" style="font-size:13px; margin-bottom:8px;">烘干强度</div>
+        <div class="control-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr; margin-bottom:12px;" id="dryLevelGrid">
+            <button class="control-btn off dry-level-btn" id="dryLevelOff" onclick="setDryLevel('OFF','11')">OFF</button>
+            <button class="control-btn off dry-level-btn" id="dryLevelLow" onclick="setDryLevel('LOW','20')">弱</button>
+            <button class="control-btn off dry-level-btn" id="dryLevelMed" onclick="setDryLevel('MED','21')">中</button>
+            <button class="control-btn off dry-level-btn" id="dryLevelHigh" onclick="setDryLevel('HIGH','22')">强</button>
+        </div>
+        <div class="control-grid">
+            <button class="control-btn off" id="ventBtn" onclick="toggleDevice('vent', '12', '13')">通风 OFF</button>
+            <button class="control-btn off" id="pumpBtn" onclick="toggleDevice('pump', '14', '15')">水泵 OFF</button>
+            <button class="control-btn off" id="heatBtn" onclick="toggleDevice('heat', '16', '17')">加热 OFF</button>
+        </div>
+        <button class="mode-btn" onclick="toggleMode()">切换为 AUTO 模式</button>
+    </div>
+
+    <!-- AUTO 模式下的切换按钮 -->
+    <div class="card" id="autoModeCard">
+        <button class="mode-btn" onclick="toggleMode()">切换为 MANUAL 模式</button>
+    </div>
+
+    <!-- 阈值显示卡 -->
+    <div class="card">
+        <div class="card-title">当前阈值</div>
+        <div class="threshold-display">
+            <div class="threshold-item">
+                <span>温度阈值</span>
+                <span class="threshold-value" id="thrTempDisplay">-- °C</span>
+            </div>
+            <div class="threshold-item">
+                <span>湿度阈值</span>
+                <span class="threshold-value" id="thrHumiDisplay">-- %</span>
+            </div>
+            <div class="threshold-item">
+                <span>水分阈值</span>
+                <span class="threshold-value" id="thrMoisDisplay">-- %</span>
+            </div>
+            <div class="threshold-item">
+                <span>烟雾阈值</span>
+                <span class="threshold-value" id="thrSmokeDisplay">-- %</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="threshold-setting">
+            <div class="threshold-row">
+                <label>温度阈值</label>
+                <input type="number" id="thrTempInput" placeholder="30">
+                <button onclick="setThreshold('temp', '02')">发送</button>
+            </div>
+            <div class="threshold-row">
+                <label>湿度阈值</label>
+                <input type="number" id="thrHumiInput" placeholder="70">
+                <button onclick="setThreshold('humi', '03')">发送</button>
+            </div>
+            <div class="threshold-row">
+                <label>水分阈值</label>
+                <input type="number" id="thrMoisInput" placeholder="40">
+                <button onclick="setThreshold('mois', '04')">发送</button>
+            </div>
+            <div class="threshold-row">
+                <label>烟雾阈值</label>
+                <input type="number" id="thrSmokeInput" placeholder="200">
+                <button onclick="setThreshold('smoke', '05')">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card">
+        <div class="card-title log-header" onclick="toggleLog()">
+            <span>通信日志</span>
+            <span class="log-toggle" id="logToggle">展开</span>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
+
+    <script>
+        // ==================== MQTT 配置 ====================
+        const UPLOAD_TOPIC = '583924/762153/liangcanghonggan/upload';
+        const CMD_TOPIC = '583924/762153/liangcanghonggan/cmd';
+        const BROKER = 'wss://broker.emqx.io:8084/mqtt';
+
+        // ==================== 数据状态 ====================
+        let currentData = {
+            temp: null, humi: null, mois: null, smoke: null,
+            dry: 0, vent: 0, pump: 0, heat: 0,
+            mode: 'AUTO', dry_level: 'OFF', dry_remain: 0,
+            thr_temp: null, thr_humi: null, thr_mois: null, thr_smoke: null
+        };
+
+        // ==================== 同步保护状态 ====================
+        let waitingSync = { temp: false, humi: false, mois: false, smoke: false };
+        let pendingValue = { temp: null, humi: null, mois: null, smoke: null };
+        let syncTimeoutTimer = { temp: null, humi: null, mois: null, smoke: null };
+        let lastUserSetTime = { temp: 0, humi: 0, mois: 0, smoke: 0 };
+
+        // ==================== 设备控制保护状态 ====================
+        let deviceProtected = { dry: false, vent: false, pump: false, heat: false, mode: false, alarm: false };
+        let devicePending = { dry: null, vent: null, pump: null, heat: null, mode: null, alarm: null };
+        let deviceTimer = { dry: null, vent: null, pump: null, heat: null, mode: null, alarm: null };
+
+        const DEBOUNCE_MS = 500;
+        const SYNC_TIMEOUT_MS = 3000;  // 设备控制保护时间 3秒
+        const THRESH_SYNC_TIMEOUT_MS = 5000;  // 阈值同步超时 5秒
+
+        // ==================== 日志 ====================
+        let logs = [];
+        const MAX_LOGS = 20;
+
+        function addLog(msg) {
+            const time = new Date().toLocaleTimeString();
+            logs.unshift(`[${time}] ${msg}`);
+            if (logs.length > MAX_LOGS) logs.pop();
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const content = document.getElementById('logContent');
+            content.innerHTML = logs.map(l => `<div class="log-item">${l}</div>`).join('');
+        }
+
+        function toggleLog() {
+            const content = document.getElementById('logContent');
+            const toggle = document.getElementById('logToggle');
+            if (content.classList.contains('show')) {
+                content.classList.remove('show');
+                toggle.textContent = '展开';
+            } else {
+                content.classList.add('show');
+                toggle.textContent = '收起';
+            }
+        }
+
+        // ==================== MQTT 连接 ====================
+        let client;
+
+        function initMQTT() {
+            client = mqtt.connect(BROKER, {
+                clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+                reconnectPeriod: 3000
+            });
+
+            client.on('connect', () => {
+                document.getElementById('connDot').className = 'status-dot ok';
+                document.getElementById('connText').textContent = '已连接';
+                client.subscribe(UPLOAD_TOPIC);
+                addLog('MQTT 已连接');
+            });
+
+            client.on('message', (topic, payload) => {
+                const msg = payload.toString();
+                addLog('↑ ' + msg);
+                parseMessage(msg);
+            });
+
+            client.on('close', () => {
+                document.getElementById('connDot').className = 'status-dot err';
+                document.getElementById('connText').textContent = '未连接';
+                addLog('MQTT 断开');
+            });
+        }
+
+        function sendCmd(cmd) {
+            if (client && client.connected) {
+                client.publish(CMD_TOPIC, cmd);
+                addLog('↓ ' + cmd);
+            }
+        }
+
+        // ==================== 解析消息 ====================
+        function parseMessage(msg) {
+            const parts = msg.split(',');
+            if (parts.length < 15) return;
+
+            const newData = {
+                temp: parseFloat(parts[0]),
+                humi: parseFloat(parts[1]),
+                mois: parseInt(parts[2]),
+                smoke: parseInt(parts[3]),
+                dry: parseInt(parts[4]),
+                vent: parseInt(parts[5]),
+                pump: parseInt(parts[6]),
+                heat: parseInt(parts[7]),
+                mode: parts[8],
+                dry_level: parts[9],
+                dry_remain: parseInt(parts[10]),
+                thr_temp: parseInt(parts[11]),
+                thr_humi: parseInt(parts[12]),
+                thr_mois: parseInt(parts[13]),
+                thr_smoke: parseInt(parts[14])
+            };
+
+            // 传感器值始终更新
+            currentData.temp = newData.temp;
+            currentData.humi = newData.humi;
+            currentData.mois = newData.mois;
+            currentData.smoke = newData.smoke;
+
+            // 设备状态更新（保护期间使用预测值）
+            for (const key of ['dry', 'vent', 'pump', 'heat']) {
+                if (deviceProtected[key]) {
+                    // 保护期间：检查下位机是否确认了预期值
+                    if (devicePending[key] !== null && newData[key] === devicePending[key]) {
+                        console.log(`Device ${key} sync confirmed`);
+                        clearTimeout(deviceTimer[key]);
+                        deviceTimer[key] = null;
+                        deviceProtected[key] = false;
+                        devicePending[key] = null;
+                        currentData[key] = newData[key];
+                    } else {
+                        // 未确认，保持预测值
+                        currentData[key] = devicePending[key];
+                    }
+                } else {
+                    currentData[key] = newData[key];
+                }
+            }
+
+            // 烘干强度更新（非保护）
+            currentData.dry_level = newData.dry_level;
+            currentData.dry_remain = newData.dry_remain;
+
+            // 模式更新（保护期间使用预测值）
+            if (deviceProtected.mode) {
+                if (devicePending.mode !== null && newData.mode === devicePending.mode) {
+                    console.log(`Mode sync confirmed`);
+                    clearTimeout(deviceTimer.mode);
+                    deviceTimer.mode = null;
+                    deviceProtected.mode = false;
+                    devicePending.mode = null;
+                    currentData.mode = newData.mode;
+                } else {
+                    currentData.mode = devicePending.mode;
+                }
+            } else {
+                currentData.mode = newData.mode;
+            }
+
+            // 检查阈值同步确认
+            let hasPendingSync = false;
+            for (const [key, isWaiting] of Object.entries(waitingSync)) {
+                if (isWaiting) {
+                    hasPendingSync = true;
+                    const expected = pendingValue[key];
+                    const received = newData['thr_' + key];
+                    if (expected !== null && Math.abs(received - expected) < 0.5) {
+                        console.log(`Sync confirmed for ${key}: ${received}`);
+                        if (syncTimeoutTimer[key]) {
+                            clearTimeout(syncTimeoutTimer[key]);
+                            syncTimeoutTimer[key] = null;
+                        }
+                        waitingSync[key] = false;
+                        pendingValue[key] = null;
+                        lastUserSetTime[key] = 0;
+                    }
+                }
+            }
+
+            // 阈值更新（三重保护）
+            const now = Date.now();
+            for (const key of ['temp', 'humi', 'mois', 'smoke']) {
+                const thrKey = 'thr_' + key;
+                if (!lastUserSetTime[key] || (now - lastUserSetTime[key]) >= DEBOUNCE_MS) {
+                    if (!waitingSync[key]) {
+                        currentData[thrKey] = newData[thrKey];
+                    }
+                }
+            }
+
+            updateUI();
+            if (hasPendingSync) {
+                checkAlarmsWithPending();
+            } else {
+                checkAlarms();
+            }
+        }
+
+        // ==================== UI 更新 ====================
+        function updateUI() {
+            // 传感器值（超限标红）
+            const thrTemp = waitingSync.temp ? pendingValue.temp : currentData.thr_temp;
+            const thrHumi = waitingSync.humi ? pendingValue.humi : currentData.thr_humi;
+            const thrMois = waitingSync.mois ? pendingValue.mois : currentData.thr_mois;
+            const thrSmoke = waitingSync.smoke ? pendingValue.smoke : currentData.thr_smoke;
+
+            // 温度
+            const tempEl = document.getElementById('temp');
+            const tempVal = currentData.temp !== null ? currentData.temp.toFixed(1) : '--';
+            if (thrTemp !== null && currentData.temp > thrTemp) {
+                tempEl.innerHTML = tempVal + '!<span class="data-unit">°C</span>';
+                tempEl.className = 'data-value alarm';
+            } else {
+                tempEl.innerHTML = tempVal + '<span class="data-unit">°C</span>';
+                tempEl.className = 'data-value';
+            }
+
+            // 湿度
+            const humiEl = document.getElementById('humi');
+            const humiVal = currentData.humi !== null ? currentData.humi.toFixed(1) : '--';
+            if (thrHumi !== null && currentData.humi > thrHumi) {
+                humiEl.innerHTML = humiVal + '!<span class="data-unit">%</span>';
+                humiEl.className = 'data-value alarm';
+            } else {
+                humiEl.innerHTML = humiVal + '<span class="data-unit">%</span>';
+                humiEl.className = 'data-value';
+            }
+
+            // 水分
+            const moisEl = document.getElementById('mois');
+            const moisVal = currentData.mois !== null ? currentData.mois : '--';
+            if (thrMois !== null && currentData.mois > thrMois) {
+                moisEl.innerHTML = moisVal + '!<span class="data-unit">%</span>';
+                moisEl.className = 'data-value alarm';
+            } else {
+                moisEl.innerHTML = moisVal + '<span class="data-unit">%</span>';
+                moisEl.className = 'data-value';
+            }
+
+            // 烟雾
+            const smokeEl = document.getElementById('smoke');
+            const smokeVal = currentData.smoke !== null ? currentData.smoke : '--';
+            if (thrSmoke !== null && currentData.smoke > thrSmoke) {
+                smokeEl.innerHTML = smokeVal + '!<span class="data-unit">%</span>';
+                smokeEl.className = 'data-value alarm';
+            } else {
+                smokeEl.innerHTML = smokeVal + '<span class="data-unit">%</span>';
+                smokeEl.className = 'data-value';
+            }
+
+            // 设备状态
+            updateDeviceStatus('dryStatus', '烘干', currentData.dry);
+            updateDeviceStatus('ventStatus', '通风', currentData.vent);
+            updateDeviceStatus('pumpStatus', '水泵', currentData.pump);
+            updateDeviceStatus('heatStatus', '加热', currentData.heat);
+
+            // 烘干强度显示
+            updateDryLevelDisplay(currentData.dry_level);
+
+            // 烘干进度显示（仅 AUTO 模式且烘干运行中显示）
+            updateDryProgressDisplay(currentData.dry_remain);
+
+            // 模式显示
+            const modeBadge = document.getElementById('modeBadge');
+            const controlCard = document.getElementById('controlCard');
+            const autoModeCard = document.getElementById('autoModeCard');
+
+            if (currentData.mode === 'MANUAL') {
+                modeBadge.className = 'mode-badge mode-manual';
+                modeBadge.textContent = 'MANUAL';
+                controlCard.style.display = 'block';
+                autoModeCard.style.display = 'none';
+                // 显示烘干强度行
+                document.getElementById('dryLevelRow').style.display = 'flex';
+                // 同步控制按钮状态
+                updateControlButton('ventBtn', '通风', currentData.vent);
+                updateControlButton('pumpBtn', '水泵', currentData.pump);
+                updateControlButton('heatBtn', '加热', currentData.heat);
+                updateDryLevelDisplay(currentData.dry_level);
+            } else {
+                modeBadge.className = 'mode-badge mode-auto';
+                modeBadge.textContent = 'AUTO';
+                controlCard.style.display = 'none';
+                autoModeCard.style.display = 'block';
+                document.getElementById('dryLevelRow').style.display = 'none';
+            }
+
+            // 阈值显示（等待期间显示预测值）
+            document.getElementById('thrTempDisplay').textContent =
+                (waitingSync.temp ? pendingValue.temp : currentData.thr_temp) + ' °C';
+            document.getElementById('thrHumiDisplay').textContent =
+                (waitingSync.humi ? pendingValue.humi : currentData.thr_humi) + ' %';
+            document.getElementById('thrMoisDisplay').textContent =
+                (waitingSync.mois ? pendingValue.mois : currentData.thr_mois) + ' %';
+            document.getElementById('thrSmokeDisplay').textContent =
+                (waitingSync.smoke ? pendingValue.smoke : currentData.thr_smoke) + ' %';
+        }
+
+        function updateDeviceStatus(id, name, state) {
+            const el = document.getElementById(id);
+            el.textContent = name + ': ' + (state ? 'ON' : 'OFF');
+            el.className = 'device-status ' + (state ? 'on' : 'off');
+        }
+
+        function updateControlButton(id, name, state) {
+            const el = document.getElementById(id);
+            el.textContent = name + ' ' + (state ? 'ON' : 'OFF');
+            el.className = 'control-btn ' + (state ? 'on' : 'off');
+        }
+
+        // ==================== 烘干强度显示 ====================
+        const dryLevelNames = { OFF: '停止', LOW: '弱', MED: '中', HIGH: '强' };
+
+        function updateDryLevelDisplay(level) {
+            const el = document.getElementById('dryLevelDisplay');
+            if (el) el.textContent = dryLevelNames[level] || level;
+
+            // 控制卡中高亮当前档位
+            const btnMap = { OFF: 'dryLevelOff', LOW: 'dryLevelLow', MED: 'dryLevelMed', HIGH: 'dryLevelHigh' };
+            for (const [l, btnId] of Object.entries(btnMap)) {
+                const btn = document.getElementById(btnId);
+                if (btn) {
+                    btn.className = 'control-btn dry-level-btn ' + (l === level ? 'on' : 'off');
+                }
+            }
+        }
+
+        // ==================== 烘干强度设置 ====================
+        function setDryLevel(level, cmd) {
+            if (currentData.mode !== 'MANUAL') return;
+            currentData.dry_level = level;
+            sendCmd(cmd);
+            updateUI();
+            addLog('烘干强度 → ' + level);
+        }
+
+        // ==================== 烘干进度显示 ====================
+        function updateDryProgressDisplay(remain) {
+            const row = document.getElementById('dryProgressRow');
+            const el = document.getElementById('dryRemainDisplay');
+            if (remain > 0) {
+                row.style.display = 'flex';
+                el.textContent = remain;
+            } else {
+                row.style.display = 'none';
+                el.textContent = '--';
+            }
+        }
+
+        // ==================== 报警判断 ====================
+        function checkAlarms() {
+            const alarms = [];
+            if (currentData.temp !== null && currentData.thr_temp !== null && currentData.temp > currentData.thr_temp) {
+                alarms.push('温度超限 (' + currentData.temp.toFixed(1) + '°C > ' + currentData.thr_temp + '°C)');
+            }
+            if (currentData.mois !== null && currentData.thr_mois !== null && currentData.mois > currentData.thr_mois) {
+                alarms.push('水分超限 (' + currentData.mois + '% > ' + currentData.thr_mois + '%)');
+            }
+            if (currentData.smoke !== null && currentData.thr_smoke !== null && currentData.smoke > currentData.thr_smoke) {
+                alarms.push('烟雾超限 (' + currentData.smoke + '% > ' + currentData.thr_smoke + '%)');
+            }
+            renderAlarms(alarms);
+        }
+
+        function checkAlarmsWithPending() {
+            const alarms = [];
+            const thrTemp = waitingSync.temp ? pendingValue.temp : currentData.thr_temp;
+            const thrHumi = waitingSync.humi ? pendingValue.humi : currentData.thr_humi;
+            const thrMois = waitingSync.mois ? pendingValue.mois : currentData.thr_mois;
+            const thrSmoke = waitingSync.smoke ? pendingValue.smoke : currentData.thr_smoke;
+
+            if (currentData.temp !== null && thrTemp !== null && currentData.temp > thrTemp) {
+                alarms.push('温度超限 (' + currentData.temp.toFixed(1) + '°C > ' + thrTemp + '°C)');
+            }
+            if (currentData.mois !== null && thrMois !== null && currentData.mois > thrMois) {
+                alarms.push('水分超限 (' + currentData.mois + '% > ' + thrMois + '%)');
+            }
+            if (currentData.smoke !== null && thrSmoke !== null && currentData.smoke > thrSmoke) {
+                alarms.push('烟雾超限 (' + currentData.smoke + '% > ' + thrSmoke + '%)');
+            }
+            renderAlarms(alarms);
+        }
+
+        function renderAlarms(alarms) {
+            const content = document.getElementById('alarmContent');
+            const btn = document.getElementById('alarmBtn');
+            if (alarms.length === 0) {
+                content.innerHTML = '<span class="alarm-ok">运行正常 ✓</span>';
+                btn.style.display = 'none';
+            } else {
+                content.innerHTML = '<div class="alarm-list">' +
+                    alarms.map(a => `<div class="alarm-item">${a}</div>`).join('') + '</div>';
+                btn.style.display = 'block';
+            }
+        }
+
+        // ==================== 设备控制（乐观更新） ====================
+        function toggleDevice(device, onCmd, offCmd) {
+            // 判断当前显示状态（可能为预测值）
+            const currentState = deviceProtected[device] ? devicePending[device] : currentData[device];
+            const newState = currentState ? 0 : 1;
+
+            // 1. 立即乐观更新
+            deviceProtected[device] = true;
+            devicePending[device] = newState;
+            currentData[device] = newState;
+
+            // 2. 发送指令
+            const cmd = newState ? onCmd : offCmd;
+            sendCmd(cmd);
+
+            // 3. 立即刷新 UI
+            updateUI();
+
+            // 4. 设置保护超时
+            if (deviceTimer[device]) clearTimeout(deviceTimer[device]);
+            deviceTimer[device] = setTimeout(() => {
+                if (deviceProtected[device]) {
+                    console.warn(`Device ${device} sync timeout, releasing protection`);
+                    deviceProtected[device] = false;
+                    devicePending[device] = null;
+                    deviceTimer[device] = null;
+                }
+            }, SYNC_TIMEOUT_MS);
+        }
+
+        // ==================== 模式切换（乐观更新） ====================
+        function toggleMode() {
+            const currentMode = deviceProtected.mode ? devicePending.mode : currentData.mode;
+            const newMode = currentMode === 'AUTO' ? 'MANUAL' : 'AUTO';
+
+            // 1. 立即乐观更新
+            deviceProtected.mode = true;
+            devicePending.mode = newMode;
+            currentData.mode = newMode;
+
+            // 2. 发送指令
+            sendCmd('06');
+
+            // 3. 立即刷新 UI
+            updateUI();
+
+            // 4. 设置保护超时
+            if (deviceTimer.mode) clearTimeout(deviceTimer.mode);
+            deviceTimer.mode = setTimeout(() => {
+                if (deviceProtected.mode) {
+                    console.warn(`Mode sync timeout, releasing protection`);
+                    deviceProtected.mode = false;
+                    devicePending.mode = null;
+                    deviceTimer.mode = null;
+                }
+            }, SYNC_TIMEOUT_MS);
+        }
+
+        // ==================== 消警（乐观更新） ====================
+        function clearAlarm() {
+            sendCmd('01');
+            // 消警不需要等待确认，直接发送即可
+            addLog('消警指令已发送');
+        }
+
+        // ==================== 阈值设置（带同步保护） ====================
+        function setThreshold(type, cmdCode) {
+            const inputId = 'thr' + type.charAt(0).toUpperCase() + type.slice(1) + 'Input';
+            const value = document.getElementById(inputId).value;
+
+            if (!value || value === '') {
+                alert('请输入阈值');
+                return;
+            }
+
+            const numValue = parseFloat(value);
+            if (isNaN(numValue)) {
+                alert('请输入有效数字');
+                return;
+            }
+
+            if (waitingSync[type]) {
+                console.log(`Already waiting sync for ${type}`);
+                return;
+            }
+
+            // 1. 设置等待同步状态
+            waitingSync[type] = true;
+            pendingValue[type] = numValue;
+
+            // 2. 发送指令
+            sendCmd(cmdCode + ',' + numValue);
+
+            // 3. 记录用户操作时间
+            lastUserSetTime[type] = Date.now();
+
+            // 4. 立即更新显示（预测状态）
+            currentData['thr_' + type] = numValue;
+
+            // 5. 立即检查报警
+            checkAlarmsWithPending();
+            updateUI();
+
+            // 6. 设置超时保护
+            if (syncTimeoutTimer[type]) clearTimeout(syncTimeoutTimer[type]);
+            syncTimeoutTimer[type] = setTimeout(() => {
+                if (waitingSync[type]) {
+                    console.warn(`Sync timeout for ${type}, releasing protection`);
+                    waitingSync[type] = false;
+                    pendingValue[type] = null;
+                    syncTimeoutTimer[type] = null;
+                }
+            }, THRESH_SYNC_TIMEOUT_MS);
+
+            document.getElementById(inputId).blur();
+        }
+
+        // ==================== 消警按钮 ====================
+        document.getElementById('alarmBtn').addEventListener('click', () => {
+            clearAlarm();
+        });
+
+        // ==================== 初始化 ====================
+        initMQTT();
+    </script>
+</body>
+</html>
