@@ -365,63 +365,28 @@ let logOpen = false;
 
 // ==================== MQTT Connect ====================
 let client;
-let lastMsgTick = 0;        // 最后一次收到消息的时间戳
-let msgWatchdog = null;     // 心跳看门狗定时器
-const MSG_TIMEOUT_MS = 1000; // 1秒无消息自动重连
 
 function initMQTT() {
     client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
         clientId: 'fan_web_' + Math.random().toString(36).substr(2, 8),
-        reconnectPeriod: 1000,        // 意外断线后 1s 重连（兜底）
-        connectTimeout: 5000          // 连接超时 5s
+        reconnectPeriod: 3000
     });
 
     client.on('connect', () => {
         document.getElementById('statusDot').classList.add('connected');
         document.getElementById('statusText').textContent = '已连接';
         client.subscribe(UPLOAD_TOPIC);
-        // 启动心跳看门狗
-        lastMsgTick = Date.now();
-        startWatchdog();
     });
 
     client.on('message', (topic, payload) => {
         const msg = payload.toString();
-        lastMsgTick = Date.now();  // 刷新最后收到时间
         parseMessage(msg);
     });
 
     client.on('close', () => {
         document.getElementById('statusDot').classList.remove('connected');
         document.getElementById('statusText').textContent = '未连接';
-        stopWatchdog();
     });
-
-    client.on('error', (err) => {
-        document.getElementById('statusDot').classList.remove('connected');
-        document.getElementById('statusText').textContent = '连接失败';
-        stopWatchdog();
-    });
-}
-
-// ==================== 心跳看门狗 ====================
-function startWatchdog() {
-    stopWatchdog();
-    msgWatchdog = setInterval(() => {
-        if (Date.now() - lastMsgTick > MSG_TIMEOUT_MS && client.connected) {
-            // 超过 1s 没收到消息，强制重连
-            console.warn('[MQTT] 看门狗超时，强制重连');
-            document.getElementById('statusText').textContent = '重连中...';
-            try { client.reconnect(); } catch(e) {}
-        }
-    }, 500);  // 每 500ms 检查一次
-}
-
-function stopWatchdog() {
-    if (msgWatchdog) {
-        clearInterval(msgWatchdog);
-        msgWatchdog = null;
-    }
 }
 
 // ==================== Parse Message ====================
@@ -545,7 +510,7 @@ function updateUI() {
     const slider = document.getElementById('fanSlider');
     if (slider && !slider.matches(':active')) {
         const fanUserSetRecently = (Date.now() - fan_gear_user_time) < FAN_SYNC_TIMEOUT_MS;
-        if (!fanUserSetRecently || newData.fan_gear === currentData.fan_gear) {
+        if (!fanUserSetRecently) {
             slider.value = currentData.fan_gear || 0;
             updateSliderBg(slider.value);
             document.getElementById('fanPct').textContent = (currentData.fan_gear > 0) ? currentData.fan_gear + '%' : 'OFF';
