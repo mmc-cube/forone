@@ -685,6 +685,10 @@
         let syncTimeoutTimer = { temp: null, gas: null, light: null, water: null };
         let lastUserSetTime = { temp_threshold: 0, gas_threshold: 0, light_threshold: 0, water_threshold: 0 };
 
+        // 执行器状态防抖：用户操作后短时间内忽略设备旧状态回写
+        let lastActuatorChange = { wind: 0, light: 0, feed: 0, water: 0 };
+        const ACTUATOR_DEBOUNCE_MS = 1500;
+
         // 投喂定时管理
         let feedSchedule = [];  // 投喂时间列表，如 ["08:00", "12:00", "18:00"]
         let feedTimer = null;
@@ -786,11 +790,20 @@
                 currentData.feed_state = 0;
                 currentData.water_state = 0;
             } else {
-                // MANUAL 模式：使用下位机回传的状态
-                currentData.wind_state = newData.wind_state;
-                currentData.light_state = newData.light_state;
-                currentData.feed_state = newData.feed_state;
-                currentData.water_state = newData.water_state;
+                // MANUAL 模式：使用下位机回传的状态（带防抖保护）
+                const nowMs = Date.now();
+                if (!lastActuatorChange.wind || (nowMs - lastActuatorChange.wind) >= ACTUATOR_DEBOUNCE_MS) {
+                    currentData.wind_state = newData.wind_state;
+                }
+                if (!lastActuatorChange.light || (nowMs - lastActuatorChange.light) >= ACTUATOR_DEBOUNCE_MS) {
+                    currentData.light_state = newData.light_state;
+                }
+                if (!lastActuatorChange.feed || (nowMs - lastActuatorChange.feed) >= ACTUATOR_DEBOUNCE_MS) {
+                    currentData.feed_state = newData.feed_state;
+                }
+                if (!lastActuatorChange.water || (nowMs - lastActuatorChange.water) >= ACTUATOR_DEBOUNCE_MS) {
+                    currentData.water_state = newData.water_state;
+                }
             }
 
             checkFeedAction(newData);
@@ -1141,9 +1154,13 @@
 
             // 立即同步更新 UI 状态
             const stateMap = { 1: 'wind_state', 2: 'feed_state', 3: 'light_state', 4: 'water_state' };
+            const actuatorKey = { 1: 'wind', 2: 'feed', 3: 'light', 4: 'water' };
             const stateKey = stateMap[deviceId];
             if (stateKey) {
                 currentData[stateKey] = state;
+                // 记录操作时间，启动防抖保护（忽略设备旧状态回写）
+                const ak = actuatorKey[deviceId];
+                if (ak) lastActuatorChange[ak] = Date.now();
                 updateUI();
             }
         }
