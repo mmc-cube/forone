@@ -355,6 +355,10 @@ let lastUserSetTime = { temp_thr: 0, humi_thr: 0 };
 const DEBOUNCE_MS = 500;
 const SYNC_TIMEOUT_MS = 5000;
 
+// ==================== Optimistic Update Protection ====================
+let sys_mode_user_time = 0;       // 最后一次用户切换模式的时间戳
+const MODE_SYNC_TIMEOUT_MS = 3000; // 超时后允许设备数据回写
+
 // ==================== Fan Optimistic Update Protection ====================
 let fan_gear_user_time = 0;     // 最后一次用户手动设置风扇占空比的时间戳
 const FAN_SYNC_TIMEOUT_MS = 3000;  // 超时后允许设备数据回写
@@ -423,8 +427,14 @@ function parseMessage(message) {
     }
     // 否则：设备值 != 预期值且用户在保护期内 → 丢弃旧数据，保持当前 UI
 
-    currentData.fan_sw = newData.fan_sw;
-    currentData.sys_mode = newData.sys_mode;
+    // System mode: optimistic update protection
+    // 用户刚切换模式后，忽略旧的设备回传数据
+    const modeUserSetRecently = (now - sys_mode_user_time) < MODE_SYNC_TIMEOUT_MS;
+    if (!modeUserSetRecently) {
+        currentData.sys_mode = newData.sys_mode;
+        sys_mode_user_time = 0;  // 设备数据与预期一致，解除保护
+    }
+    // 否则：保护期内保持用户设置的预期值
 
     // Check sync confirmation for thresholds
     let hasPendingSync = false;
@@ -524,6 +534,12 @@ function updateUI() {
         ? '<span class="data-badge badge-auto">AUTO</span>'
         : '<span class="data-badge badge-manual">MANUAL</span>';
 
+    // Update slider disabled state based on mode
+    if (slider) {
+        slider.disabled = currentData.sys_mode !== 1;
+        slider.style.opacity = currentData.sys_mode !== 1 ? '0.5' : '1';
+    }
+
     // Threshold display (show pending value if waiting sync)
     const tempThrDisp = document.getElementById('temp_thr_display');
     if (currentData.temp_thr !== null) {
@@ -584,6 +600,10 @@ function sendCmd(cmd) {
 // ==================== Control Functions ====================
 function toggleMode() {
     sendCmd('04');
+    // Optimistic update: 立即切换显示，等待设备确认
+    currentData.sys_mode = currentData.sys_mode === 0 ? 1 : 0;
+    sys_mode_user_time = Date.now();
+    updateUI();
 }
 
 function fanToggle() {
