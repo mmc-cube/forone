@@ -413,9 +413,9 @@
         let lastUserSetTime = { temp: 0, humi: 0, mois: 0, smoke: 0 };
 
         // ==================== 设备控制保护状态 ====================
-        let deviceProtected = { dry: false, vent: false, pump: false, heat: false, mode: false, alarm: false };
-        let devicePending = { dry: null, vent: null, pump: null, heat: null, mode: null, alarm: null };
-        let deviceTimer = { dry: null, vent: null, pump: null, heat: null, mode: null, alarm: null };
+        let deviceProtected = { dry: false, vent: false, pump: false, heat: false, mode: false, alarm: false, dry_level: false };
+        let devicePending = { dry: null, vent: null, pump: null, heat: null, mode: null, alarm: null, dry_level: null };
+        let deviceTimer = { dry: null, vent: null, pump: null, heat: null, mode: null, alarm: null, dry_level: null };
 
         const DEBOUNCE_MS = 500;
         const SYNC_TIMEOUT_MS = 3000;  // 设备控制保护时间 3秒
@@ -534,8 +534,21 @@
                 }
             }
 
-            // 烘干强度更新（非保护）
-            currentData.dry_level = newData.dry_level;
+            // 烘干强度更新（保护期间使用预测值）
+            if (deviceProtected.dry_level) {
+                if (devicePending.dry_level !== null && newData.dry_level === devicePending.dry_level) {
+                    console.log(`Dry level sync confirmed: ${newData.dry_level}`);
+                    clearTimeout(deviceTimer.dry_level);
+                    deviceTimer.dry_level = null;
+                    deviceProtected.dry_level = false;
+                    devicePending.dry_level = null;
+                    currentData.dry_level = newData.dry_level;
+                } else {
+                    currentData.dry_level = devicePending.dry_level;
+                }
+            } else {
+                currentData.dry_level = newData.dry_level;
+            }
             currentData.dry_remain = newData.dry_remain;
 
             // 模式更新（保护期间使用预测值）
@@ -722,12 +735,40 @@
             }
         }
 
-        // ==================== 烘干强度设置 ====================
+        // ==================== 烘干强度设置（乐观更新 + 同步保护） ====================
         function setDryLevel(level, cmd) {
             if (currentData.mode !== 'MANUAL') return;
-            currentData.dry_level = level;
+
+            // 检查是否正在等待同步（防止重复发送）
+            if (deviceProtected.dry_level) {
+                console.log(`Already waiting sync for dry_level`);
+                return;
+            }
+
+            // 1. 设置等待同步状态
+            deviceProtected.dry_level = true;
+            devicePending.dry_level = level;
+
+            // 2. 发送指令
             sendCmd(cmd);
+
+            // 3. 立即乐观更新（用户点击后立即看到预期值）
+            currentData.dry_level = level;
+
+            // 4. 立即刷新 UI
             updateUI();
+
+            // 5. 设置超时保护（3 秒后自动释放）
+            if (deviceTimer.dry_level) clearTimeout(deviceTimer.dry_level);
+            deviceTimer.dry_level = setTimeout(() => {
+                if (deviceProtected.dry_level) {
+                    console.warn(`Dry level sync timeout, releasing protection`);
+                    deviceProtected.dry_level = false;
+                    devicePending.dry_level = null;
+                    deviceTimer.dry_level = null;
+                }
+            }, SYNC_TIMEOUT_MS);
+
             addLog('烘干强度 → ' + level);
         }
 
