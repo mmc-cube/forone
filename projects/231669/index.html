@@ -414,6 +414,7 @@
         try {
             const p = data.split(',');
             if (p.length < 11) return;
+            console.log('[MQTT recv]', data);
             // 传感器数据始终更新
             lastData.waterHeight = parseInt(p[0]);
             lastData.waterVolume = parseInt(p[1]);
@@ -424,29 +425,34 @@
             lastData.co2         = parseInt(p[6]);
             // 设备状态：等待确认期间，收到匹配值才释放保护
             const rainReported = parseInt(p[7]);
-            if (deviceProtected.rain && rainReported === pendingValue.rain) { deviceProtected.rain = false; pendingValue.rain = null; }
+            console.log('[rain] reported:', rainReported, 'protected:', deviceProtected.rain, 'pending:', pendingValue.rain);
+            if (deviceProtected.rain && rainReported === pendingValue.rain) { console.log('[rain] CONFIRMED'); deviceProtected.rain = false; pendingValue.rain = null; }
             if (!deviceProtected.rain) lastData.rainPump = rainReported;
 
             const tapReported = parseInt(p[8]);
-            if (deviceProtected.tap && tapReported === pendingValue.tap) { deviceProtected.tap = false; pendingValue.tap = null; }
+            console.log('[tap] reported:', tapReported, 'protected:', deviceProtected.tap, 'pending:', pendingValue.tap);
+            if (deviceProtected.tap && tapReported === pendingValue.tap) { console.log('[tap] CONFIRMED'); deviceProtected.tap = false; pendingValue.tap = null; }
             if (!deviceProtected.tap) lastData.tapPump = tapReported;
 
             const fanReported = parseInt(p[9]);
-            if (deviceProtected.fan && fanReported === pendingValue.fan) { deviceProtected.fan = false; pendingValue.fan = null; }
+            console.log('[fan] reported:', fanReported, 'protected:', deviceProtected.fan, 'pending:', pendingValue.fan);
+            if (deviceProtected.fan && fanReported === pendingValue.fan) { console.log('[fan] CONFIRMED'); deviceProtected.fan = false; pendingValue.fan = null; }
             if (!deviceProtected.fan) lastData.fanLed = fanReported;
 
             // 模式
             if (p.length >= 12) {
                 const modeReported = parseInt(p[11]);
-                if (deviceProtected.mode && modeReported === pendingValue.mode) { deviceProtected.mode = false; pendingValue.mode = null; }
+                console.log('[mode] reported:', modeReported, 'protected:', deviceProtected.mode, 'pending:', pendingValue.mode);
+                if (deviceProtected.mode && modeReported === pendingValue.mode) { console.log('[mode] CONFIRMED'); deviceProtected.mode = false; pendingValue.mode = null; }
                 if (!deviceProtected.mode) lastData.systemMode = modeReported;
             }
 
             // 阈值
             const thrs = p[10].split('|').map(x => parseInt(x));
-            if (deviceProtected.t1 && thrs[0] === pendingValue.t1) { deviceProtected.t1 = false; pendingValue.t1 = null; }
-            if (deviceProtected.t2 && thrs[1] === pendingValue.t2) { deviceProtected.t2 = false; pendingValue.t2 = null; }
-            if (deviceProtected.t3 && thrs[2] === pendingValue.t3) { deviceProtected.t3 = false; pendingValue.t3 = null; }
+            console.log('[thr] reported:', thrs, 'protected:', { t1: deviceProtected.t1, t2: deviceProtected.t2, t3: deviceProtected.t3 }, 'pending:', { t1: pendingValue.t1, t2: pendingValue.t2, t3: pendingValue.t3 });
+            if (deviceProtected.t1 && thrs[0] === pendingValue.t1) { console.log('[thr1] CONFIRMED'); deviceProtected.t1 = false; pendingValue.t1 = null; }
+            if (deviceProtected.t2 && thrs[1] === pendingValue.t2) { console.log('[thr2] CONFIRMED'); deviceProtected.t2 = false; pendingValue.t2 = null; }
+            if (deviceProtected.t3 && thrs[2] === pendingValue.t3) { console.log('[thr3] CONFIRMED'); deviceProtected.t3 = false; pendingValue.t3 = null; }
             if (!deviceProtected.t1) lastData.thr1 = thrs[0];
             if (!deviceProtected.t2) lastData.thr2 = thrs[1];
             if (!deviceProtected.t3) lastData.thr3 = thrs[2];
@@ -511,6 +517,7 @@
         const map = { rain:{on:'07',off:'08'}, tap:{on:'05',off:'06'}, fan:{on:'09',off:'10'} };
         const cmd = map[type]?.[action];
         const state = action === 'on' ? 1 : 0;
+        console.log('[send]', type, action, 'cmd:', cmd, 'state:', state);
         // 乐观刷新：立即更新UI + 设置等待确认
         if (type === 'rain') { setActive('btn-rain-on', 'btn-rain-off', !!state); deviceProtected.rain = true; pendingValue.rain = state; }
         else if (type === 'tap') { setActive('btn-tap-on', 'btn-tap-off', !!state); deviceProtected.tap = true; pendingValue.tap = state; }
