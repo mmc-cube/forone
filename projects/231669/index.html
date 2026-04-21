@@ -382,6 +382,8 @@
 
     let client = null, lastData = {};
     let currentMode = 1; // 1=AUTO, 0=MANUAL
+    let canSend = true;
+    let sendCooldown = 300; // 冷却 ms
 
     function randomId() {
         return 'web_' + Math.random().toString(16).slice(2) + '_' + Date.now().toString(16);
@@ -414,8 +416,8 @@
                 waterHeight: parseInt(p[0]), waterVolume: parseInt(p[1]),
                 temperature: parseInt(p[2]), humidity:    parseInt(p[3]),
                 light:       parseInt(p[4]), soil:        parseInt(p[5]),
-                co2:         parseInt(p[6]), rainPump:    parseInt(p[8]),
-                tapPump:     parseInt(p[7]), fanLed:      parseInt(p[9]),
+                co2:         parseInt(p[6]), rainPump:    parseInt(p[7]),
+                tapPump:     parseInt(p[8]), fanLed:      parseInt(p[9]),
                 thresholds:  p[10].split('|').map(x => parseInt(x)),
                 systemMode:  p.length >= 12 ? parseInt(p[11]) : 1
             };
@@ -472,24 +474,49 @@
     }
 
     function control(type, action) {
-        const map = { rain:{on:'05',off:'06'}, tap:{on:'07',off:'08'}, fan:{on:'09',off:'10'} };
+        if (!canSend) return;
+        canSend = false;
+        setTimeout(() => { canSend = true; }, sendCooldown);
+        const map = { rain:{on:'07',off:'08'}, tap:{on:'05',off:'06'}, fan:{on:'09',off:'10'} };
         const cmd = map[type]?.[action];
+        // 乐观刷新：立即更新UI
+        if (type === 'rain') setActive('btn-rain-on', 'btn-rain-off', action === 'on');
+        else if (type === 'tap') setActive('btn-tap-on', 'btn-tap-off', action === 'on');
+        else if (type === 'fan') setActive('btn-fan-on', 'btn-fan-off', action === 'on');
         if (cmd && client?.connected) client.publish(TOPIC_CMD, cmd);
     }
 
     function sendThreshold(idx) {
-        const val = document.getElementById('threshold' + idx).value;
-        if (val === '') return;
+        if (!canSend) return;
+        canSend = false;
+        setTimeout(() => { canSend = true; }, sendCooldown);
+        const input = document.getElementById('threshold' + idx);
+        let val = parseInt(input.value);
+        if (isNaN(val)) return;
+        // 阈值保护
+        const limits = [
+            { min: 1,  max: 200 },  // 水位 cm
+            { min: 1,  max: 100 },  // 土壤 %
+            { min: 1,  max: 60000 } // 光照 lux
+        ];
+        val = Math.max(limits[idx-1].min, Math.min(limits[idx-1].max, val));
+        // 乐观更新：立即显示新值
+        setText('cur_t' + idx, val);
         const cmd = '0' + (idx + 1) + ',' + val;
+        input.value = '';
         if (client?.connected) client.publish(TOPIC_CMD, cmd);
     }
 
     function toggleMode() {
-        const cmd = currentMode === 1 ? '12' : '11';
+        if (!canSend) return;
+        canSend = false;
+        setTimeout(() => { canSend = true; }, sendCooldown);
+        // 乐观刷新：立即更新UI
         currentMode = currentMode === 1 ? 0 : 1;
-        if (client?.connected) client.publish(TOPIC_CMD, cmd);
         updateModeBadge();
         updateDeviceButtons();
+        const cmd = currentMode === 0 ? '12' : '11';
+        if (client?.connected) client.publish(TOPIC_CMD, cmd);
     }
 
     function updateModeBadge() {
