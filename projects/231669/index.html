@@ -384,6 +384,8 @@
     let currentMode = 1; // 1=AUTO, 0=MANUAL
     let canSend = true;
     let sendCooldown = 300; // 冷却 ms
+    let deviceProtected = { rain: 0, tap: 0, fan: 0 }; // 乐观保护时间戳
+    const PROTECT_MS = 1000; // 1s 保护期
 
     function randomId() {
         return 'web_' + Math.random().toString(16).slice(2) + '_' + Date.now().toString(16);
@@ -412,15 +414,22 @@
         try {
             const p = data.split(',');
             if (p.length < 11) return;
-            lastData = {
-                waterHeight: parseInt(p[0]), waterVolume: parseInt(p[1]),
-                temperature: parseInt(p[2]), humidity:    parseInt(p[3]),
-                light:       parseInt(p[4]), soil:        parseInt(p[5]),
-                co2:         parseInt(p[6]), rainPump:    parseInt(p[7]),
-                tapPump:     parseInt(p[8]), fanLed:      parseInt(p[9]),
-                thresholds:  p[10].split('|').map(x => parseInt(x)),
-                systemMode:  p.length >= 12 ? parseInt(p[11]) : 1
-            };
+            const now = Date.now();
+            // 传感器数据始终更新
+            lastData.waterHeight = parseInt(p[0]);
+            lastData.waterVolume = parseInt(p[1]);
+            lastData.temperature = parseInt(p[2]);
+            lastData.humidity    = parseInt(p[3]);
+            lastData.light       = parseInt(p[4]);
+            lastData.soil        = parseInt(p[5]);
+            lastData.co2         = parseInt(p[6]);
+            // 设备状态：保护期内跳过，保持乐观值
+            if (now > deviceProtected.rain) lastData.rainPump = parseInt(p[7]);
+            if (now > deviceProtected.tap)  lastData.tapPump  = parseInt(p[8]);
+            if (now > deviceProtected.fan)  lastData.fanLed   = parseInt(p[9]);
+            // 模式：保护期内跳过
+            if (now > deviceProtected.mode) lastData.systemMode = p.length >= 12 ? parseInt(p[11]) : 1;
+            lastData.thresholds = p[10].split('|').map(x => parseInt(x));
             currentMode = lastData.systemMode;
             updateUI();
         } catch(e) { console.error(e); }
@@ -479,10 +488,11 @@
         setTimeout(() => { canSend = true; }, sendCooldown);
         const map = { rain:{on:'07',off:'08'}, tap:{on:'05',off:'06'}, fan:{on:'09',off:'10'} };
         const cmd = map[type]?.[action];
-        // 乐观刷新：立即更新UI
-        if (type === 'rain') setActive('btn-rain-on', 'btn-rain-off', action === 'on');
-        else if (type === 'tap') setActive('btn-tap-on', 'btn-tap-off', action === 'on');
-        else if (type === 'fan') setActive('btn-fan-on', 'btn-fan-off', action === 'on');
+        // 乐观刷新：立即更新UI + 设置保护期
+        const now = Date.now();
+        if (type === 'rain') { setActive('btn-rain-on', 'btn-rain-off', action === 'on'); deviceProtected.rain = now + PROTECT_MS; }
+        else if (type === 'tap') { setActive('btn-tap-on', 'btn-tap-off', action === 'on'); deviceProtected.tap = now + PROTECT_MS; }
+        else if (type === 'fan') { setActive('btn-fan-on', 'btn-fan-off', action === 'on'); deviceProtected.fan = now + PROTECT_MS; }
         if (cmd && client?.connected) client.publish(TOPIC_CMD, cmd);
     }
 
@@ -511,8 +521,9 @@
         if (!canSend) return;
         canSend = false;
         setTimeout(() => { canSend = true; }, sendCooldown);
-        // 乐观刷新：立即更新UI
+        // 乐观刷新：立即更新UI + 设置保护期
         currentMode = currentMode === 1 ? 0 : 1;
+        deviceProtected.mode = Date.now() + PROTECT_MS;
         updateModeBadge();
         updateDeviceButtons();
         const cmd = currentMode === 0 ? '12' : '11';
