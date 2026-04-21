@@ -119,6 +119,32 @@
             background: #e8eef5;
         }
 
+        /* 模式徽章 */
+        .mode-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        .mode-badge.auto { background: #d3f9d8; color: #2c7f3a; }
+        .mode-badge.manual { background: #fff3cd; color: #856404; }
+        .mode-btn {
+            padding: 2px 8px;
+            border: 1px solid #ccc;
+            background: #fff;
+            color: #555;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .mode-btn:active { background: #eee; }
+
         /* 设备控制：一行3个 */
         .device-row {
             display: grid;
@@ -160,6 +186,7 @@
         .btn-off.active { background: #ff6b6b; color: white; border-color: #ff6b6b; }
         .btn-on:active  { opacity: 0.75; }
         .btn-off:active { opacity: 0.75; }
+        .btn-on:disabled, .btn-off:disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(1); }
 
         /* 参数设置：3行，每行一个阈值 */
         .param-row {
@@ -284,6 +311,12 @@
 
         <!-- 设备控制 -->
         <div class="row-title">⚙️ 控制</div>
+        <!-- 模式切换 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;flex-shrink:0;">
+            <span style="font-size:10px;color:#666;">🔄 模式</span>
+            <span class="mode-badge auto" id="modeBadge">AUTO</span>
+            <button class="mode-btn" onclick="toggleMode()">切换</button>
+        </div>
         <div class="device-row">
             <div class="device-card">
                 <div class="device-name">🚰 雨水泵</div>
@@ -348,6 +381,7 @@
     const TOPIC_CMD    = '123124/234235/zhihuiyushui/cmd';
 
     let client = null, lastData = {};
+    let currentMode = 1; // 1=AUTO, 0=MANUAL
 
     function randomId() {
         return 'web_' + Math.random().toString(16).slice(2) + '_' + Date.now().toString(16);
@@ -382,8 +416,10 @@
                 light:       parseInt(p[4]), soil:        parseInt(p[5]),
                 co2:         parseInt(p[6]), rainPump:    parseInt(p[8]),
                 tapPump:     parseInt(p[7]), fanLed:      parseInt(p[9]),
-                thresholds:  p[10].split('|').map(x => parseInt(x))
+                thresholds:  p[10].split('|').map(x => parseInt(x)),
+                systemMode:  p.length >= 12 ? parseInt(p[11]) : 1
             };
+            currentMode = lastData.systemMode;
             updateUI();
         } catch(e) { console.error(e); }
     }
@@ -420,6 +456,10 @@
         const bar = document.getElementById('alertBar');
         bar.innerHTML = alerts.join('&emsp;');
         bar.classList.toggle('show', alerts.length > 0);
+
+        // 模式 & 按钮
+        updateModeBadge();
+        updateDeviceButtons();
     }
 
     function setText(id, val) {
@@ -444,7 +484,30 @@
         if (client?.connected) client.publish(TOPIC_CMD, cmd);
     }
 
-    window.addEventListener('DOMContentLoaded', initMQTT);
+    function toggleMode() {
+        const cmd = currentMode === 1 ? '12' : '11';
+        currentMode = currentMode === 1 ? 0 : 1;
+        if (client?.connected) client.publish(TOPIC_CMD, cmd);
+        updateModeBadge();
+        updateDeviceButtons();
+    }
+
+    function updateModeBadge() {
+        const badge = document.getElementById('modeBadge');
+        badge.textContent = currentMode === 1 ? 'AUTO' : 'MANUAL';
+        badge.className = 'mode-badge ' + (currentMode === 1 ? 'auto' : 'manual');
+    }
+
+    function updateDeviceButtons() {
+        const disabled = (currentMode === 1);
+        document.querySelectorAll('.btn-on, .btn-off').forEach(b => b.disabled = disabled);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        updateModeBadge();
+        updateDeviceButtons();
+        initMQTT();
+    });
 </script>
 </body>
 </html>
