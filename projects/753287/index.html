@@ -307,39 +307,53 @@ function toggleLog() {
 }
 
 // ==================== MQTT 连接 ====================
-const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-    clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
-    reconnectPeriod: 3000
-});
+let client = null;
 
-client.on('connect', () => {
-    document.getElementById('statusDot').classList.add('connected');
-    document.getElementById('statusText').textContent = '已连接';
-    client.subscribe(UPLOAD_TOPIC);
-    // 立即下发时间戳指令09，之后每60秒重复
-    const sendTimeSync = () => {
-        const ts = Math.floor(Date.now() / 1000);
-        client.publish(CMD_TOPIC, '09,' + ts);
-        console.log('Time sync:', ts);
-    };
-    sendTimeSync();
-    setInterval(sendTimeSync, 60000);
-});
+function connectMQTT() {
+    client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+        clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+        reconnectPeriod: 3000,
+        connectTimeout: 10000
+    });
 
-client.on('close', () => {
-    document.getElementById('statusDot').classList.remove('connected');
-    document.getElementById('statusText').textContent = '未连接';
-});
+    client.on('connect', () => {
+        document.getElementById('statusDot').classList.add('connected');
+        document.getElementById('statusText').textContent = '已连接';
+        client.subscribe(UPLOAD_TOPIC);
+        // 立即下发时间戳指令09，之后每60秒重复
+        const sendTimeSync = () => {
+            const ts = Math.floor(Date.now() / 1000);
+            client.publish(CMD_TOPIC, '09,' + ts);
+            console.log('Time sync:', ts);
+        };
+        sendTimeSync();
+        setInterval(sendTimeSync, 60000);
+    });
 
-client.on('error', () => {
-    document.getElementById('statusDot').classList.remove('connected');
-    document.getElementById('statusText').textContent = '连接错误';
-});
+    client.on('reconnect', () => {
+        document.getElementById('statusDot').classList.remove('connected');
+        document.getElementById('statusText').textContent = '重连中...';
+    });
 
-client.on('message', (topic, payload) => {
-    const msg = payload.toString();
-    parseMessage(msg);
-});
+    client.on('error', (err) => {
+        console.error('MQTT Error:', err);
+        document.getElementById('statusDot').classList.remove('connected');
+        document.getElementById('statusText').textContent = '连接错误';
+    });
+
+    client.on('message', (topic, payload) => {
+        if (topic === UPLOAD_TOPIC) {
+            parseMessage(payload.toString());
+        }
+    });
+
+    client.on('close', () => {
+        document.getElementById('statusDot').classList.remove('connected');
+        document.getElementById('statusText').textContent = '未连接';
+    });
+}
+
+connectMQTT();
 
 // ==================== 消息解析 ====================
 function parseMessage(message) {
