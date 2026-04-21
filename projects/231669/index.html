@@ -385,7 +385,7 @@
     let canSend = true;
     let sendCooldown = 300; // 冷却 ms
     let deviceProtected = { rain: 0, tap: 0, fan: 0 }; // 乐观保护时间戳
-    const PROTECT_MS = 1000; // 1s 保护期
+    const PROTECT_MS = 3000; // 3s 保护期
 
     function randomId() {
         return 'web_' + Math.random().toString(16).slice(2) + '_' + Date.now().toString(16);
