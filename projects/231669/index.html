@@ -384,8 +384,8 @@
     let currentMode = 1; // 1=AUTO, 0=MANUAL
     let canSend = true;
     let sendCooldown = 300; // 冷却 ms
-    let deviceProtected = { rain: 0, tap: 0, fan: 0 }; // 乐观保护时间戳
-    const PROTECT_MS = 3000; // 3s 保护期
+    let deviceProtected = { rain: false, tap: false, fan: false, mode: false }; // 是否等待确认
+    let pendingValue = { rain: null, tap: null, fan: null, mode: null, t1: null, t2: null, t3: null }; // 期望值
 
     function randomId() {
         return 'web_' + Math.random().toString(16).slice(2) + '_' + Date.now().toString(16);
@@ -414,7 +414,6 @@
         try {
             const p = data.split(',');
             if (p.length < 11) return;
-            const now = Date.now();
             // 传感器数据始终更新
             lastData.waterHeight = parseInt(p[0]);
             lastData.waterVolume = parseInt(p[1]);
@@ -423,14 +422,37 @@
             lastData.light       = parseInt(p[4]);
             lastData.soil        = parseInt(p[5]);
             lastData.co2         = parseInt(p[6]);
-            // 设备状态：保护期内跳过，保持乐观值
-            if (now > deviceProtected.rain) lastData.rainPump = parseInt(p[7]);
-            if (now > deviceProtected.tap)  lastData.tapPump  = parseInt(p[8]);
-            if (now > deviceProtected.fan)  lastData.fanLed   = parseInt(p[9]);
-            // 模式：保护期内跳过
-            if (now > deviceProtected.mode) lastData.systemMode = p.length >= 12 ? parseInt(p[11]) : 1;
-            lastData.thresholds = p[10].split('|').map(x => parseInt(x));
-            currentMode = lastData.systemMode;
+            // 设备状态：等待确认期间，收到匹配值才释放保护
+            const rainReported = parseInt(p[7]);
+            if (deviceProtected.rain && rainReported === pendingValue.rain) { deviceProtected.rain = false; pendingValue.rain = null; }
+            if (!deviceProtected.rain) lastData.rainPump = rainReported;
+
+            const tapReported = parseInt(p[8]);
+            if (deviceProtected.tap && tapReported === pendingValue.tap) { deviceProtected.tap = false; pendingValue.tap = null; }
+            if (!deviceProtected.tap) lastData.tapPump = tapReported;
+
+            const fanReported = parseInt(p[9]);
+            if (deviceProtected.fan && fanReported === pendingValue.fan) { deviceProtected.fan = false; pendingValue.fan = null; }
+            if (!deviceProtected.fan) lastData.fanLed = fanReported;
+
+            // 模式
+            if (p.length >= 12) {
+                const modeReported = parseInt(p[11]);
+                if (deviceProtected.mode && modeReported === pendingValue.mode) { deviceProtected.mode = false; pendingValue.mode = null; }
+                if (!deviceProtected.mode) lastData.systemMode = modeReported;
+            }
+
+            // 阈值
+            const thrs = p[10].split('|').map(x => parseInt(x));
+            if (deviceProtected.t1 && thrs[0] === pendingValue.t1) { deviceProtected.t1 = false; pendingValue.t1 = null; }
+            if (deviceProtected.t2 && thrs[1] === pendingValue.t2) { deviceProtected.t2 = false; pendingValue.t2 = null; }
+            if (deviceProtected.t3 && thrs[2] === pendingValue.t3) { deviceProtected.t3 = false; pendingValue.t3 = null; }
+            if (!deviceProtected.t1) lastData.thr1 = thrs[0];
+            if (!deviceProtected.t2) lastData.thr2 = thrs[1];
+            if (!deviceProtected.t3) lastData.thr3 = thrs[2];
+            lastData.thresholds = thrs;
+            // mode 保护期间保持乐观值
+            if (!deviceProtected.mode && lastData.systemMode !== undefined) currentMode = lastData.systemMode;
             updateUI();
         } catch(e) { console.error(e); }
     }
@@ -450,11 +472,11 @@
         setActive('btn-tap-on',   'btn-tap-off',   d.tapPump);
         setActive('btn-fan-on',   'btn-fan-off',   d.fanLed);
 
-        // 阈值当前值
+        // 阈值当前值（保护期显示期望值）
         if (d.thresholds) {
-            setText('cur_t1', d.thresholds[0]);
-            setText('cur_t2', d.thresholds[1]);
-            setText('cur_t3', d.thresholds[2]);
+            setText('cur_t1', pendingValue.t1 !== null && deviceProtected.t1 ? pendingValue.t1 : (d.thr1 ?? d.thresholds[0]));
+            setText('cur_t2', pendingValue.t2 !== null && deviceProtected.t2 ? pendingValue.t2 : (d.thr2 ?? d.thresholds[1]));
+            setText('cur_t3', pendingValue.t3 !== null && deviceProtected.t3 ? pendingValue.t3 : (d.thr3 ?? d.thresholds[2]));
         }
 
         // 警告
@@ -488,11 +510,11 @@
         setTimeout(() => { canSend = true; }, sendCooldown);
         const map = { rain:{on:'07',off:'08'}, tap:{on:'05',off:'06'}, fan:{on:'09',off:'10'} };
         const cmd = map[type]?.[action];
-        // 乐观刷新：立即更新UI + 设置保护期
-        const now = Date.now();
-        if (type === 'rain') { setActive('btn-rain-on', 'btn-rain-off', action === 'on'); deviceProtected.rain = now + PROTECT_MS; }
-        else if (type === 'tap') { setActive('btn-tap-on', 'btn-tap-off', action === 'on'); deviceProtected.tap = now + PROTECT_MS; }
-        else if (type === 'fan') { setActive('btn-fan-on', 'btn-fan-off', action === 'on'); deviceProtected.fan = now + PROTECT_MS; }
+        const state = action === 'on' ? 1 : 0;
+        // 乐观刷新：立即更新UI + 设置等待确认
+        if (type === 'rain') { setActive('btn-rain-on', 'btn-rain-off', !!state); deviceProtected.rain = true; pendingValue.rain = state; }
+        else if (type === 'tap') { setActive('btn-tap-on', 'btn-tap-off', !!state); deviceProtected.tap = true; pendingValue.tap = state; }
+        else if (type === 'fan') { setActive('btn-fan-on', 'btn-fan-off', !!state); deviceProtected.fan = true; pendingValue.fan = state; }
         if (cmd && client?.connected) client.publish(TOPIC_CMD, cmd);
     }
 
@@ -503,15 +525,17 @@
         const input = document.getElementById('threshold' + idx);
         let val = parseInt(input.value);
         if (isNaN(val)) return;
-        // 阈值保护
         const limits = [
             { min: 1,  max: 200 },  // 水位 cm
             { min: 1,  max: 100 },  // 土壤 %
             { min: 1,  max: 60000 } // 光照 lux
         ];
         val = Math.max(limits[idx-1].min, Math.min(limits[idx-1].max, val));
-        // 乐观更新：立即显示新值
+        // 乐观更新：立即显示新值 + 等待下位机确认
         setText('cur_t' + idx, val);
+        const key = 't' + idx;
+        deviceProtected[key] = true;
+        pendingValue[key] = val;
         const cmd = '0' + (idx + 1) + ',' + val;
         input.value = '';
         if (client?.connected) client.publish(TOPIC_CMD, cmd);
@@ -521,9 +545,10 @@
         if (!canSend) return;
         canSend = false;
         setTimeout(() => { canSend = true; }, sendCooldown);
-        // 乐观刷新：立即更新UI + 设置保护期
+        // 乐观刷新：立即更新UI + 等待确认
         currentMode = currentMode === 1 ? 0 : 1;
-        deviceProtected.mode = Date.now() + PROTECT_MS;
+        deviceProtected.mode = true;
+        pendingValue.mode = currentMode;
         updateModeBadge();
         updateDeviceButtons();
         const cmd = currentMode === 0 ? '12' : '11';
