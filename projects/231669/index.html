@@ -384,10 +384,9 @@
     let currentMode = 1; // 1=AUTO, 0=MANUAL
     let canSend = true;
     let sendCooldown = 300; // 冷却 ms
-    let deviceProtected = { rain: false, tap: false, fan: false, mode: false }; // 是否等待确认
-    let pendingValue = { rain: null, tap: null, fan: null, mode: null, t1: null, t2: null, t3: null }; // 期望值
-    let deviceCooldownEnd = { rain: 0, tap: 0, fan: 0, mode: 0 }; // 确认后额外冷却时间戳
-    const CONFIRM_COOLDOWN_MS = 2000; // 确认后继续忽略 2s
+    let deviceProtected = { rain: false, tap: false, fan: false, mode: false };
+    let pendingValue = { rain: null, tap: null, fan: null, mode: null, t1: null, t2: null, t3: null };
+    let userIntent = { rain: null, tap: null, fan: null }; // 用户最后设置的值，永不自动覆盖
 
     function randomId() {
         return 'web_' + Math.random().toString(16).slice(2) + '_' + Date.now().toString(16);
@@ -426,64 +425,40 @@
             lastData.soil        = parseInt(p[5]);
             lastData.co2         = parseInt(p[6]);
             const now = Date.now();
-            // 设备状态：等待确认期间，收到匹配值才释放保护
+            // 设备状态：用户设置过就用用户的意图值，否则用ESP32上报值
             const rainReported = parseInt(p[7]);
-            console.log('[rain] reported:', rainReported, 'protected:', deviceProtected.rain, 'pending:', pendingValue.rain, 'cooldown:', deviceCooldownEnd.rain);
+            console.log('[rain] reported:', rainReported, 'userIntent:', userIntent.rain, 'protected:', deviceProtected.rain);
             if (deviceProtected.rain && rainReported === pendingValue.rain) {
-                console.log('[rain] CONFIRMED, extending cooldown');
-                deviceProtected.rain = false;
-                pendingValue.rain = null;
-                deviceCooldownEnd.rain = now + CONFIRM_COOLDOWN_MS;
+                console.log('[rain] CONFIRMED');
+                deviceProtected.rain = false; pendingValue.rain = null;
             }
-            if (!deviceProtected.rain && now < deviceCooldownEnd.rain) {
-                console.log('[rain] in cooldown, skip');
-            } else if (!deviceProtected.rain) {
-                lastData.rainPump = rainReported;
-            }
+            lastData.rainPump = userIntent.rain !== null ? userIntent.rain : rainReported;
 
             const tapReported = parseInt(p[8]);
-            console.log('[tap] reported:', tapReported, 'protected:', deviceProtected.tap, 'pending:', pendingValue.tap, 'cooldown:', deviceCooldownEnd.tap);
+            console.log('[tap] reported:', tapReported, 'userIntent:', userIntent.tap, 'protected:', deviceProtected.tap);
             if (deviceProtected.tap && tapReported === pendingValue.tap) {
-                console.log('[tap] CONFIRMED, extending cooldown');
-                deviceProtected.tap = false;
-                pendingValue.tap = null;
-                deviceCooldownEnd.tap = now + CONFIRM_COOLDOWN_MS;
+                console.log('[tap] CONFIRMED');
+                deviceProtected.tap = false; pendingValue.tap = null;
             }
-            if (!deviceProtected.tap && now < deviceCooldownEnd.tap) {
-                console.log('[tap] in cooldown, skip');
-            } else if (!deviceProtected.tap) {
-                lastData.tapPump = tapReported;
-            }
+            lastData.tapPump = userIntent.tap !== null ? userIntent.tap : tapReported;
 
             const fanReported = parseInt(p[9]);
-            console.log('[fan] reported:', fanReported, 'protected:', deviceProtected.fan, 'pending:', pendingValue.fan, 'cooldown:', deviceCooldownEnd.fan);
+            console.log('[fan] reported:', fanReported, 'userIntent:', userIntent.fan, 'protected:', deviceProtected.fan);
             if (deviceProtected.fan && fanReported === pendingValue.fan) {
-                console.log('[fan] CONFIRMED, extending cooldown');
-                deviceProtected.fan = false;
-                pendingValue.fan = null;
-                deviceCooldownEnd.fan = now + CONFIRM_COOLDOWN_MS;
+                console.log('[fan] CONFIRMED');
+                deviceProtected.fan = false; pendingValue.fan = null;
             }
-            if (!deviceProtected.fan && now < deviceCooldownEnd.fan) {
-                console.log('[fan] in cooldown, skip');
-            } else if (!deviceProtected.fan) {
-                lastData.fanLed = fanReported;
-            }
+            lastData.fanLed = userIntent.fan !== null ? userIntent.fan : fanReported;
 
             // 模式
             if (p.length >= 12) {
                 const modeReported = parseInt(p[11]);
-                console.log('[mode] reported:', modeReported, 'protected:', deviceProtected.mode, 'pending:', pendingValue.mode, 'cooldown:', deviceCooldownEnd.mode);
+                console.log('[mode] reported:', modeReported, 'protected:', deviceProtected.mode, 'pending:', pendingValue.mode);
                 if (deviceProtected.mode && modeReported === pendingValue.mode) {
-                    console.log('[mode] CONFIRMED, extending cooldown');
-                    deviceProtected.mode = false;
-                    pendingValue.mode = null;
-                    deviceCooldownEnd.mode = now + CONFIRM_COOLDOWN_MS;
+                    console.log('[mode] CONFIRMED');
+                    deviceProtected.mode = false; pendingValue.mode = null;
                 }
-                if (!deviceProtected.mode && now < deviceCooldownEnd.mode) {
-                    console.log('[mode] in cooldown, skip');
-                } else if (!deviceProtected.mode) {
-                    lastData.systemMode = modeReported;
-                }
+                if (!deviceProtected.mode) lastData.systemMode = modeReported;
             }
 
             // 阈值
@@ -557,10 +532,10 @@
         const cmd = map[type]?.[action];
         const state = action === 'on' ? 1 : 0;
         console.log('[send]', type, action, 'cmd:', cmd, 'state:', state);
-        // 乐观刷新：立即更新UI + 设置等待确认
-        if (type === 'rain') { setActive('btn-rain-on', 'btn-rain-off', !!state); deviceProtected.rain = true; pendingValue.rain = state; }
-        else if (type === 'tap') { setActive('btn-tap-on', 'btn-tap-off', !!state); deviceProtected.tap = true; pendingValue.tap = state; }
-        else if (type === 'fan') { setActive('btn-fan-on', 'btn-fan-off', !!state); deviceProtected.fan = true; pendingValue.fan = state; }
+        // 记录用户意图 + 乐观刷新 + 等待确认
+        if (type === 'rain') { userIntent.rain = state; setActive('btn-rain-on', 'btn-rain-off', !!state); deviceProtected.rain = true; pendingValue.rain = state; }
+        else if (type === 'tap') { userIntent.tap = state; setActive('btn-tap-on', 'btn-tap-off', !!state); deviceProtected.tap = true; pendingValue.tap = state; }
+        else if (type === 'fan') { userIntent.fan = state; setActive('btn-fan-on', 'btn-fan-off', !!state); deviceProtected.fan = true; pendingValue.fan = state; }
         if (cmd && client?.connected) client.publish(TOPIC_CMD, cmd);
     }
 
@@ -593,6 +568,8 @@
         setTimeout(() => { canSend = true; }, sendCooldown);
         // 乐观刷新：立即更新UI + 等待确认
         currentMode = currentMode === 1 ? 0 : 1;
+        // 切换到自动模式时清空用户意图，让ESP32接管
+        if (currentMode === 1) { userIntent.rain = null; userIntent.tap = null; userIntent.fan = null; }
         deviceProtected.mode = true;
         pendingValue.mode = currentMode;
         updateModeBadge();
