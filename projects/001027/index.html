@@ -146,7 +146,6 @@ body {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
-    margin-bottom: 12px;
 }
 .stat-card {
     background: #f9f9f9;
@@ -183,29 +182,6 @@ body {
     color: white;
     border-color: var(--primary);
 }
-/* 历史列表 */
-.history-list {
-    max-height: 300px;
-    overflow-y: auto;
-}
-.history-item {
-    position: relative;
-    padding: 10px 12px;
-    background: #f9f9f9;
-    border-radius: 8px;
-    margin-bottom: 8px;
-    border-left: 3px solid var(--primary);
-}
-.history-item.alarm { border-left-color: var(--alarm); background: #fff5f5; }
-.history-time { font-size: 11px; color: var(--sub); margin-bottom: 4px; }
-.history-data {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-    font-size: 12px;
-}
-.history-data-value { font-weight: 600; color: var(--text); }
-.history-data-label { font-size: 10px; color: var(--sub); }
 /* 日志 */
 .log-header {
     display: flex;
@@ -318,7 +294,7 @@ body {
     </div>
 </div>
 
-<!-- 历史数据统计卡 -->
+<!-- 数据统计卡 -->
 <div class="card">
     <div class="card-title">数据统计</div>
     <div class="filter-row">
@@ -349,19 +325,6 @@ body {
             <div class="stat-unit" id="stat_min_unit">--</div>
         </div>
     </div>
-</div>
-
-<!-- 历史数据列表卡 -->
-<div class="card">
-    <div class="card-title">历史数据 <span style="font-size:11px;color:var(--sub)">(最近50条)</span></div>
-    <div class="filter-row">
-        <button class="filter-btn active" onclick="setHistoryRange('10m')">10分钟</button>
-        <button class="filter-btn" onclick="setHistoryRange('30m')">30分钟</button>
-        <button class="filter-btn" onclick="setHistoryRange('1h')">1小时</button>
-        <button class="filter-btn" onclick="setHistoryRange('all')">全部</button>
-    </div>
-    <div class="history-list" id="historyList"></div>
-    <button class="btn btn-outline" style="margin-top:10px" onclick="clearHistoryData()">清空历史数据</button>
 </div>
 
 <!-- 报警记录卡 -->
@@ -410,7 +373,6 @@ let historyData = { timestamps: [], temp: [], humi: [], air: [], noise: [] };
 let alarmRecords = [];
 let lastAlarmState = [];
 let currentStatType = 'temp';
-let currentHistoryRange = '10m';
 
 const TYPE_CONFIG = {
     temp: { key: 'temp', unit: '℃' },
@@ -449,15 +411,6 @@ function addToHistory(data) {
     saveHistoryData();
 }
 
-function clearHistoryData() {
-    if (confirm('确认清空所有历史数据吗？')) {
-        historyData = { timestamps: [], temp: [], humi: [], air: [], noise: [] };
-        localStorage.removeItem(HISTORY_KEY);
-        updateStats();
-        renderHistoryList();
-    }
-}
-
 // 加载报警记录
 function loadAlarmRecords() {
     try {
@@ -480,7 +433,6 @@ function clearAlarmRecords() {
 }
 
 function checkAlarmChange(alarmState) {
-    // 从无报警变为有报警时记录
     if (lastAlarmState.length === 0 && alarmState.length > 0) {
         const now = new Date();
         const timeStr = now.toLocaleString('zh-CN');
@@ -504,18 +456,9 @@ function checkAlarmChange(alarmState) {
 // ==================== 统计分析 ====================
 function setStatType(type) {
     currentStatType = type;
-    document.querySelectorAll('.card:nth-child(7) .filter-btn').forEach((btn, i) => {
-        btn.classList.toggle('active', ['temp','humi','air','noise'][i] === type);
-    });
+    const btns = document.querySelectorAll('.card:nth-child(7) .filter-btn');
+    btns.forEach((btn, i) => btn.classList.toggle('active', ['temp','humi','air','noise'][i] === type));
     updateStats();
-}
-
-function setHistoryRange(range) {
-    currentHistoryRange = range;
-    document.querySelectorAll('.card:nth-child(8) .filter-btn').forEach((btn, i) => {
-        btn.classList.toggle('active', ['10m','30m','1h','all'][i] === range);
-    });
-    renderHistoryList();
 }
 
 function calculateStats(data) {
@@ -543,48 +486,6 @@ function updateStats() {
     document.getElementById('stat_max_unit').textContent = config.unit;
     document.getElementById('stat_min').textContent = stats.min !== null ? stats.min : '--';
     document.getElementById('stat_min_unit').textContent = config.unit;
-}
-
-function renderHistoryList() {
-    const container = document.getElementById('historyList');
-    const now = Date.now();
-    const rangeMs = currentHistoryRange === '10m' ? 10 * 60 * 1000 :
-                   currentHistoryRange === '30m' ? 30 * 60 * 1000 :
-                   currentHistoryRange === '1h' ? 60 * 60 * 1000 : Infinity;
-    const cutoff = currentHistoryRange === 'all' ? 0 : now - rangeMs;
-
-    const items = [];
-    for (let i = historyData.timestamps.length - 1; i >= 0 && items.length < 50; i--) {
-        if (historyData.timestamps[i] >= cutoff) {
-            const date = new Date(historyData.timestamps[i]);
-            const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const temp = historyData.temp[i];
-            const humi = historyData.humi[i];
-            const air = historyData.air[i];
-            const noise = historyData.noise[i];
-            const isAlarm = (temp !== null && currentData.TEMPH !== null && temp > currentData.TEMPH) ||
-                           (air !== null && currentData.AIRH !== null && air > currentData.AIRH) ||
-                           (noise !== null && currentData.NOISEH !== null && noise > currentData.NOISEH);
-
-            items.push(`
-                <div class="history-item ${isAlarm ? 'alarm' : ''}">
-                    <div class="history-time">${timeStr}</div>
-                    <div class="history-data">
-                        <div><span class="history-data-value">${temp !== null ? temp.toFixed(1) : '--'}</span><span class="history-data-label">℃</span></div>
-                        <div><span class="history-data-value">${humi !== null ? humi.toFixed(0) : '--'}</span><span class="history-data-label">%RH</span></div>
-                        <div><span class="history-data-value">${air !== null ? air : '--'}</span><span class="history-data-label">AIR</span></div>
-                        <div><span class="history-data-value">${noise !== null ? noise : '--'}</span><span class="history-data-label">NOISE</span></div>
-                    </div>
-                </div>
-            `);
-        }
-    }
-
-    if (items.length === 0) {
-        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--sub);font-size:13px;">暂无历史数据</div>';
-    } else {
-        container.innerHTML = items.join('');
-    }
 }
 
 function renderAlarmRecords() {
@@ -642,16 +543,13 @@ function parseMessage(message) {
         NOISEH: parseInt(parts[6])
     };
 
-    // 传感器值始终更新
     currentData.temp = newData.temp;
     currentData.humi = newData.humi;
     currentData.air = newData.air;
     currentData.noise = newData.noise;
 
-    // 添加到历史数据
     addToHistory(newData);
 
-    // 检查同步确认
     let hasPendingSync = false;
     for (const [key, isWaiting] of Object.entries(waitingSync)) {
         if (isWaiting) {
@@ -672,7 +570,6 @@ function parseMessage(message) {
         }
     }
 
-    // 阈值更新（三重保护：防抖 + 等待同步 + 正常更新）
     const now = Date.now();
     if (!lastUserSetTime.TEMPH || (now - lastUserSetTime.TEMPH) >= DEBOUNCE_MS) {
         if (!waitingSync.temp) currentData.TEMPH = newData.TEMPH;
@@ -686,22 +583,14 @@ function parseMessage(message) {
 
     updateUI();
     updateStats();
-    renderHistoryList();
 
-    let alarmState;
-    if (hasPendingSync) {
-        alarmState = checkAlarmsWithPending();
-    } else {
-        alarmState = checkAlarms();
-    }
-
+    let alarmState = hasPendingSync ? checkAlarmsWithPending() : checkAlarms();
     checkAlarmChange(alarmState);
     addLog(message);
 }
 
 // ==================== UI 更新 ====================
 function updateUI() {
-    // 传感器数值
     if (currentData.temp !== null) {
         document.getElementById('val_temp').textContent = currentData.temp.toFixed(1);
     }
@@ -715,19 +604,17 @@ function updateUI() {
         document.getElementById('val_noise').textContent = currentData.noise;
     }
 
-    // 超限标识（红色+感叹号）
     applyAlarmStyle('val_temp', currentData.temp, currentData.TEMPH);
     applyAlarmStyle('val_air', currentData.air, currentData.AIRH);
     applyAlarmStyle('val_noise', currentData.noise, currentData.NOISEH);
 
-    // 阈值显示（等待期间显示预测值）
     const dispTempH = waitingSync.temp ? pendingValue.temp : currentData.TEMPH;
     const dispAirH = waitingSync.air ? pendingValue.air : currentData.AIRH;
     const dispNoiseH = waitingSync.noise ? pendingValue.noise : currentData.NOISEH;
 
-    if (dispTempH !== null && dispTempH !== undefined) document.getElementById('disp_temph').textContent = dispTempH;
-    if (dispAirH !== null && dispAirH !== undefined) document.getElementById('disp_airh').textContent = dispAirH;
-    if (dispNoiseH !== null && dispNoiseH !== undefined) document.getElementById('disp_noiseh').textContent = dispNoiseH;
+    if (dispTempH !== null) document.getElementById('disp_temph').textContent = dispTempH;
+    if (dispAirH !== null) document.getElementById('disp_airh').textContent = dispAirH;
+    if (dispNoiseH !== null) document.getElementById('disp_noiseh').textContent = dispNoiseH;
 }
 
 function applyAlarmStyle(elementId, value, threshold) {
@@ -777,8 +664,6 @@ function renderAlarms(alarms) {
         el.style.color = 'var(--ok)';
     } else {
         el.className = '';
-        el.textContent = '';
-        el.style.color = '';
         el.innerHTML = '';
         alarms.forEach(a => {
             const div = document.createElement('div');
@@ -791,9 +676,7 @@ function renderAlarms(alarms) {
 
 // ==================== 发送指令 ====================
 function sendCmd(cmd) {
-    if (client.connected) {
-        client.publish(CMD_TOPIC, cmd);
-    }
+    if (client.connected) client.publish(CMD_TOPIC, cmd);
 }
 
 function sendMute() {
@@ -806,20 +689,10 @@ function setThreshold(type, cmdPrefix) {
     const inputId = 'set_' + type + 'h';
     const value = document.getElementById(inputId).value;
 
-    if (!value || value === '') {
-        alert('请输入阈值');
-        return;
-    }
-
+    if (!value) { alert('请输入阈值'); return; }
     const numValue = parseFloat(value);
-    if (isNaN(numValue)) {
-        alert('请输入有效数字');
-        return;
-    }
-
-    if (waitingSync[type]) {
-        return;
-    }
+    if (isNaN(numValue)) { alert('请输入有效数字'); return; }
+    if (waitingSync[type]) return;
 
     waitingSync[type] = true;
     pendingValue[type] = numValue;
@@ -850,21 +723,13 @@ function addLog(msg) {
 }
 
 function renderLog() {
-    const container = document.getElementById('logContent');
-    container.innerHTML = logEntries.map(e => `<div class="log-item">${e}</div>`).join('');
+    document.getElementById('logContent').innerHTML = logEntries.map(e => `<div class="log-item">${e}</div>`).join('');
 }
 
 function toggleLog() {
     logExpanded = !logExpanded;
-    const container = document.getElementById('logContent');
-    const toggle = document.getElementById('logToggle');
-    if (logExpanded) {
-        container.classList.add('expanded');
-        toggle.textContent = '收起';
-    } else {
-        container.classList.remove('expanded');
-        toggle.textContent = '展开';
-    }
+    document.getElementById('logContent').classList.toggle('expanded', logExpanded);
+    document.getElementById('logToggle').textContent = logExpanded ? '收起' : '展开';
 }
 
 // ==================== 初始化 ====================
@@ -872,7 +737,6 @@ window.addEventListener('DOMContentLoaded', () => {
     loadHistoryData();
     loadAlarmRecords();
     updateStats();
-    renderHistoryList();
     renderAlarmRecords();
 });
 </script>
