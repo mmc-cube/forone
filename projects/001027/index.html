@@ -420,8 +420,17 @@ let logExpanded = false;
 
 // ==================== 历史数据存储 ====================
 const HISTORY_KEY = 'gongdi_history';
+const STATS_KEY = 'gongdi_stats';
 let historyData = { timestamps: [], temp: [], humi: [], air: [], noise: [] };
 let currentStatType = 'temp';
+
+// 长期统计数据（持久化）
+let statsData = {
+    temp: { sum: 0, count: 0, max: null, min: null },
+    humi: { sum: 0, count: 0, max: null, min: null },
+    air: { sum: 0, count: 0, max: null, min: null },
+    noise: { sum: 0, count: 0, max: null, min: null }
+};
 
 const TYPE_CONFIG = {
     temp: { key: 'temp', unit: '℃' },
@@ -450,6 +459,13 @@ function loadHistoryData() {
     } catch (e) { console.error('Load history failed:', e); }
 }
 
+function loadStatsData() {
+    try {
+        const stored = localStorage.getItem(STATS_KEY);
+        if (stored) statsData = JSON.parse(stored);
+    } catch (e) { console.error('Load stats failed:', e); }
+}
+
 function saveHistoryData() {
     while (historyData.timestamps.length > MAX_HISTORY_POINTS) {
         historyData.timestamps.shift();
@@ -462,6 +478,11 @@ function saveHistoryData() {
     catch (e) { console.error('Save history failed:', e); }
 }
 
+function saveStatsData() {
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(statsData)); }
+    catch (e) { console.error('Save stats failed:', e); }
+}
+
 function addToHistory(data) {
     historyData.timestamps.push(Date.now());
     historyData.temp.push(data.temp);
@@ -469,12 +490,35 @@ function addToHistory(data) {
     historyData.air.push(data.air);
     historyData.noise.push(data.noise);
     saveHistoryData();
+
+    // 更新长期统计数据（忽略0值）
+    updateLongTermStats('temp', data.temp);
+    updateLongTermStats('humi', data.humi);
+    updateLongTermStats('air', data.air);
+    updateLongTermStats('noise', data.noise);
+}
+
+function updateLongTermStats(type, value) {
+    if (value === null || value === undefined || value === 0) return;  // 忽略0值
+    const s = statsData[type];
+    s.sum += value;
+    s.count++;
+    if (s.max === null || value > s.max) s.max = value;
+    if (s.min === null || value < s.min) s.min = value;
+    saveStatsData();
 }
 
 function clearHistoryData() {
-    if (confirm('确认清空所有历史数据吗？')) {
+    if (confirm('确认清空所有历史数据和统计数据吗？')) {
         historyData = { timestamps: [], temp: [], humi: [], air: [], noise: [] };
+        statsData = {
+            temp: { sum: 0, count: 0, max: null, min: null },
+            humi: { sum: 0, count: 0, max: null, min: null },
+            air: { sum: 0, count: 0, max: null, min: null },
+            noise: { sum: 0, count: 0, max: null, min: null }
+        };
         localStorage.removeItem(HISTORY_KEY);
+        localStorage.removeItem(STATS_KEY);
         updateStats();
         renderHistoryList();
     }
@@ -488,30 +532,26 @@ function setStatType(type) {
     updateStats();
 }
 
-function calculateStats(data) {
-    if (data.length === 0) return { avg: null, max: null, min: null };
-    const valid = data.filter(v => v !== null && v !== undefined);
-    if (valid.length === 0) return { avg: null, max: null, min: null };
-    const sum = valid.reduce((a, b) => a + b, 0);
-    return {
-        avg: (sum / valid.length).toFixed(1),
-        max: Math.max(...valid).toFixed(1),
-        min: Math.min(...valid).toFixed(1)
-    };
-}
-
 function updateStats() {
     const config = TYPE_CONFIG[currentStatType];
-    const stats = calculateStats(historyData[config.key]);
+    const s = statsData[config.key];
 
+    // 当前值
     document.getElementById('stat_current').textContent =
         currentData[config.key] !== null ? currentData[config.key].toFixed(1) : '--';
     document.getElementById('stat_unit').textContent = config.unit;
-    document.getElementById('stat_avg').textContent = stats.avg !== null ? stats.avg : '--';
+
+    // 平均值（长期累积）
+    const avg = s.count > 0 ? (s.sum / s.count).toFixed(1) : '--';
+    document.getElementById('stat_avg').textContent = avg;
     document.getElementById('stat_avg_unit').textContent = config.unit;
-    document.getElementById('stat_max').textContent = stats.max !== null ? stats.max : '--';
+
+    // 最大值（长期累积）
+    document.getElementById('stat_max').textContent = s.max !== null ? s.max.toFixed(1) : '--';
     document.getElementById('stat_max_unit').textContent = config.unit;
-    document.getElementById('stat_min').textContent = stats.min !== null ? stats.min : '--';
+
+    // 最小值（长期累积，忽略0值）
+    document.getElementById('stat_min').textContent = s.min !== null ? s.min.toFixed(1) : '--';
     document.getElementById('stat_min_unit').textContent = config.unit;
 }
 
@@ -771,6 +811,7 @@ function toggleLog() {
 // ==================== 初始化 ====================
 window.addEventListener('DOMContentLoaded', () => {
     loadHistoryData();
+    loadStatsData();
 });
 </script>
 </body>
