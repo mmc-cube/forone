@@ -27,6 +27,33 @@ body {
     --shadow: 0 2px 8px rgba(0,0,0,0.08);
     --radius: 12px;
 }
+/* Tab 导航 */
+.tab-nav {
+    display: flex;
+    background: #eee;
+    padding: 4px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+.tab-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--sub);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+.tab-btn.active {
+    background: var(--card);
+    color: var(--primary);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.page { display: none; }
+.page.active { display: block; }
 .card {
     background: var(--card);
     border-radius: var(--radius);
@@ -182,6 +209,29 @@ body {
     color: white;
     border-color: var(--primary);
 }
+/* 历史列表 */
+.history-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+.history-item {
+    position: relative;
+    padding: 10px 12px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-left: 3px solid var(--primary);
+}
+.history-item.alarm { border-left-color: var(--alarm); background: #fff5f5; }
+.history-time { font-size: 11px; color: var(--sub); margin-bottom: 4px; }
+.history-data {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    font-size: 12px;
+}
+.history-data-value { font-weight: 600; color: var(--text); }
+.history-data-label { font-size: 10px; color: var(--sub); }
 /* 日志 */
 .log-header {
     display: flex;
@@ -208,126 +258,145 @@ body {
 </head>
 <body>
 
-<!-- 状态栏 -->
-<div class="card status-bar">
-    <div class="status-dot disconnected" id="statusDot"></div>
-    <span class="status-text" id="statusText">未连接</span>
+<!-- Tab 导航 -->
+<div class="tab-nav">
+    <button class="tab-btn active" onclick="switchPage('monitor')">实时监控</button>
+    <button class="tab-btn" onclick="switchPage('history')">历史数据</button>
 </div>
 
-<!-- 实时数据卡 -->
-<div class="card">
-    <div class="card-title">实时数据</div>
-    <div class="data-row">
-        <span class="data-label">温度</span>
-        <div><span class="data-value" id="val_temp">--</span><span class="data-unit">℃</span></div>
+<!-- 页面1：实时监控 -->
+<div class="page active" id="page-monitor">
+    <!-- 状态栏 -->
+    <div class="card status-bar">
+        <div class="status-dot disconnected" id="statusDot"></div>
+        <span class="status-text" id="statusText">未连接</span>
     </div>
-    <div class="data-row">
-        <span class="data-label">湿度</span>
-        <div><span class="data-value" id="val_humi">--</span><span class="data-unit">%RH</span></div>
-    </div>
-    <div class="data-row">
-        <span class="data-label">空气质量</span>
-        <div><span class="data-value" id="val_air">--</span></div>
-    </div>
-    <div class="data-row">
-        <span class="data-label">噪音</span>
-        <div><span class="data-value" id="val_noise">--</span></div>
-    </div>
-</div>
 
-<!-- 报警状态卡 -->
-<div class="card" id="alarmCard">
-    <div class="card-title">报警状态</div>
-    <div class="alarm-normal" id="alarmStatus">ALL NORMAL</div>
-</div>
-
-<!-- 控制卡 -->
-<div class="card">
-    <div class="card-title">控制</div>
-    <button class="btn btn-mute" onclick="sendMute()">消警 (MUTE)</button>
-</div>
-
-<!-- 阈值显示卡 -->
-<div class="card">
-    <div class="card-title">当前阈值</div>
-    <div class="thresh-display-row">
-        <span class="thresh-label">TEMPH (温度上限)</span>
-        <span class="thresh-value" id="disp_temph">--</span>
-    </div>
-    <div class="thresh-display-row">
-        <span class="thresh-label">AIRH (空气上限)</span>
-        <span class="thresh-value" id="disp_airh">--</span>
-    </div>
-    <div class="thresh-display-row">
-        <span class="thresh-label">NOISEH (噪音上限)</span>
-        <span class="thresh-value" id="disp_noiseh">--</span>
-    </div>
-</div>
-
-<!-- 阈值设置卡 -->
-<div class="card">
-    <div class="card-title">阈值设置</div>
-    <div class="thresh-set-row">
-        <span class="thresh-set-label">TEMPH</span>
-        <input type="number" class="thresh-set-input" id="set_temph" min="0" max="100">
-        <button class="btn-send" onclick="setThreshold('temp','SET_TEMP')">发送</button>
-    </div>
-    <div class="thresh-set-row">
-        <span class="thresh-set-label">AIRH</span>
-        <input type="number" class="thresh-set-input" id="set_airh" min="0" max="4095">
-        <button class="btn-send" onclick="setThreshold('air','SET_AIR')">发送</button>
-    </div>
-    <div class="thresh-set-row">
-        <span class="thresh-set-label">NOISEH</span>
-        <input type="number" class="thresh-set-input" id="set_noiseh" min="0" max="4095">
-        <button class="btn-send" onclick="setThreshold('noise','SET_NOISE')">发送</button>
-    </div>
-</div>
-
-<!-- 数据统计卡 -->
-<div class="card">
-    <div class="card-title">数据统计</div>
-    <div class="filter-row">
-        <button class="filter-btn active" onclick="setStatType('temp')">温度</button>
-        <button class="filter-btn" onclick="setStatType('humi')">湿度</button>
-        <button class="filter-btn" onclick="setStatType('air')">空气</button>
-        <button class="filter-btn" onclick="setStatType('noise')">噪音</button>
-    </div>
-    <div class="stats-grid">
-        <div class="stat-card highlight">
-            <div class="stat-label">当前值</div>
-            <div class="stat-value" id="stat_current">--</div>
-            <div class="stat-unit" id="stat_unit">--</div>
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-label">温度</span>
+            <div><span class="data-value" id="val_temp">--</span><span class="data-unit">℃</span></div>
         </div>
-        <div class="stat-card">
-            <div class="stat-label">平均值</div>
-            <div class="stat-value" id="stat_avg">--</div>
-            <div class="stat-unit" id="stat_avg_unit">--</div>
+        <div class="data-row">
+            <span class="data-label">湿度</span>
+            <div><span class="data-value" id="val_humi">--</span><span class="data-unit">%RH</span></div>
         </div>
-        <div class="stat-card">
-            <div class="stat-label">最大值</div>
-            <div class="stat-value" id="stat_max">--</div>
-            <div class="stat-unit" id="stat_max_unit">--</div>
+        <div class="data-row">
+            <span class="data-label">空气质量</span>
+            <div><span class="data-value" id="val_air">--</span></div>
         </div>
-        <div class="stat-card">
-            <div class="stat-label">最小值</div>
-            <div class="stat-value" id="stat_min">--</div>
-            <div class="stat-unit" id="stat_min_unit">--</div>
+        <div class="data-row">
+            <span class="data-label">噪音</span>
+            <div><span class="data-value" id="val_noise">--</span></div>
         </div>
     </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card" id="alarmCard">
+        <div class="card-title">报警状态</div>
+        <div class="alarm-normal" id="alarmStatus">ALL NORMAL</div>
+    </div>
+
+    <!-- 控制卡 -->
+    <div class="card">
+        <div class="card-title">控制</div>
+        <button class="btn btn-mute" onclick="sendMute()">消警 (MUTE)</button>
+    </div>
+
+    <!-- 阈值显示卡 -->
+    <div class="card">
+        <div class="card-title">当前阈值</div>
+        <div class="thresh-display-row">
+            <span class="thresh-label">TEMPH (温度上限)</span>
+            <span class="thresh-value" id="disp_temph">--</span>
+        </div>
+        <div class="thresh-display-row">
+            <span class="thresh-label">AIRH (空气上限)</span>
+            <span class="thresh-value" id="disp_airh">--</span>
+        </div>
+        <div class="thresh-display-row">
+            <span class="thresh-label">NOISEH (噪音上限)</span>
+            <span class="thresh-value" id="disp_noiseh">--</span>
+        </div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="thresh-set-row">
+            <span class="thresh-set-label">TEMPH</span>
+            <input type="number" class="thresh-set-input" id="set_temph" min="0" max="100">
+            <button class="btn-send" onclick="setThreshold('temp','SET_TEMP')">发送</button>
+        </div>
+        <div class="thresh-set-row">
+            <span class="thresh-set-label">AIRH</span>
+            <input type="number" class="thresh-set-input" id="set_airh" min="0" max="4095">
+            <button class="btn-send" onclick="setThreshold('air','SET_AIR')">发送</button>
+        </div>
+        <div class="thresh-set-row">
+            <span class="thresh-set-label">NOISEH</span>
+            <input type="number" class="thresh-set-input" id="set_noiseh" min="0" max="4095">
+            <button class="btn-send" onclick="setThreshold('noise','SET_NOISE')">发送</button>
+        </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card">
+        <div class="log-header" onclick="toggleLog()">
+            <span class="card-title" style="margin:0">运行日志</span>
+            <span class="log-toggle" id="logToggle">展开</span>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
 </div>
 
-<!-- 日志卡（默认折叠） -->
-<div class="card">
-    <div class="log-header" onclick="toggleLog()">
-        <span class="card-title" style="margin:0">运行日志</span>
-        <span class="log-toggle" id="logToggle">展开</span>
+<!-- 页面2：历史数据 -->
+<div class="page" id="page-history">
+    <!-- 数据统计卡 -->
+    <div class="card">
+        <div class="card-title">数据统计</div>
+        <div class="filter-row">
+            <button class="filter-btn active" onclick="setStatType('temp')">温度</button>
+            <button class="filter-btn" onclick="setStatType('humi')">湿度</button>
+            <button class="filter-btn" onclick="setStatType('air')">空气</button>
+            <button class="filter-btn" onclick="setStatType('noise')">噪音</button>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card highlight">
+                <div class="stat-label">当前值</div>
+                <div class="stat-value" id="stat_current">--</div>
+                <div class="stat-unit" id="stat_unit">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">平均值</div>
+                <div class="stat-value" id="stat_avg">--</div>
+                <div class="stat-unit" id="stat_avg_unit">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">最大值</div>
+                <div class="stat-value" id="stat_max">--</div>
+                <div class="stat-unit" id="stat_max_unit">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">最小值</div>
+                <div class="stat-value" id="stat_min">--</div>
+                <div class="stat-unit" id="stat_min_unit">--</div>
+            </div>
+        </div>
     </div>
-    <div class="log-content" id="logContent"></div>
+
+    <!-- 历史数据列表卡 -->
+    <div class="card">
+        <div class="card-title">历史数据 <span style="font-size:11px;color:var(--sub)">(最近50条)</span></div>
+        <div class="history-list" id="historyList"></div>
+        <button class="btn btn-outline" style="margin-top:10px" onclick="clearHistoryData()">清空历史数据</button>
+    </div>
 </div>
 
 <script>
-// ==================== MQTT 配置（硬编码） ====================
+// ==================== MQTT 配置 ====================
 const UPLOAD_TOPIC = '753284/491067/gongdihuanjing/upload';
 const CMD_TOPIC = '753284/491067/gongdihuanjing/cmd';
 
@@ -361,7 +430,19 @@ const TYPE_CONFIG = {
     noise: { key: 'noise', unit: '' }
 };
 
-// 加载历史数据
+// ==================== 页面切换 ====================
+function switchPage(page) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('page-' + page).classList.add('active');
+    if (page === 'history') {
+        updateStats();
+        renderHistoryList();
+    }
+}
+
+// ==================== 历史数据管理 ====================
 function loadHistoryData() {
     try {
         const stored = localStorage.getItem(HISTORY_KEY);
@@ -382,8 +463,7 @@ function saveHistoryData() {
 }
 
 function addToHistory(data) {
-    const now = Date.now();
-    historyData.timestamps.push(now);
+    historyData.timestamps.push(Date.now());
     historyData.temp.push(data.temp);
     historyData.humi.push(data.humi);
     historyData.air.push(data.air);
@@ -391,10 +471,19 @@ function addToHistory(data) {
     saveHistoryData();
 }
 
+function clearHistoryData() {
+    if (confirm('确认清空所有历史数据吗？')) {
+        historyData = { timestamps: [], temp: [], humi: [], air: [], noise: [] };
+        localStorage.removeItem(HISTORY_KEY);
+        updateStats();
+        renderHistoryList();
+    }
+}
+
 // ==================== 统计分析 ====================
 function setStatType(type) {
     currentStatType = type;
-    const btns = document.querySelectorAll('.card:nth-child(7) .filter-btn');
+    const btns = document.querySelectorAll('#page-history .filter-btn');
     btns.forEach((btn, i) => btn.classList.toggle('active', ['temp','humi','air','noise'][i] === type));
     updateStats();
 }
@@ -424,6 +513,40 @@ function updateStats() {
     document.getElementById('stat_max_unit').textContent = config.unit;
     document.getElementById('stat_min').textContent = stats.min !== null ? stats.min : '--';
     document.getElementById('stat_min_unit').textContent = config.unit;
+}
+
+function renderHistoryList() {
+    const container = document.getElementById('historyList');
+    const items = [];
+    for (let i = historyData.timestamps.length - 1; i >= 0 && items.length < 50; i--) {
+        const date = new Date(historyData.timestamps[i]);
+        const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const temp = historyData.temp[i];
+        const humi = historyData.humi[i];
+        const air = historyData.air[i];
+        const noise = historyData.noise[i];
+        const isAlarm = (temp !== null && currentData.TEMPH !== null && temp > currentData.TEMPH) ||
+                       (air !== null && currentData.AIRH !== null && air > currentData.AIRH) ||
+                       (noise !== null && currentData.NOISEH !== null && noise > currentData.NOISEH);
+
+        items.push(`
+            <div class="history-item ${isAlarm ? 'alarm' : ''}">
+                <div class="history-time">${timeStr}</div>
+                <div class="history-data">
+                    <div><span class="history-data-value">${temp !== null ? temp.toFixed(1) : '--'}</span><span class="history-data-label">℃</span></div>
+                    <div><span class="history-data-value">${humi !== null ? humi.toFixed(0) : '--'}</span><span class="history-data-label">%RH</span></div>
+                    <div><span class="history-data-value">${air !== null ? air : '--'}</span><span class="history-data-label">AIR</span></div>
+                    <div><span class="history-data-value">${noise !== null ? noise : '--'}</span><span class="history-data-label">NOISE</span></div>
+                </div>
+            </div>
+        `);
+    }
+
+    if (items.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--sub);font-size:13px;">暂无历史数据</div>';
+    } else {
+        container.innerHTML = items.join('');
+    }
 }
 
 // ==================== MQTT 连接 ====================
@@ -506,26 +629,16 @@ function parseMessage(message) {
     }
 
     updateUI();
-    updateStats();
-
-    let alarmState = hasPendingSync ? checkAlarmsWithPending() : checkAlarms();
+    hasPendingSync ? checkAlarmsWithPending() : checkAlarms();
     addLog(message);
 }
 
 // ==================== UI 更新 ====================
 function updateUI() {
-    if (currentData.temp !== null) {
-        document.getElementById('val_temp').textContent = currentData.temp.toFixed(1);
-    }
-    if (currentData.humi !== null) {
-        document.getElementById('val_humi').textContent = currentData.humi.toFixed(1);
-    }
-    if (currentData.air !== null) {
-        document.getElementById('val_air').textContent = currentData.air;
-    }
-    if (currentData.noise !== null) {
-        document.getElementById('val_noise').textContent = currentData.noise;
-    }
+    if (currentData.temp !== null) document.getElementById('val_temp').textContent = currentData.temp.toFixed(1);
+    if (currentData.humi !== null) document.getElementById('val_humi').textContent = currentData.humi.toFixed(1);
+    if (currentData.air !== null) document.getElementById('val_air').textContent = currentData.air;
+    if (currentData.noise !== null) document.getElementById('val_noise').textContent = currentData.noise;
 
     applyAlarmStyle('val_temp', currentData.temp, currentData.TEMPH);
     applyAlarmStyle('val_air', currentData.air, currentData.AIRH);
@@ -552,15 +665,9 @@ function applyAlarmStyle(elementId, value, threshold) {
 // ==================== 报警判断 ====================
 function checkAlarms() {
     const alarms = [];
-    if (currentData.temp !== null && currentData.TEMPH !== null && currentData.temp > currentData.TEMPH) {
-        alarms.push('TEMP ALARM!');
-    }
-    if (currentData.air !== null && currentData.AIRH !== null && currentData.air > currentData.AIRH) {
-        alarms.push('AIR ALARM!');
-    }
-    if (currentData.noise !== null && currentData.NOISEH !== null && currentData.noise > currentData.NOISEH) {
-        alarms.push('NOISE ALARM!');
-    }
+    if (currentData.temp !== null && currentData.TEMPH !== null && currentData.temp > currentData.TEMPH) alarms.push('TEMP ALARM!');
+    if (currentData.air !== null && currentData.AIRH !== null && currentData.air > currentData.AIRH) alarms.push('AIR ALARM!');
+    if (currentData.noise !== null && currentData.NOISEH !== null && currentData.noise > currentData.NOISEH) alarms.push('NOISE ALARM!');
     renderAlarms(alarms);
     return alarms;
 }
@@ -574,7 +681,6 @@ function checkAlarmsWithPending() {
     if (currentData.temp !== null && tH !== null && currentData.temp > tH) alarms.push('TEMP ALARM!');
     if (currentData.air !== null && aH !== null && currentData.air > aH) alarms.push('AIR ALARM!');
     if (currentData.noise !== null && nH !== null && currentData.noise > nH) alarms.push('NOISE ALARM!');
-
     renderAlarms(alarms);
     return alarms;
 }
@@ -658,7 +764,6 @@ function toggleLog() {
 // ==================== 初始化 ====================
 window.addEventListener('DOMContentLoaded', () => {
     loadHistoryData();
-    updateStats();
 });
 </script>
 </body>
