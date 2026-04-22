@@ -98,10 +98,8 @@ body {
     transition: all 0.2s;
 }
 .btn:active { transform: scale(0.97); opacity: 0.85; }
-.btn-mute {
-    background: var(--primary);
-    color: white;
-}
+.btn-mute { background: var(--primary); color: white; }
+.btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
 /* 阈值显示 */
 .thresh-display-row {
     display: flex;
@@ -143,6 +141,71 @@ body {
     cursor: pointer;
 }
 .btn-send:active { opacity: 0.85; }
+/* 统计卡片 */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.stat-card {
+    background: #f9f9f9;
+    padding: 10px;
+    border-radius: 10px;
+    text-align: center;
+}
+.stat-label { font-size: 12px; color: var(--sub); margin-bottom: 4px; }
+.stat-value { font-size: 18px; font-weight: 600; color: var(--text); }
+.stat-unit { font-size: 11px; color: var(--sub); }
+.stat-card.highlight {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+.stat-card.highlight .stat-label,
+.stat-card.highlight .stat-unit { color: rgba(255,255,255,0.8); }
+/* 筛选标签 */
+.filter-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+.filter-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.filter-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+/* 历史列表 */
+.history-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+.history-item {
+    position: relative;
+    padding: 10px 12px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-left: 3px solid var(--primary);
+}
+.history-item.alarm { border-left-color: var(--alarm); background: #fff5f5; }
+.history-time { font-size: 11px; color: var(--sub); margin-bottom: 4px; }
+.history-data {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    font-size: 12px;
+}
+.history-data-value { font-weight: 600; color: var(--text); }
+.history-data-label { font-size: 10px; color: var(--sub); }
 /* 日志 */
 .log-header {
     display: flex;
@@ -165,6 +228,16 @@ body {
     border-bottom: 1px solid #f5f5f5;
     font-family: monospace;
 }
+/* 报警记录 */
+.record-item {
+    padding: 10px;
+    background: #fff5f5;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-left: 4px solid var(--alarm);
+}
+.record-time { font-size: 11px; color: var(--sub); margin-bottom: 4px; }
+.record-content { font-size: 13px; color: var(--alarm); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -245,6 +318,59 @@ body {
     </div>
 </div>
 
+<!-- 历史数据统计卡 -->
+<div class="card">
+    <div class="card-title">数据统计</div>
+    <div class="filter-row">
+        <button class="filter-btn active" onclick="setStatType('temp')">温度</button>
+        <button class="filter-btn" onclick="setStatType('humi')">湿度</button>
+        <button class="filter-btn" onclick="setStatType('air')">空气</button>
+        <button class="filter-btn" onclick="setStatType('noise')">噪音</button>
+    </div>
+    <div class="stats-grid">
+        <div class="stat-card highlight">
+            <div class="stat-label">当前值</div>
+            <div class="stat-value" id="stat_current">--</div>
+            <div class="stat-unit" id="stat_unit">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">平均值</div>
+            <div class="stat-value" id="stat_avg">--</div>
+            <div class="stat-unit" id="stat_avg_unit">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">最大值</div>
+            <div class="stat-value" id="stat_max">--</div>
+            <div class="stat-unit" id="stat_max_unit">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">最小值</div>
+            <div class="stat-value" id="stat_min">--</div>
+            <div class="stat-unit" id="stat_min_unit">--</div>
+        </div>
+    </div>
+</div>
+
+<!-- 历史数据列表卡 -->
+<div class="card">
+    <div class="card-title">历史数据 <span style="font-size:11px;color:var(--sub)">(最近50条)</span></div>
+    <div class="filter-row">
+        <button class="filter-btn active" onclick="setHistoryRange('10m')">10分钟</button>
+        <button class="filter-btn" onclick="setHistoryRange('30m')">30分钟</button>
+        <button class="filter-btn" onclick="setHistoryRange('1h')">1小时</button>
+        <button class="filter-btn" onclick="setHistoryRange('all')">全部</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+    <button class="btn btn-outline" style="margin-top:10px" onclick="clearHistoryData()">清空历史数据</button>
+</div>
+
+<!-- 报警记录卡 -->
+<div class="card">
+    <div class="card-title">报警记录</div>
+    <div id="alarmRecordList"></div>
+    <button class="btn btn-outline" style="margin-top:10px" onclick="clearAlarmRecords()">清空报警记录</button>
+</div>
+
 <!-- 日志卡（默认折叠） -->
 <div class="card">
     <div class="log-header" onclick="toggleLog()">
@@ -267,6 +393,7 @@ let lastUserSetTime = { TEMPH: 0, AIRH: 0, NOISEH: 0 };
 
 const DEBOUNCE_MS = 500;
 const SYNC_TIMEOUT_MS = 5000;
+const MAX_HISTORY_POINTS = 500;
 
 // ==================== 当前数据 ====================
 let currentData = {
@@ -275,6 +402,204 @@ let currentData = {
 };
 let logEntries = [];
 let logExpanded = false;
+
+// ==================== 历史数据存储 ====================
+const HISTORY_KEY = 'gongdi_history';
+const ALARM_RECORDS_KEY = 'gongdi_alarm_records';
+let historyData = { timestamps: [], temp: [], humi: [], air: [], noise: [] };
+let alarmRecords = [];
+let lastAlarmState = [];
+let currentStatType = 'temp';
+let currentHistoryRange = '10m';
+
+const TYPE_CONFIG = {
+    temp: { key: 'temp', unit: '℃' },
+    humi: { key: 'humi', unit: '%RH' },
+    air: { key: 'air', unit: '' },
+    noise: { key: 'noise', unit: '' }
+};
+
+// 加载历史数据
+function loadHistoryData() {
+    try {
+        const stored = localStorage.getItem(HISTORY_KEY);
+        if (stored) historyData = JSON.parse(stored);
+    } catch (e) { console.error('Load history failed:', e); }
+}
+
+function saveHistoryData() {
+    while (historyData.timestamps.length > MAX_HISTORY_POINTS) {
+        historyData.timestamps.shift();
+        historyData.temp.shift();
+        historyData.humi.shift();
+        historyData.air.shift();
+        historyData.noise.shift();
+    }
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(historyData)); }
+    catch (e) { console.error('Save history failed:', e); }
+}
+
+function addToHistory(data) {
+    const now = Date.now();
+    historyData.timestamps.push(now);
+    historyData.temp.push(data.temp);
+    historyData.humi.push(data.humi);
+    historyData.air.push(data.air);
+    historyData.noise.push(data.noise);
+    saveHistoryData();
+}
+
+function clearHistoryData() {
+    if (confirm('确认清空所有历史数据吗？')) {
+        historyData = { timestamps: [], temp: [], humi: [], air: [], noise: [] };
+        localStorage.removeItem(HISTORY_KEY);
+        updateStats();
+        renderHistoryList();
+    }
+}
+
+// 加载报警记录
+function loadAlarmRecords() {
+    try {
+        const stored = localStorage.getItem(ALARM_RECORDS_KEY);
+        if (stored) alarmRecords = JSON.parse(stored);
+    } catch (e) { alarmRecords = []; }
+}
+
+function saveAlarmRecords() {
+    while (alarmRecords.length > 100) alarmRecords.shift();
+    localStorage.setItem(ALARM_RECORDS_KEY, JSON.stringify(alarmRecords));
+}
+
+function clearAlarmRecords() {
+    if (confirm('确认清空所有报警记录吗？')) {
+        alarmRecords = [];
+        localStorage.removeItem(ALARM_RECORDS_KEY);
+        renderAlarmRecords();
+    }
+}
+
+function checkAlarmChange(alarmState) {
+    // 从无报警变为有报警时记录
+    if (lastAlarmState.length === 0 && alarmState.length > 0) {
+        const now = new Date();
+        const timeStr = now.toLocaleString('zh-CN');
+        alarmRecords.unshift({
+            time: timeStr,
+            alarms: alarmState,
+            data: {
+                temp: currentData.temp,
+                air: currentData.air,
+                noise: currentData.noise,
+                TEMPH: currentData.TEMPH,
+                AIRH: currentData.AIRH,
+                NOISEH: currentData.NOISEH
+            }
+        });
+        saveAlarmRecords();
+    }
+    lastAlarmState = alarmState;
+}
+
+// ==================== 统计分析 ====================
+function setStatType(type) {
+    currentStatType = type;
+    document.querySelectorAll('.card:nth-child(7) .filter-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', ['temp','humi','air','noise'][i] === type);
+    });
+    updateStats();
+}
+
+function setHistoryRange(range) {
+    currentHistoryRange = range;
+    document.querySelectorAll('.card:nth-child(8) .filter-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', ['10m','30m','1h','all'][i] === range);
+    });
+    renderHistoryList();
+}
+
+function calculateStats(data) {
+    if (data.length === 0) return { avg: null, max: null, min: null };
+    const valid = data.filter(v => v !== null && v !== undefined);
+    if (valid.length === 0) return { avg: null, max: null, min: null };
+    const sum = valid.reduce((a, b) => a + b, 0);
+    return {
+        avg: (sum / valid.length).toFixed(1),
+        max: Math.max(...valid).toFixed(1),
+        min: Math.min(...valid).toFixed(1)
+    };
+}
+
+function updateStats() {
+    const config = TYPE_CONFIG[currentStatType];
+    const stats = calculateStats(historyData[config.key]);
+
+    document.getElementById('stat_current').textContent =
+        currentData[config.key] !== null ? currentData[config.key].toFixed(1) : '--';
+    document.getElementById('stat_unit').textContent = config.unit;
+    document.getElementById('stat_avg').textContent = stats.avg !== null ? stats.avg : '--';
+    document.getElementById('stat_avg_unit').textContent = config.unit;
+    document.getElementById('stat_max').textContent = stats.max !== null ? stats.max : '--';
+    document.getElementById('stat_max_unit').textContent = config.unit;
+    document.getElementById('stat_min').textContent = stats.min !== null ? stats.min : '--';
+    document.getElementById('stat_min_unit').textContent = config.unit;
+}
+
+function renderHistoryList() {
+    const container = document.getElementById('historyList');
+    const now = Date.now();
+    const rangeMs = currentHistoryRange === '10m' ? 10 * 60 * 1000 :
+                   currentHistoryRange === '30m' ? 30 * 60 * 1000 :
+                   currentHistoryRange === '1h' ? 60 * 60 * 1000 : Infinity;
+    const cutoff = currentHistoryRange === 'all' ? 0 : now - rangeMs;
+
+    const items = [];
+    for (let i = historyData.timestamps.length - 1; i >= 0 && items.length < 50; i--) {
+        if (historyData.timestamps[i] >= cutoff) {
+            const date = new Date(historyData.timestamps[i]);
+            const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const temp = historyData.temp[i];
+            const humi = historyData.humi[i];
+            const air = historyData.air[i];
+            const noise = historyData.noise[i];
+            const isAlarm = (temp !== null && currentData.TEMPH !== null && temp > currentData.TEMPH) ||
+                           (air !== null && currentData.AIRH !== null && air > currentData.AIRH) ||
+                           (noise !== null && currentData.NOISEH !== null && noise > currentData.NOISEH);
+
+            items.push(`
+                <div class="history-item ${isAlarm ? 'alarm' : ''}">
+                    <div class="history-time">${timeStr}</div>
+                    <div class="history-data">
+                        <div><span class="history-data-value">${temp !== null ? temp.toFixed(1) : '--'}</span><span class="history-data-label">℃</span></div>
+                        <div><span class="history-data-value">${humi !== null ? humi.toFixed(0) : '--'}</span><span class="history-data-label">%RH</span></div>
+                        <div><span class="history-data-value">${air !== null ? air : '--'}</span><span class="history-data-label">AIR</span></div>
+                        <div><span class="history-data-value">${noise !== null ? noise : '--'}</span><span class="history-data-label">NOISE</span></div>
+                    </div>
+                </div>
+            `);
+        }
+    }
+
+    if (items.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--sub);font-size:13px;">暂无历史数据</div>';
+    } else {
+        container.innerHTML = items.join('');
+    }
+}
+
+function renderAlarmRecords() {
+    const container = document.getElementById('alarmRecordList');
+    if (alarmRecords.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--sub);font-size:13px;">暂无报警记录</div>';
+        return;
+    }
+    container.innerHTML = alarmRecords.slice(0, 20).map(r => `
+        <div class="record-item">
+            <div class="record-time">${r.time}</div>
+            <div class="record-content">${r.alarms.join('、')}</div>
+        </div>
+    `).join('');
+}
 
 // ==================== MQTT 连接 ====================
 const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
@@ -323,6 +648,9 @@ function parseMessage(message) {
     currentData.air = newData.air;
     currentData.noise = newData.noise;
 
+    // 添加到历史数据
+    addToHistory(newData);
+
     // 检查同步确认
     let hasPendingSync = false;
     for (const [key, isWaiting] of Object.entries(waitingSync)) {
@@ -357,13 +685,17 @@ function parseMessage(message) {
     }
 
     updateUI();
+    updateStats();
+    renderHistoryList();
 
+    let alarmState;
     if (hasPendingSync) {
-        checkAlarmsWithPending();
+        alarmState = checkAlarmsWithPending();
     } else {
-        checkAlarms();
+        alarmState = checkAlarms();
     }
 
+    checkAlarmChange(alarmState);
     addLog(message);
 }
 
@@ -420,6 +752,7 @@ function checkAlarms() {
         alarms.push('NOISE ALARM!');
     }
     renderAlarms(alarms);
+    return alarms;
 }
 
 function checkAlarmsWithPending() {
@@ -433,6 +766,7 @@ function checkAlarmsWithPending() {
     if (currentData.noise !== null && nH !== null && currentData.noise > nH) alarms.push('NOISE ALARM!');
 
     renderAlarms(alarms);
+    return alarms;
 }
 
 function renderAlarms(alarms) {
@@ -445,7 +779,6 @@ function renderAlarms(alarms) {
         el.className = '';
         el.textContent = '';
         el.style.color = '';
-        // Clear and add alarm items
         el.innerHTML = '';
         alarms.forEach(a => {
             const div = document.createElement('div');
@@ -488,23 +821,13 @@ function setThreshold(type, cmdPrefix) {
         return;
     }
 
-    // 1. 设置等待同步状态
     waitingSync[type] = true;
     pendingValue[type] = numValue;
-
-    // 2. 发送指令
     sendCmd(`${cmdPrefix},${numValue}`);
-
-    // 3. 记录用户操作时间（防抖）
     lastUserSetTime[upperKey] = Date.now();
-
-    // 4. 立即更新显示（预测状态）
     currentData[upperKey] = numValue;
-
-    // 5. 立即检查报警（即时反馈）
     checkAlarmsWithPending();
 
-    // 6. 设置超时保护
     syncTimeoutTimer[type] = setTimeout(() => {
         if (waitingSync[type]) {
             waitingSync[type] = false;
@@ -543,6 +866,15 @@ function toggleLog() {
         toggle.textContent = '展开';
     }
 }
+
+// ==================== 初始化 ====================
+window.addEventListener('DOMContentLoaded', () => {
+    loadHistoryData();
+    loadAlarmRecords();
+    updateStats();
+    renderHistoryList();
+    renderAlarmRecords();
+});
 </script>
 </body>
 </html>
