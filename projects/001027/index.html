@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>工地环境监测系统</title>
+<script src="mqtt.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 44px 12px 20px;
+    max-width: 420px;
+    margin: 0 auto;
+    min-height: 100vh;
+}
+:root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --alarm: #F44336;
+    --ok: #4CAF50;
+    --text: #212121;
+    --sub: #757575;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+}
+.card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+.card-title {
+    font-size: 14px;
+    color: var(--sub);
+    margin-bottom: 12px;
+    font-weight: 500;
+}
+/* 状态栏 */
+.status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--sub);
+}
+.status-dot.connected { background: var(--ok); }
+.status-dot.disconnected { background: var(--alarm); }
+.status-text { font-size: 14px; }
+/* 实时数据 */
+.data-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.data-row:last-child { border-bottom: none; }
+.data-label { font-size: 13px; color: var(--sub); }
+.data-value { font-size: 28px; font-weight: bold; }
+.data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+.data-value.alarm { color: var(--alarm); }
+/* 报警状态 */
+.alarm-normal {
+    color: var(--ok);
+    font-size: 16px;
+    font-weight: 500;
+    text-align: center;
+    padding: 8px;
+}
+.alarm-item {
+    background: #FFEBEE;
+    color: var(--alarm);
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 500;
+}
+.alarm-item:last-child { margin-bottom: 0; }
+/* 控制按钮 */
+.btn {
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn:active { transform: scale(0.97); opacity: 0.85; }
+.btn-mute {
+    background: var(--primary);
+    color: white;
+}
+/* 阈值显示 */
+.thresh-display-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.thresh-display-row:last-child { border-bottom: none; }
+.thresh-label { font-size: 13px; color: var(--sub); }
+.thresh-value { font-size: 16px; font-weight: 600; }
+/* 阈值设置 */
+.thresh-set-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.thresh-set-row:last-child { margin-bottom: 0; }
+.thresh-set-label { font-size: 13px; color: var(--sub); min-width: 70px; }
+.thresh-set-input {
+    width: 80px;
+    height: 40px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 14px;
+    outline: none;
+}
+.thresh-set-input:focus { border-color: var(--primary); }
+.btn-send {
+    height: 40px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary);
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+}
+.btn-send:active { opacity: 0.85; }
+/* 日志 */
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+.log-toggle { font-size: 12px; color: var(--primary); }
+.log-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s;
+}
+.log-content.expanded { max-height: 400px; overflow-y: auto; }
+.log-item {
+    font-size: 12px;
+    color: var(--sub);
+    padding: 4px 0;
+    border-bottom: 1px solid #f5f5f5;
+    font-family: monospace;
+}
+</style>
+</head>
+<body>
+
+<!-- 状态栏 -->
+<div class="card status-bar">
+    <div class="status-dot disconnected" id="statusDot"></div>
+    <span class="status-text" id="statusText">未连接</span>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+    <div class="card-title">实时数据</div>
+    <div class="data-row">
+        <span class="data-label">温度</span>
+        <div><span class="data-value" id="val_temp">--</span><span class="data-unit">℃</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">湿度</span>
+        <div><span class="data-value" id="val_humi">--</span><span class="data-unit">%RH</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">空气质量</span>
+        <div><span class="data-value" id="val_air">--</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">噪音</span>
+        <div><span class="data-value" id="val_noise">--</span></div>
+    </div>
+</div>
+
+<!-- 报警状态卡 -->
+<div class="card" id="alarmCard">
+    <div class="card-title">报警状态</div>
+    <div class="alarm-normal" id="alarmStatus">ALL NORMAL</div>
+</div>
+
+<!-- 控制卡 -->
+<div class="card">
+    <div class="card-title">控制</div>
+    <button class="btn btn-mute" onclick="sendMute()">消警 (MUTE)</button>
+</div>
+
+<!-- 阈值显示卡 -->
+<div class="card">
+    <div class="card-title">当前阈值</div>
+    <div class="thresh-display-row">
+        <span class="thresh-label">TEMPH (温度上限)</span>
+        <span class="thresh-value" id="disp_temph">--</span>
+    </div>
+    <div class="thresh-display-row">
+        <span class="thresh-label">AIRH (空气上限)</span>
+        <span class="thresh-value" id="disp_airh">--</span>
+    </div>
+    <div class="thresh-display-row">
+        <span class="thresh-label">NOISEH (噪音上限)</span>
+        <span class="thresh-value" id="disp_noiseh">--</span>
+    </div>
+</div>
+
+<!-- 阈值设置卡 -->
+<div class="card">
+    <div class="card-title">阈值设置</div>
+    <div class="thresh-set-row">
+        <span class="thresh-set-label">TEMPH</span>
+        <input type="number" class="thresh-set-input" id="set_temph" min="0" max="100">
+        <button class="btn-send" onclick="setThreshold('temp','SET_TEMP')">发送</button>
+    </div>
+    <div class="thresh-set-row">
+        <span class="thresh-set-label">AIRH</span>
+        <input type="number" class="thresh-set-input" id="set_airh" min="0" max="4095">
+        <button class="btn-send" onclick="setThreshold('air','SET_AIR')">发送</button>
+    </div>
+    <div class="thresh-set-row">
+        <span class="thresh-set-label">NOISEH</span>
+        <input type="number" class="thresh-set-input" id="set_noiseh" min="0" max="4095">
+        <button class="btn-send" onclick="setThreshold('noise','SET_NOISE')">发送</button>
+    </div>
+</div>
+
+<!-- 日志卡（默认折叠） -->
+<div class="card">
+    <div class="log-header" onclick="toggleLog()">
+        <span class="card-title" style="margin:0">运行日志</span>
+        <span class="log-toggle" id="logToggle">展开</span>
+    </div>
+    <div class="log-content" id="logContent"></div>
+</div>
+
+<script>
+// ==================== MQTT 配置（硬编码） ====================
+const UPLOAD_TOPIC = '753284/491067/gongdihuanjing/upload';
+const CMD_TOPIC = '753284/491067/gongdihuanjing/cmd';
+
+// ==================== 同步保护状态 ====================
+let waitingSync = { temp: false, air: false, noise: false };
+let pendingValue = { temp: null, air: null, noise: null };
+let syncTimeoutTimer = { temp: null, air: null, noise: null };
+let lastUserSetTime = { TEMPH: 0, AIRH: 0, NOISEH: 0 };
+
+const DEBOUNCE_MS = 500;
+const SYNC_TIMEOUT_MS = 5000;
+
+// ==================== 当前数据 ====================
+let currentData = {
+    temp: null, humi: null, air: null, noise: null,
+    TEMPH: null, AIRH: null, NOISEH: null
+};
+let logEntries = [];
+let logExpanded = false;
+
+// ==================== MQTT 连接 ====================
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: 'web_' + Math.random().toString(36).substr(2, 8),
+    reconnectPeriod: 3000
+});
+
+client.on('connect', () => {
+    document.getElementById('statusDot').className = 'status-dot connected';
+    document.getElementById('statusText').textContent = '已连接';
+    client.subscribe(UPLOAD_TOPIC);
+});
+
+client.on('close', () => {
+    document.getElementById('statusDot').className = 'status-dot disconnected';
+    document.getElementById('statusText').textContent = '未连接';
+});
+
+client.on('error', () => {
+    document.getElementById('statusDot').className = 'status-dot disconnected';
+    document.getElementById('statusText').textContent = '连接错误';
+});
+
+client.on('message', (topic, payload) => {
+    parseMessage(payload.toString());
+});
+
+// ==================== 消息解析 ====================
+function parseMessage(message) {
+    const parts = message.split(',');
+    if (parts.length < 7) return;
+
+    const newData = {
+        temp: parseFloat(parts[0]),
+        humi: parseFloat(parts[1]),
+        air: parseInt(parts[2]),
+        noise: parseInt(parts[3]),
+        TEMPH: parseInt(parts[4]),
+        AIRH: parseInt(parts[5]),
+        NOISEH: parseInt(parts[6])
+    };
+
+    // 传感器值始终更新
+    currentData.temp = newData.temp;
+    currentData.humi = newData.humi;
+    currentData.air = newData.air;
+    currentData.noise = newData.noise;
+
+    // 检查同步确认
+    let hasPendingSync = false;
+    for (const [key, isWaiting] of Object.entries(waitingSync)) {
+        if (isWaiting) {
+            hasPendingSync = true;
+            const expected = pendingValue[key];
+            const upperKey = key.toUpperCase() + 'H';
+            const received = newData[upperKey];
+
+            if (expected !== null && Math.abs(received - expected) < 0.5) {
+                if (syncTimeoutTimer[key]) {
+                    clearTimeout(syncTimeoutTimer[key]);
+                    syncTimeoutTimer[key] = null;
+                }
+                waitingSync[key] = false;
+                pendingValue[key] = null;
+                lastUserSetTime[upperKey] = 0;
+            }
+        }
+    }
+
+    // 阈值更新（三重保护：防抖 + 等待同步 + 正常更新）
+    const now = Date.now();
+    if (!lastUserSetTime.TEMPH || (now - lastUserSetTime.TEMPH) >= DEBOUNCE_MS) {
+        if (!waitingSync.temp) currentData.TEMPH = newData.TEMPH;
+    }
+    if (!lastUserSetTime.AIRH || (now - lastUserSetTime.AIRH) >= DEBOUNCE_MS) {
+        if (!waitingSync.air) currentData.AIRH = newData.AIRH;
+    }
+    if (!lastUserSetTime.NOISEH || (now - lastUserSetTime.NOISEH) >= DEBOUNCE_MS) {
+        if (!waitingSync.noise) currentData.NOISEH = newData.NOISEH;
+    }
+
+    updateUI();
+
+    if (hasPendingSync) {
+        checkAlarmsWithPending();
+    } else {
+        checkAlarms();
+    }
+
+    addLog(message);
+}
+
+// ==================== UI 更新 ====================
+function updateUI() {
+    // 传感器数值
+    if (currentData.temp !== null) {
+        document.getElementById('val_temp').textContent = currentData.temp.toFixed(1);
+    }
+    if (currentData.humi !== null) {
+        document.getElementById('val_humi').textContent = currentData.humi.toFixed(1);
+    }
+    if (currentData.air !== null) {
+        document.getElementById('val_air').textContent = currentData.air;
+    }
+    if (currentData.noise !== null) {
+        document.getElementById('val_noise').textContent = currentData.noise;
+    }
+
+    // 超限标识（红色+感叹号）
+    applyAlarmStyle('val_temp', currentData.temp, currentData.TEMPH);
+    applyAlarmStyle('val_air', currentData.air, currentData.AIRH);
+    applyAlarmStyle('val_noise', currentData.noise, currentData.NOISEH);
+
+    // 阈值显示（等待期间显示预测值）
+    const dispTempH = waitingSync.temp ? pendingValue.temp : currentData.TEMPH;
+    const dispAirH = waitingSync.air ? pendingValue.air : currentData.AIRH;
+    const dispNoiseH = waitingSync.noise ? pendingValue.noise : currentData.NOISEH;
+
+    if (dispTempH !== null && dispTempH !== undefined) document.getElementById('disp_temph').textContent = dispTempH;
+    if (dispAirH !== null && dispAirH !== undefined) document.getElementById('disp_airh').textContent = dispAirH;
+    if (dispNoiseH !== null && dispNoiseH !== undefined) document.getElementById('disp_noiseh').textContent = dispNoiseH;
+}
+
+function applyAlarmStyle(elementId, value, threshold) {
+    const el = document.getElementById(elementId);
+    if (value !== null && threshold !== null && value > threshold) {
+        el.classList.add('alarm');
+    } else {
+        el.classList.remove('alarm');
+    }
+}
+
+// ==================== 报警判断 ====================
+function checkAlarms() {
+    const alarms = [];
+    if (currentData.temp !== null && currentData.TEMPH !== null && currentData.temp > currentData.TEMPH) {
+        alarms.push('TEMP ALARM!');
+    }
+    if (currentData.air !== null && currentData.AIRH !== null && currentData.air > currentData.AIRH) {
+        alarms.push('AIR ALARM!');
+    }
+    if (currentData.noise !== null && currentData.NOISEH !== null && currentData.noise > currentData.NOISEH) {
+        alarms.push('NOISE ALARM!');
+    }
+    renderAlarms(alarms);
+}
+
+function checkAlarmsWithPending() {
+    const alarms = [];
+    const tH = waitingSync.temp ? pendingValue.temp : currentData.TEMPH;
+    const aH = waitingSync.air ? pendingValue.air : currentData.AIRH;
+    const nH = waitingSync.noise ? pendingValue.noise : currentData.NOISEH;
+
+    if (currentData.temp !== null && tH !== null && currentData.temp > tH) alarms.push('TEMP ALARM!');
+    if (currentData.air !== null && aH !== null && currentData.air > aH) alarms.push('AIR ALARM!');
+    if (currentData.noise !== null && nH !== null && currentData.noise > nH) alarms.push('NOISE ALARM!');
+
+    renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+    const el = document.getElementById('alarmStatus');
+    if (alarms.length === 0) {
+        el.className = 'alarm-normal';
+        el.textContent = 'ALL NORMAL';
+        el.style.color = 'var(--ok)';
+    } else {
+        el.className = '';
+        el.textContent = '';
+        el.style.color = '';
+        // Clear and add alarm items
+        el.innerHTML = '';
+        alarms.forEach(a => {
+            const div = document.createElement('div');
+            div.className = 'alarm-item';
+            div.textContent = a;
+            el.appendChild(div);
+        });
+    }
+}
+
+// ==================== 发送指令 ====================
+function sendCmd(cmd) {
+    if (client.connected) {
+        client.publish(CMD_TOPIC, cmd);
+    }
+}
+
+function sendMute() {
+    sendCmd('MUTE');
+    addLog('[TX] MUTE');
+}
+
+function setThreshold(type, cmdPrefix) {
+    const upperKey = type.toUpperCase() + 'H';
+    const inputId = 'set_' + type + 'h';
+    const value = document.getElementById(inputId).value;
+
+    if (!value || value === '') {
+        alert('请输入阈值');
+        return;
+    }
+
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) {
+        alert('请输入有效数字');
+        return;
+    }
+
+    if (waitingSync[type]) {
+        return;
+    }
+
+    // 1. 设置等待同步状态
+    waitingSync[type] = true;
+    pendingValue[type] = numValue;
+
+    // 2. 发送指令
+    sendCmd(`${cmdPrefix},${numValue}`);
+
+    // 3. 记录用户操作时间（防抖）
+    lastUserSetTime[upperKey] = Date.now();
+
+    // 4. 立即更新显示（预测状态）
+    currentData[upperKey] = numValue;
+
+    // 5. 立即检查报警（即时反馈）
+    checkAlarmsWithPending();
+
+    // 6. 设置超时保护
+    syncTimeoutTimer[type] = setTimeout(() => {
+        if (waitingSync[type]) {
+            waitingSync[type] = false;
+            pendingValue[type] = null;
+            syncTimeoutTimer[type] = null;
+        }
+    }, SYNC_TIMEOUT_MS);
+
+    updateUI();
+    document.getElementById(inputId).blur();
+    addLog(`[TX] ${cmdPrefix},${numValue}`);
+}
+
+// ==================== 日志 ====================
+function addLog(msg) {
+    const time = new Date().toLocaleTimeString();
+    logEntries.unshift(`[${time}] ${msg}`);
+    if (logEntries.length > 20) logEntries.pop();
+    renderLog();
+}
+
+function renderLog() {
+    const container = document.getElementById('logContent');
+    container.innerHTML = logEntries.map(e => `<div class="log-item">${e}</div>`).join('');
+}
+
+function toggleLog() {
+    logExpanded = !logExpanded;
+    const container = document.getElementById('logContent');
+    const toggle = document.getElementById('logToggle');
+    if (logExpanded) {
+        container.classList.add('expanded');
+        toggle.textContent = '收起';
+    } else {
+        container.classList.remove('expanded');
+        toggle.textContent = '展开';
+    }
+}
+</script>
+</body>
+</html>
