@@ -528,7 +528,7 @@
         if (!canSend) return;
         canSend = false;
         setTimeout(() => { canSend = true; }, sendCooldown);
-        const map = { rain:{on:'07',off:'08'}, tap:{on:'05',off:'06'}, fan:{on:'09',off:'10'} };
+        const map = { rain:{on:'05',off:'06'}, tap:{on:'07',off:'08'}, fan:{on:'09',off:'10'} };
         const cmd = map[type]?.[action];
         const state = action === 'on' ? 1 : 0;
         console.log('[send]', type, action, 'cmd:', cmd, 'state:', state);
