@@ -630,6 +630,13 @@ function parseMessage(message) {
 
     updateUI();
     hasPendingSync ? checkAlarmsWithPending() : checkAlarms();
+
+    // 如果当前在历史页面，也实时刷新
+    if (document.getElementById('page-history').classList.contains('active')) {
+        updateStats();
+        renderHistoryList();
+    }
+
     addLog(message);
 }
 
