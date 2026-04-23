@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>远程甲烷气体浓度采集系统</title>
+    <script src="mqtt.min.js"></script>
+    <script src="chart.min.js"></script>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container { max-width: 420px; margin: 0 auto; }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin: 8px 12px;
+            box-shadow: var(--shadow);
+        }
+        .card-title { font-size: 14px; color: var(--sub); margin-bottom: 12px; font-weight: 600; }
+
+        /* ========== Tab 切换 ========== */
+        .tab-bar {
+            display: flex;
+            background: var(--card);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 14px 0;
+            border: none;
+            background: none;
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--sub);
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        .tab-page { display: none; }
+        .tab-page.active { display: block; }
+
+        /* ========== 状态栏 ========== */
+        .status-bar { display: flex; align-items: center; gap: 8px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--sub); }
+        .status-dot.connected { background: var(--ok); }
+        .status-dot.disconnected { background: var(--alarm); }
+        .status-text { font-size: 14px; }
+
+        /* ========== 数据行 ========== */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 13px; color: var(--sub); }
+        .data-value { font-size: 28px; font-weight: bold; color: var(--text); }
+        .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+        .data-value.alarm { color: var(--alarm); }
+
+        /* ========== 报警状态 ========== */
+        .alarm-item {
+            background: var(--alarm);
+            color: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .alarm-item:last-child { margin-bottom: 0; }
+        .ok-text { color: var(--ok); font-size: 14px; text-align: center; padding: 12px; }
+
+        /* ========== 阈值设置 ========== */
+        .threshold-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .threshold-row:last-child { margin-bottom: 0; }
+        .threshold-label { font-size: 13px; color: var(--sub); width: 80px; }
+        .threshold-input {
+            width: 80px; height: 40px;
+            border: 1px solid #ddd; border-radius: 8px;
+            padding: 0 8px; font-size: 16px; text-align: center;
+        }
+        .threshold-btn {
+            flex: 1; height: 40px; border: none; border-radius: 8px;
+            background: var(--primary); color: white; font-size: 14px; cursor: pointer;
+        }
+        .threshold-btn:active { background: #1976D2; }
+
+        /* ========== 折线图容器（固定高度 + 左右滚动） ========== */
+        .chart-wrapper {
+            width: 100%;
+            height: 200px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            position: relative;
+        }
+        .chart-inner {
+            min-width: 100%;
+            height: 100%;
+        }
+
+        /* ========== 时间范围按钮 ========== */
+        .range-btn {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            color: var(--sub);
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .range-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* ========== 图例 ========== */
+        .chart-legend { display: flex; gap: 16px; justify-content: center; margin-top: 10px; font-size: 12px; color: var(--sub); }
+        .chart-legend span { display: flex; align-items: center; gap: 4px; }
+        .legend-line { display: inline-block; width: 12px; height: 3px; border-radius: 2px; }
+
+        /* ========== 报警记录 ========== */
+        .alarm-record-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0; border-bottom: 1px solid #eee; font-size: 13px;
+        }
+        .alarm-record-item:last-child { border-bottom: none; }
+        .alarm-record-type { font-weight: bold; color: var(--alarm); }
+        .alarm-record-time { color: var(--sub); font-size: 12px; }
+        .alarm-record-detail { font-size: 12px; color: var(--sub); }
+        .clear-btn {
+            padding: 4px 12px; border: 1px solid var(--alarm); border-radius: 6px;
+            background: white; color: var(--alarm); font-size: 12px; cursor: pointer;
+        }
+        .clear-btn:active { background: var(--alarm); color: white; }
+
+        /* 滚动条美化 */
+        .chart-wrapper::-webkit-scrollbar { height: 6px; }
+        .chart-wrapper::-webkit-scrollbar-track { background: #f0f0f0; border-radius: 3px; }
+        .chart-wrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+        .chart-wrapper::-webkit-scrollbar-thumb:active { background: #999; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Tab 切换栏 -->
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab(0)">实时监控</button>
+            <button class="tab-btn" onclick="switchTab(1)">历史数据</button>
+        </div>
+
+        <!-- ==================== 页面1：实时监控 ==================== -->
+        <div class="tab-page active" id="page0">
+            <!-- 状态栏 -->
+            <div class="card">
+                <div class="status-bar">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span class="status-text" id="statusText">未连接</span>
+                </div>
+            </div>
+
+            <!-- 实时数据卡 -->
+            <div class="card">
+                <div class="card-title">实时数据</div>
+                <div class="data-row">
+                    <span class="data-label">甲烷浓度</span>
+                    <div>
+                        <span class="data-value" id="ch4Value">--</span>
+                        <span class="data-unit">%LEL</span>
+                    </div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">温度</span>
+                    <div>
+                        <span class="data-value" id="tempValue">--</span>
+                        <span class="data-unit">℃</span>
+                    </div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">湿度</span>
+                    <div>
+                        <span class="data-value" id="humiValue">--</span>
+                        <span class="data-unit">%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 报警状态卡 -->
+            <div class="card" id="alarmCard">
+                <div class="card-title">报警状态</div>
+                <div id="alarmContent">
+                    <div class="ok-text">ALL NORMAL ✓</div>
+                </div>
+            </div>
+
+            <!-- 阈值显示卡 -->
+            <div class="card" id="threshDisplayCard">
+                <div class="card-title">当前阈值</div>
+                <div class="data-row">
+                    <span class="data-label">甲烷阈值</span>
+                    <div>
+                        <span class="data-value" id="thr_ch4_display">--</span>
+                        <span class="data-unit">%LEL</span>
+                    </div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">温度阈值</span>
+                    <div>
+                        <span class="data-value" id="thr_temp_display">--</span>
+                        <span class="data-unit">℃</span>
+                    </div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">湿度阈值</span>
+                    <div>
+                        <span class="data-value" id="thr_humi_display">--</span>
+                        <span class="data-unit">%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 阈值设置卡 -->
+            <div class="card">
+                <div class="card-title">阈值设置</div>
+                <div class="threshold-row">
+                    <span class="threshold-label">甲烷阈值</span>
+                    <input type="number" class="threshold-input" id="ch4Input" step="0.1" placeholder="50.0">
+                    <button class="threshold-btn" onclick="setThreshold('ch4','02')">发送</button>
+                </div>
+                <div class="threshold-row">
+                    <span class="threshold-label">温度阈值</span>
+                    <input type="number" class="threshold-input" id="tempInput" step="1" placeholder="40">
+                    <button class="threshold-btn" onclick="setThreshold('temp','03')">发送</button>
+                </div>
+                <div class="threshold-row">
+                    <span class="threshold-label">湿度阈值</span>
+                    <input type="number" class="threshold-input" id="humiInput" step="1" placeholder="80">
+                    <button class="threshold-btn" onclick="setThreshold('humi','04')">发送</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 页面2：历史数据 ==================== -->
+        <div class="tab-page" id="page1">
+            <!-- 折线图卡 -->
+            <div class="card">
+                <div class="card-title">历史趋势</div>
+                <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+                    <button class="range-btn active" onclick="setRange(1,this)">最近1小时</button>
+                    <button class="range-btn" onclick="setRange(24,this)">最近24小时</button>
+                    <button class="range-btn" onclick="setRange(168,this)">最近7天</button>
+                </div>
+                <div class="chart-wrapper" id="chartWrapper">
+                    <div class="chart-inner">
+                        <canvas id="historyChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-legend">
+                    <span><span class="legend-line" style="background:#2196F3"></span>CH4(%LEL)</span>
+                    <span><span class="legend-line" style="background:#FF9800"></span>TEMP(℃)</span>
+                    <span><span class="legend-line" style="background:#4CAF50"></span>HUMI(%)</span>
+                </div>
+            </div>
+
+            <!-- 报警记录卡 -->
+            <div class="card">
+                <div class="card-title">报警记录</div>
+                <div style="text-align:right; margin-bottom:8px;">
+                    <button class="clear-btn" onclick="clearAlarmRecords()">清空记录</button>
+                </div>
+                <div id="alarmRecordList">
+                    <div style="text-align:center; padding:16px; color:var(--sub); font-size:13px;">暂无报警记录</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ========== Tab 切换 ========== */
+        function switchTab(idx) {
+            document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i === idx));
+            document.querySelectorAll('.tab-page').forEach((p,i) => p.classList.toggle('active', i === idx));
+            // 切换到折线图页时触发 resize
+            if (idx === 1 && chartInstance) chartInstance.resize();
+            // 切换到历史页时：先同步报警检测，再刷新显示
+            if (idx === 1) { checkAlarms(); renderAlarmRecords(); }
+        }
+
+        /* ========== MQTT 配置 ========== */
+        const MQTT_HOST = 'vfff0f03.ala.cn-hangzhou.emqxsl.cn';
+        const MQTT_PORT = 8084;
+        const MQTT_USER = '1234567';
+        const MQTT_PASS = '12345678';
+        const UPLOAD_TOPIC = '12345678';
+        const CMD_TOPIC    = '1234567';
+
+        let currentData = { ch4:0, temp:0, humi:0, thr_ch4:50.0, thr_temp:40, thr_humi:80 };
+
+        /* ========== 同步保护状态 ========== */
+        let waitingSync     = { ch4:false, temp:false, humi:false };
+        let pendingValue    = { ch4:null,  temp:null,  humi:null };
+        let syncTimeoutTimer= { ch4:null,  temp:null,  humi:null };
+        let lastUserSetTime = { thr_ch4:0, thr_temp:0, thr_humi:0 };
+        const DEBOUNCE_MS     = 500;
+        const SYNC_TIMEOUT_MS = 5000;
+
+        /* ========== 报警追踪 ========== */
+        let alarmState  = { CH4:false, TEMP:false, HUMI:false };
+        let alarmRecords = JSON.parse(localStorage.getItem('alarmRecords') || '[]');
+        const MAX_ALARM_RECORDS = 50;
+
+        /* ========== 历史数据 ========== */
+        let historyData = JSON.parse(localStorage.getItem('historyData') || '[]');
+        const MAX_HISTORY = 720;
+        let lastHistorySaveTime = 0;
+        const HISTORY_SAVE_INTERVAL = 5000;
+
+        /* ========== 图表 ========== */
+        let chartInstance   = null;
+        let chartTimeRange  = 1;
+
+        /* ========== MQTT 连接 ========== */
+        let client = null;
+
+        function connectMQTT() {
+            const clientId = 'web_' + Math.random().toString(36).substr(2,6);
+            const wsUrl = `wss://${MQTT_HOST}:${MQTT_PORT}/mqtt`;
+
+            client = mqtt.connect(wsUrl, {
+                clientId: clientId,
+                username: MQTT_USER,
+                password: MQTT_PASS,
+                reconnectPeriod: 3000,
+                connectTimeout: 10000
+            });
+
+            client.on('connect', function() {
+                updateStatus(true);
+                client.subscribe(UPLOAD_TOPIC, function(err) {
+                    if (!err) console.log('Subscribed:', UPLOAD_TOPIC);
+                });
+            });
+            client.on('disconnect', function() { updateStatus(false); });
+            client.on('error', function() { updateStatus(false); });
+            client.on('message', function(topic, payload) {
+                if (topic === UPLOAD_TOPIC) parseMessage(payload.toString());
+            });
+        }
+
+        function updateStatus(connected) {
+            const dot  = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            dot.className = 'status-dot ' + (connected ? 'connected' : 'disconnected');
+            text.textContent = connected ? '已连接' : '未连接';
+        }
+
+        /* ========== 解析消息 ========== */
+        function parseMessage(payload) {
+            const parts = payload.split(',');
+            if (parts.length < 6) { console.error('Invalid:', payload); return; }
+
+            const nd = {
+                ch4: parseFloat(parts[0]), temp: parseFloat(parts[1]), humi: parseFloat(parts[2]),
+                thr_ch4: parseFloat(parts[3]), thr_temp: parseFloat(parts[4]), thr_humi: parseFloat(parts[5])
+            };
+
+            currentData.ch4 = nd.ch4;
+            currentData.temp = nd.temp;
+            currentData.humi = nd.humi;
+
+            // 同步确认
+            for (const [key, isWaiting] of Object.entries(waitingSync)) {
+                if (isWaiting) {
+                    const expected = pendingValue[key];
+                    const received = nd['thr_' + key];
+                    if (expected !== null && Math.abs(received - expected) < 0.5) {
+                        if (syncTimeoutTimer[key]) { clearTimeout(syncTimeoutTimer[key]); syncTimeoutTimer[key] = null; }
+                        waitingSync[key] = false;
+                        pendingValue[key] = null;
+                        lastUserSetTime['thr_' + key] = 0;
+                    }
+                }
+            }
+
+            // 阈值更新（防抖 + 等待保护）
+            const now = Date.now();
+            for (const key of ['ch4','temp','humi']) {
+                const tk = 'thr_' + key;
+                if (!lastUserSetTime[tk] || (now - lastUserSetTime[tk]) >= DEBOUNCE_MS) {
+                    if (!waitingSync[key]) currentData[tk] = nd[tk];
+                }
+            }
+
+            checkAlarms();
+            updateUI();
+
+            // 定时保存历史点
+            if (now - lastHistorySaveTime >= HISTORY_SAVE_INTERVAL) {
+                saveHistoryPoint();
+                lastHistorySaveTime = now;
+            }
+            updateChart();
+        }
+
+        /* ========== 更新 UI ========== */
+        function updateUI() {
+            const ch4A = currentData.ch4 > currentData.thr_ch4;
+            const tmpA = currentData.temp > currentData.thr_temp;
+            const hmA  = currentData.humi > currentData.thr_humi;
+
+            const setVal = (id, txt, alarm) => {
+                const el = document.getElementById(id);
+                el.textContent = txt;
+                el.classList.toggle('alarm', alarm);
+            };
+            setVal('ch4Value',   currentData.ch4.toFixed(1) + (ch4A ? '!' : ''), ch4A);
+            setVal('tempValue',  currentData.temp.toFixed(0) + (tmpA ? '!' : ''), tmpA);
+            setVal('humiValue',  currentData.humi.toFixed(0) + (hmA ? '!' : ''), hmA);
+
+            // 阈值显示卡（等待同步期间显示预测值，否则显示下位机上报值）
+            document.getElementById('thr_ch4_display').textContent  = waitingSync.ch4  ? pendingValue.ch4.toFixed(1)  : currentData.thr_ch4.toFixed(1);
+            document.getElementById('thr_temp_display').textContent = waitingSync.temp ? pendingValue.temp.toFixed(0)   : currentData.thr_temp.toFixed(0);
+            document.getElementById('thr_humi_display').textContent = waitingSync.humi ? pendingValue.humi.toFixed(0)   : currentData.thr_humi.toFixed(0);
+        }
+
+        /* ========== 报警检测 ========== */
+        function checkAlarms(fromSetThreshold) {
+            const alarms = [];
+            if (currentData.ch4  > currentData.thr_ch4)  alarms.push({ type:'CH4',  label:'CH4 ALARM',  value:currentData.ch4.toFixed(1)+'%LEL', thr:currentData.thr_ch4.toFixed(1)+'%LEL' });
+            if (currentData.temp > currentData.thr_temp) alarms.push({ type:'TEMP', label:'TEMP ALARM', value:currentData.temp.toFixed(0)+'℃',   thr:currentData.thr_temp.toFixed(0)+'℃' });
+            if (currentData.humi > currentData.thr_humi) alarms.push({ type:'HUMI', label:'HUMI ALARM', value:currentData.humi.toFixed(0)+'%',    thr:currentData.thr_humi.toFixed(0)+'%' });
+
+            // 报警卡片
+            const content = document.getElementById('alarmContent');
+            content.innerHTML = alarms.length === 0
+                ? '<div class="ok-text">ALL NORMAL ✓</div>'
+                : alarms.map(a => '<div class="alarm-item">' + a.label + '</div>').join('');
+
+            // 记录新报警
+            let newCount = 0;
+            for (const a of alarms) {
+                if (!alarmState[a.type]) {
+                    alarmRecords.unshift({ time: new Date().toLocaleString(), label: a.label, value: a.value, threshold: a.thr });
+                    alarmState[a.type] = true;
+                    newCount++;
+                }
+            }
+            // 用大写 key 统一检查/重置
+            if (currentData.ch4  <= currentData.thr_ch4)  alarmState.CH4  = false;
+            if (currentData.temp <= currentData.thr_temp) alarmState.TEMP = false;
+            if (currentData.humi <= currentData.thr_humi) alarmState.HUMI = false;
+
+            if (alarmRecords.length > MAX_ALARM_RECORDS) alarmRecords = alarmRecords.slice(0, MAX_ALARM_RECORDS);
+            localStorage.setItem('alarmRecords', JSON.stringify(alarmRecords));
+            renderAlarmRecords();
+
+            // 只打印一行摘要
+            const src = fromSetThreshold ? '[设阈值]' : '[MQTT]';
+            if (newCount > 0) {
+                console.log(src + ' 新报警:' + alarms.map(a=>a.label).join(', ') + ' 记录总数=' + alarmRecords.length);
+            } else if (alarms.length > 0) {
+                console.log(src + ' 报警中(无新增) ' + alarms.map(a=>a.label).join(', '));
+            } else {
+                console.log(src + ' 正常');
+            }
+        }
+
+        /* ========== 阈值设置 ========== */
+        function setThreshold(type, cmdCode) {
+            const inputId = type + 'Input';
+            const val = document.getElementById(inputId).value;
+            if (!val) { alert('请输入阈值'); return; }
+            const num = parseFloat(val);
+            if (isNaN(num)) { alert('请输入有效数字'); return; }
+            if (waitingSync[type]) return;
+
+            waitingSync[type] = true;
+            pendingValue[type] = num;
+            sendCmd(cmdCode + ',' + num);
+            lastUserSetTime['thr_' + type] = Date.now();
+            currentData['thr_' + type] = num;
+            updateUI();
+
+            // 设阈值后立刻检测：先重置报警状态，保证只要当前值超过新阈值就一定会记录
+            alarmState.CH4 = false; alarmState.TEMP = false; alarmState.HUMI = false;
+            checkAlarms(true);
+
+            syncTimeoutTimer[type] = setTimeout(() => {
+                if (waitingSync[type]) { waitingSync[type]=false; pendingValue[type]=null; syncTimeoutTimer[type]=null; }
+            }, SYNC_TIMEOUT_MS);
+            document.getElementById(inputId).blur();
+        }
+
+        function sendCmd(cmd) {
+            if (client && client.connected) { client.publish(CMD_TOPIC, cmd + '\r\n'); }
+            else { alert('MQTT 未连接'); }
+        }
+
+        /* ========== 历史数据 ========== */
+        function saveHistoryPoint() {
+            historyData.push({ time:Date.now(), ch4:currentData.ch4, temp:currentData.temp, humi:currentData.humi });
+            if (historyData.length > MAX_HISTORY) historyData = historyData.slice(-MAX_HISTORY);
+            localStorage.setItem('historyData', JSON.stringify(historyData));
+        }
+
+        function updateChart() {
+            if (!chartInstance) return;
+            const now = Date.now();
+            const rangeMs = chartTimeRange * 3600 * 1000;
+            const filtered = historyData.filter(d => (now - d.time) <= rangeMs);
+
+            const labels = filtered.map(d => {
+                const dt = new Date(d.time);
+                return dt.getHours().toString().padStart(2,'0') + ':' + dt.getMinutes().toString().padStart(2,'0');
+            });
+
+            chartInstance.data.labels = labels;
+            chartInstance.data.datasets[0].data = filtered.map(d => d.ch4);
+            chartInstance.data.datasets[1].data = filtered.map(d => d.temp);
+            chartInstance.data.datasets[2].data = filtered.map(d => d.humi);
+            chartInstance.update('none');
+
+            // 数据点较多时自动撑开宽度，支持左右滚动
+            if (filtered.length > 20) {
+                const minWidth = Math.max(filtered.length * 30, chartWrapper.clientWidth);
+                chartInner.style.width = minWidth + 'px';
+            } else {
+                chartInner.style.width = '100%';
+            }
+            chartInstance.resize();
+        }
+
+        function setRange(hours, btn) {
+            chartTimeRange = hours;
+            document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            updateChart();
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('historyChart');
+            if (!ctx) return;
+            chartInstance = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label:'CH4',  data:[], borderColor:'#2196F3', borderWidth:2, pointRadius:0, fill:false, tension:0.3 },
+                        { label:'TEMP', data:[], borderColor:'#FF9800', borderWidth:2, pointRadius:0, fill:false, tension:0.3 },
+                        { label:'HUMI', data:[], borderColor:'#4CAF50', borderWidth:2, pointRadius:0, fill:false, tension:0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend:{ display:false } },
+                    scales: {
+                        x: { display:true, ticks:{ maxTicksLimit:8, font:{size:11} } },
+                        y: { display:true, ticks:{ font:{size:11} } }
+                    }
+                }
+            });
+        }
+
+        const chartWrapper = document.getElementById('chartWrapper');
+        const chartInner   = document.querySelector('.chart-inner');
+
+        /* ========== 报警记录 ========== */
+        function renderAlarmRecords() {
+            const list = document.getElementById('alarmRecordList');
+            if (!list) return;
+            if (alarmRecords.length === 0) {
+                list.innerHTML = '<div style="text-align:center; padding:16px; color:var(--sub); font-size:13px;">暂无报警记录</div>';
+                return;
+            }
+            list.innerHTML = alarmRecords.map(r =>
+                '<div class="alarm-record-item">' +
+                    '<div>' +
+                        '<span class="alarm-record-type">' + r.label + '</span><br>' +
+                        '<span class="alarm-record-detail">值: ' + r.value + ' / 阈值: ' + r.threshold + '</span>' +
+                    '</div>' +
+                    '<span class="alarm-record-time">' + r.time + '</span>' +
+                '</div>'
+            ).join('');
+        }
+
+        function clearAlarmRecords() {
+            if (confirm('确定清空所有报警记录？')) {
+                alarmRecords = [];
+                localStorage.removeItem('alarmRecords');
+                renderAlarmRecords();
+            }
+        }
+
+        /* ========== 初始化 ========== */
+        window.onload = function() {
+            connectMQTT();
+            renderAlarmRecords();
+            setTimeout(initChart, 500);
+        };
+    </script>
+</body>
+</html>
