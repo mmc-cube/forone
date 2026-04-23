@@ -541,17 +541,22 @@
                 return;
             }
 
-            // 计算统计值
-            const avg = (key) => { let s = 0; for (const d of filtered) s += d[key]; return (s / filtered.length).toFixed(1); };
-            const max = (key) => { let m = -Infinity; for (const d of filtered) m = Math.max(m, d[key]); return m.toFixed(1); };
-            const min = (key) => { let m = Infinity; for (const d of filtered) m = Math.min(m, d[key]); return m.toFixed(1); };
-            const latest = filtered[filtered.length - 1];
+            // 过滤掉 CH4 的 0 值（传感器初始化/无效数据）
+            const ch4Valid = filtered.filter(d => d.ch4 > 0);
+
+            // 计算统计值（CH4 用过滤后的数据）
+            const avgCH4 = ch4Valid.length ? (ch4Valid.reduce((s, d) => s + d.ch4, 0) / ch4Valid.length).toFixed(1) : '--';
+            const maxCH4 = ch4Valid.length ? Math.max(...ch4Valid.map(d => d.ch4)).toFixed(1) : '--';
+            const minCH4 = ch4Valid.length ? Math.min(...ch4Valid.map(d => d.ch4)).toFixed(1) : '--';
+            const avg = (key) => filtered.length ? (filtered.reduce((s, d) => s + d[key], 0) / filtered.length).toFixed(1) : '--';
+            const max = (key) => filtered.length ? Math.max(...filtered.map(d => d[key])).toFixed(1) : '--';
+            const min = (key) => filtered.length ? Math.min(...filtered.map(d => d[key])).toFixed(1) : '--';
 
             stat.innerHTML =
                 '<div class="history-stat-card">' +
-                    '<div class="history-stat-row"><span class="stat-label">CH4 平均</span><span class="stat-value ch4">' + avg('ch4') + ' %LEL</span></div>' +
-                    '<div class="history-stat-row"><span class="stat-label">CH4 最高</span><span class="stat-value ch4">' + max('ch4') + ' %LEL</span></div>' +
-                    '<div class="history-stat-row"><span class="stat-label">CH4 最低</span><span class="stat-value ch4">' + min('ch4') + ' %LEL</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">CH4 平均</span><span class="stat-value ch4">' + avgCH4 + ' %LEL</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">CH4 最高</span><span class="stat-value ch4">' + maxCH4 + ' %LEL</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">CH4 最低</span><span class="stat-value ch4">' + minCH4 + ' %LEL</span></div>' +
                 '</div>' +
                 '<div class="history-stat-card">' +
                     '<div class="history-stat-row"><span class="stat-label">TEMP 平均</span><span class="stat-value temp">' + avg('temp') + ' ℃</span></div>' +
