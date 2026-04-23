@@ -541,32 +541,42 @@
                 return;
             }
 
-            // 过滤掉 CH4 的 0 值（传感器初始化/无效数据）
-            const ch4Valid = filtered.filter(d => d.ch4 > 0);
+            // 过滤掉 0 值（传感器初始化/无效数据）
+            const valid = {
+                ch4: filtered.filter(d => d.ch4 > 0),
+                temp: filtered.filter(d => d.temp > 0),
+                humi: filtered.filter(d => d.humi > 0),
+            };
 
-            // 计算统计值（CH4 用过滤后的数据）
-            const avgCH4 = ch4Valid.length ? (ch4Valid.reduce((s, d) => s + d.ch4, 0) / ch4Valid.length).toFixed(1) : '--';
-            const maxCH4 = ch4Valid.length ? Math.max(...ch4Valid.map(d => d.ch4)).toFixed(1) : '--';
-            const minCH4 = ch4Valid.length ? Math.min(...ch4Valid.map(d => d.ch4)).toFixed(1) : '--';
-            const avg = (key) => filtered.length ? (filtered.reduce((s, d) => s + d[key], 0) / filtered.length).toFixed(1) : '--';
-            const max = (key) => filtered.length ? Math.max(...filtered.map(d => d[key])).toFixed(1) : '--';
-            const min = (key) => filtered.length ? Math.min(...filtered.map(d => d[key])).toFixed(1) : '--';
+            // 计算统计值（全部排除 0 值）
+            const calc = (key) => {
+                const v = valid[key];
+                const a = v.length ? (v.reduce((s, d) => s + d[key], 0) / v.length) : null;
+                const mx = v.length ? Math.max(...v.map(d => d[key])) : null;
+                const mn = v.length ? Math.min(...v.map(d => d[key])) : null;
+                return {
+                    avg: a !== null ? a.toFixed(1) : '--',
+                    max: mx !== null ? mx.toFixed(1) : '--',
+                    min: mn !== null ? mn.toFixed(1) : '--',
+                };
+            };
+            const sCH4 = calc('ch4'), sTemp = calc('temp'), sHumi = calc('humi');
 
             stat.innerHTML =
                 '<div class="history-stat-card">' +
-                    '<div class="history-stat-row"><span class="stat-label">CH4 平均</span><span class="stat-value ch4">' + avgCH4 + ' %LEL</span></div>' +
-                    '<div class="history-stat-row"><span class="stat-label">CH4 最高</span><span class="stat-value ch4">' + maxCH4 + ' %LEL</span></div>' +
-                    '<div class="history-stat-row"><span class="stat-label">CH4 最低</span><span class="stat-value ch4">' + minCH4 + ' %LEL</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">CH4 平均</span><span class="stat-value ch4">' + sCH4.avg + ' %LEL</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">CH4 最高</span><span class="stat-value ch4">' + sCH4.max + ' %LEL</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">CH4 最低</span><span class="stat-value ch4">' + sCH4.min + ' %LEL</span></div>' +
                 '</div>' +
                 '<div class="history-stat-card">' +
-                    '<div class="history-stat-row"><span class="stat-label">TEMP 平均</span><span class="stat-value temp">' + avg('temp') + ' ℃</span></div>' +
-                    '<div class="history-stat-row"><span class="stat-label">TEMP 最高</span><span class="stat-value temp">' + max('temp') + ' ℃</span></div>' +
-                    '<div class="history-stat-row"><span class="stat-label">TEMP 最低</span><span class="stat-value temp">' + min('temp') + ' ℃</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">TEMP 平均</span><span class="stat-value temp">' + sTemp.avg + ' ℃</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">TEMP 最高</span><span class="stat-value temp">' + sTemp.max + ' ℃</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">TEMP 最低</span><span class="stat-value temp">' + sTemp.min + ' ℃</span></div>' +
                 '</div>' +
                 '<div class="history-stat-card">' +
-                    '<div class="history-stat-row"><span class="stat-label">HUMI 平均</span><span class="stat-value humi">' + avg('humi') + ' %</span></div>' +
-                    '<div class="history-stat-row"><span class="stat-label">HUMI 最高</span><span class="stat-value humi">' + max('humi') + ' %</span></div>' +
-                    '<div class="history-stat-row"><span class="stat-label">HUMI 最低</span><span class="stat-value humi">' + min('humi') + ' %</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">HUMI 平均</span><span class="stat-value humi">' + sHumi.avg + ' %</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">HUMI 最高</span><span class="stat-value humi">' + sHumi.max + ' %</span></div>' +
+                    '<div class="history-stat-row"><span class="stat-label">HUMI 最低</span><span class="stat-value humi">' + sHumi.min + ' %</span></div>' +
                 '</div>' +
                 '<div style="font-size:12px;color:var(--sub);text-align:center;">共 ' + filtered.length + ' 条数据</div>';
 
