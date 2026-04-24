@@ -689,6 +689,10 @@
         let lastActuatorChange = { wind: 0, light: 0, feed: 0, water: 0 };
         const ACTUATOR_DEBOUNCE_MS = 1500;
 
+        // 风扇等待确认：用户操作后锁定在目标值，直到设备确认才放开
+        let waitingWindConfirm = false;
+        let pendingWindState = null;
+
         // 投喂定时管理
         let feedSchedule = [];  // 投喂时间列表，如 ["08:00", "12:00", "18:00"]
         let feedTimer = null;
@@ -792,9 +796,21 @@
             } else {
                 // MANUAL 模式：使用下位机回传的状态（带防抖保护）
                 const nowMs = Date.now();
-                if (!lastActuatorChange.wind || (nowMs - lastActuatorChange.wind) >= ACTUATOR_DEBOUNCE_MS) {
+
+                // 风扇：等待确认模式 — 用户操作后锁定，直到设备回传状态匹配才放开
+                if (waitingWindConfirm) {
+                    const deviceOn = (newData.wind_state !== 0 && newData.wind_state !== null);
+                    if ((pendingWindState === 1 && deviceOn) || (pendingWindState === 0 && newData.wind_state === 0)) {
+                        // 设备确认了用户设置的状态，解除锁定
+                        waitingWindConfirm = false;
+                        pendingWindState = null;
+                        currentData.wind_state = newData.wind_state;
+                    }
+                    // 否则忽略设备回传，保持用户设置的状态
+                } else if (!lastActuatorChange.wind || (nowMs - lastActuatorChange.wind) >= ACTUATOR_DEBOUNCE_MS) {
                     currentData.wind_state = newData.wind_state;
                 }
+
                 if (!lastActuatorChange.light || (nowMs - lastActuatorChange.light) >= ACTUATOR_DEBOUNCE_MS) {
                     currentData.light_state = newData.light_state;
                 }
@@ -1110,8 +1126,8 @@
 
             ['wind_state', 'light_state'].forEach(id => {
                 const el = document.getElementById(id);
-                el.textContent = currentData[id] === 1 ? 'ON' : 'OFF';
-                el.className = 'state-badge ' + (currentData[id] === 1 ? 'state-on' : 'state-off');
+                el.textContent = currentData[id] ? 'ON' : 'OFF';
+                el.className = 'state-badge ' + (currentData[id] ? 'state-on' : 'state-off');
             });
 
             ['temp_threshold', 'gas_threshold', 'light_threshold', 'water_threshold'].forEach(key => {
@@ -1158,9 +1174,13 @@
             const stateKey = stateMap[deviceId];
             if (stateKey) {
                 currentData[stateKey] = state;
-                // 记录操作时间，启动防抖保护（忽略设备旧状态回写）
                 const ak = actuatorKey[deviceId];
                 if (ak) lastActuatorChange[ak] = Date.now();
+                // 风扇：设置等待确认，直到设备回传状态匹配才放开
+                if (deviceId === 1) {
+                    waitingWindConfirm = true;
+                    pendingWindState = state;
+                }
                 updateUI();
             }
         }
@@ -1201,6 +1221,9 @@
         function setMode(mode) {
             sendCmd(`08,${mode === 'AUTO' ? '0' : '1'}`);
             currentMode = mode;
+            // 切换模式时重置风扇等待确认
+            waitingWindConfirm = false;
+            pendingWindState = null;
             updateModeIndicator();
         }
 
