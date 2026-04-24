@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>营地环境监测与安防预警系统</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #F5F5F5;
+  color: #212121;
+  max-width: 420px;
+  margin: 0 auto;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+.topbar {
+  padding: 44px 12px 10px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #F5F5F5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.topbar h1 { font-size: 16px; font-weight: 600; }
+.status-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+  background: #F44336;
+}
+.status-dot.connected { background: #4CAF50; }
+.status-text { font-size: 13px; color: #757575; }
+
+.card {
+  background: #FFFFFF;
+  border-radius: 12px;
+  margin: 0 12px 12px;
+  padding: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #757575;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #F5F5F5;
+}
+.data-row:last-child { border-bottom: none; }
+.data-label { font-size: 13px; color: #757575; }
+.data-value { font-size: 28px; font-weight: bold; }
+.data-unit { font-size: 13px; color: #757575; margin-left: 2px; }
+.data-value.alarm { color: #F44336; }
+
+.alarm-normal { color: #4CAF50; font-size: 14px; padding: 10px 0; }
+.alarm-item {
+  background: #FFEBEE;
+  color: #F44336;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: opacity 0.2s;
+}
+.btn:active { opacity: 0.7; }
+.btn-primary { background: #2196F3; color: #fff; }
+.btn-danger { background: #F44336; color: #fff; }
+.btn-warning { background: #FF9800; color: #fff; }
+.btn-success { background: #4CAF50; color: #fff; }
+
+.thresh-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.thresh-label { font-size: 14px; font-weight: 500; }
+.thresh-input {
+  width: 80px;
+  height: 36px;
+  border: 1px solid #E0E0E0;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 14px;
+}
+.thresh-send {
+  height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 6px;
+  background: #2196F3;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: 8px;
+}
+.thresh-send:active { opacity: 0.7; }
+
+.thresh-display-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #F5F5F5;
+}
+.thresh-display-row:last-child { border-bottom: none; }
+.thresh-display-label { font-size: 13px; color: #757575; }
+.thresh-display-value { font-size: 16px; font-weight: 600; }
+
+.collapsible-header {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.collapsible-header::after {
+  content: '\25B6';
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+.collapsible-header.open::after {
+  transform: rotate(90deg);
+}
+.collapsible-content { display: none; }
+.collapsible-content.open { display: block; }
+
+.log-entry {
+  font-size: 12px;
+  font-family: monospace;
+  padding: 4px 0;
+  border-bottom: 1px solid #F5F5F5;
+  color: #616161;
+  word-break: break-all;
+}
+
+.mode-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.mode-norm { background: #E3F2FD; color: #1565C0; }
+.mode-sleep { background: #FFF3E0; color: #E65100; }
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <div>
+    <h1>营地环境监测</h1>
+    <span class="status-text"><span class="status-dot" id="statusDot"></span><span id="statusText">未连接</span></span>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="mode-badge mode-norm" id="modeBadge">NORM</span>
+  </div>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+  <div class="card-title">实时数据</div>
+  <div class="data-row">
+    <span class="data-label">燃气浓度</span>
+    <div><span class="data-value" id="gas">--</span><span class="data-unit">%</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">温度</span>
+    <div><span class="data-value" id="temp">--</span><span class="data-unit">&#8451;</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">湿度</span>
+    <div><span class="data-value" id="humid">--</span><span class="data-unit">%</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">雨滴值</span>
+    <div><span class="data-value" id="rain">--</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">人体红外</span>
+    <div><span class="data-value" id="pir" style="font-size:18px;">--</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">红外对射</span>
+    <div><span class="data-value" id="ir_beam" style="font-size:18px;">--</span></div>
+  </div>
+</div>
+
+<!-- 报警状态卡 -->
+<div class="card">
+  <div class="card-title">报警状态</div>
+  <div id="alarmContainer">
+    <div class="alarm-normal">运行正常 &#10003;</div>
+  </div>
+</div>
+
+<!-- 控制卡 -->
+<div class="card">
+  <div class="card-title">控制</div>
+  <button class="btn btn-danger" onclick="sendCmd('01')">消警</button>
+  <button class="btn btn-warning" onclick="sendCmd('06')">进入低功耗模式</button>
+  <button class="btn btn-success" onclick="sendCmd('07')">请求立即上报</button>
+</div>
+
+<!-- 阈值显示卡 -->
+<div class="card">
+  <div class="card-title">当前阈值</div>
+  <div class="thresh-display-row">
+    <span class="thresh-display-label">燃气阈值</span>
+    <span class="thresh-display-value" id="thr_gas_display">--</span>
+  </div>
+  <div class="thresh-display-row">
+    <span class="thresh-display-label">高温阈值</span>
+    <span class="thresh-display-value" id="thr_tempH_display">--</span>
+  </div>
+  <div class="thresh-display-row">
+    <span class="thresh-display-label">低温阈值</span>
+    <span class="thresh-display-value" id="thr_tempL_display">--</span>
+  </div>
+  <div class="thresh-display-row">
+    <span class="thresh-display-label">雨滴阈值</span>
+    <span class="thresh-display-value" id="thr_rain_display">--</span>
+  </div>
+</div>
+
+<!-- 阈值设置卡 -->
+<div class="card">
+  <div class="card-title">阈值设置</div>
+  <div class="thresh-row">
+    <span class="thresh-label">燃气阈值 (0-100)</span>
+    <div style="display:flex;align-items:center;">
+      <input type="number" class="thresh-input" id="thr_gas_input" min="0" max="100" placeholder="50">
+      <button class="thresh-send" onclick="setThreshold('gas','02')">发送</button>
+    </div>
+  </div>
+  <div class="thresh-row">
+    <span class="thresh-label">高温阈值 (0-60)</span>
+    <div style="display:flex;align-items:center;">
+      <input type="number" class="thresh-input" id="thr_tempH_input" min="0" max="60" placeholder="35">
+      <button class="thresh-send" onclick="setThreshold('tempH','03')">发送</button>
+    </div>
+  </div>
+  <div class="thresh-row">
+    <span class="thresh-label">低温阈值 (-20~30)</span>
+    <div style="display:flex;align-items:center;">
+      <input type="number" class="thresh-input" id="thr_tempL_input" min="-20" max="30" placeholder="5">
+      <button class="thresh-send" onclick="setThreshold('tempL','04')">发送</button>
+    </div>
+  </div>
+  <div class="thresh-row">
+    <span class="thresh-label">雨滴阈值 (0-4095)</span>
+    <div style="display:flex;align-items:center;">
+      <input type="number" class="thresh-input" id="thr_rain_input" min="0" max="4095" placeholder="800">
+      <button class="thresh-send" onclick="setThreshold('rain','05')">发送</button>
+    </div>
+  </div>
+</div>
+
+<!-- 日志卡 -->
+<div class="card">
+  <div class="card-title collapsible-header" id="logHeader">运行日志</div>
+  <div class="collapsible-content" id="logContent"></div>
+</div>
+
+
+<script src="mqtt.min.js"></script>
+<script>
+// ==================== MQTT 配置 ====================
+const UPLOAD_TOPIC = '753284/401657/yingdijianhu/upload';
+const CMD_TOPIC = '753284/401657/yingdijianhu/cmd';
+
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+    reconnectPeriod: 3000,
+    clean: true,
+    connectTimeout: 10000,
+    keepalive: 60
+});
+
+// ==================== 数据状态 ====================
+let currentData = {
+  gas: null, temp: null, humid: null, rain: null,
+  pir: null, ir_beam: null, mode: 'NORM',
+  thr_gas: null, thr_tempH: null, thr_tempL: null, thr_rain: null
+};
+
+// ==================== 同步保护状态 ====================
+let waitingSync = { gas: false, tempH: false, tempL: false, rain: false };
+let pendingValue = { gas: null, tempH: null, tempL: null, rain: null };
+let syncTimeoutTimer = { gas: null, tempH: null, tempL: null, rain: null };
+
+let lastUserSetTime = {
+  thr_gas: 0, thr_tempH: 0, thr_tempL: 0, thr_rain: 0
+};
+const DEBOUNCE_MS = 500;
+const SYNC_TIMEOUT_MS = 5000;
+
+// ==================== 日志 ====================
+let logs = [];
+
+// ==================== MQTT 连接回调 ====================
+client.on('connect', () => {
+    document.getElementById('statusDot').classList.add('connected');
+    document.getElementById('statusText').textContent = '已连接';
+    client.subscribe(UPLOAD_TOPIC, (err) => {
+        if (err) console.error('Subscribe failed:', err);
+    });
+});
+
+client.on('close', () => {
+    document.getElementById('statusDot').classList.remove('connected');
+    document.getElementById('statusText').textContent = '未连接';
+});
+
+client.on('error', (err) => {
+    console.error('MQTT error:', err);
+    document.getElementById('statusDot').classList.remove('connected');
+    document.getElementById('statusText').textContent = '连接错误';
+});
+
+client.on('message', (topic, payload) => {
+    if (topic === UPLOAD_TOPIC) {
+        parseMessage(payload.toString());
+    }
+});
+
+// ==================== 消息解析 ====================
+function parseMessage(message) {
+  const parts = message.split(',');
+  if (parts.length < 11) return;
+
+  const gasVal = parseFloat(parts[0]);
+  const tempVal = parseFloat(parts[1]);
+  const humidVal = parseFloat(parts[2]);
+  const rainVal = parseFloat(parts[3]);
+  const pirVal = parseInt(parts[4]);
+  const irVal = parseInt(parts[5]);
+  const modeVal = parts[6];
+  const thrGasVal = parseFloat(parts[7]);
+  const thrTempHVal = parseFloat(parts[8]);
+  const thrTempLVal = parseFloat(parts[9]);
+  const thrRainVal = parseFloat(parts[10]);
+
+  // 传感器值始终更新（处理异常值）
+  currentData.gas = (gasVal === 0 || gasVal === 4095) ? null : gasVal;
+  currentData.temp = (tempVal === 0) ? null : tempVal;
+  currentData.humid = humidVal;
+  currentData.rain = rainVal;
+  currentData.pir = pirVal;
+  currentData.ir_beam = irVal;
+  currentData.mode = modeVal;
+
+  // 检查是否有正在等待同步的阈值
+  let hasPendingSync = false;
+  const threshMap = { gas: thrGasVal, tempH: thrTempHVal, tempL: thrTempLVal, rain: thrRainVal };
+  for (const [key, isWaiting] of Object.entries(waitingSync)) {
+    if (isWaiting) {
+      hasPendingSync = true;
+      const expectedValue = pendingValue[key];
+      const receivedValue = threshMap[key];
+
+      if (expectedValue !== null && Math.abs(receivedValue - expectedValue) < 0.5) {
+        console.log('Sync confirmed for ' + key + ': ' + receivedValue);
+        if (syncTimeoutTimer[key]) {
+          clearTimeout(syncTimeoutTimer[key]);
+          syncTimeoutTimer[key] = null;
+        }
+        waitingSync[key] = false;
+        pendingValue[key] = null;
+        lastUserSetTime['thr_' + (key === 'tempH' ? 'tempH' : key === 'tempL' ? 'tempL' : key)] = 0;
+      }
+    }
+  }
+
+  // 阈值更新逻辑（三重保护）
+  const now = Date.now();
+  if (!lastUserSetTime.thr_gas || (now - lastUserSetTime.thr_gas) >= DEBOUNCE_MS) {
+    if (!waitingSync.gas) currentData.thr_gas = thrGasVal;
+  }
+  if (!lastUserSetTime.thr_tempH || (now - lastUserSetTime.thr_tempH) >= DEBOUNCE_MS) {
+    if (!waitingSync.tempH) currentData.thr_tempH = thrTempHVal;
+  }
+  if (!lastUserSetTime.thr_tempL || (now - lastUserSetTime.thr_tempL) >= DEBOUNCE_MS) {
+    if (!waitingSync.tempL) currentData.thr_tempL = thrTempLVal;
+  }
+  if (!lastUserSetTime.thr_rain || (now - lastUserSetTime.thr_rain) >= DEBOUNCE_MS) {
+    if (!waitingSync.rain) currentData.thr_rain = thrRainVal;
+  }
+
+  updateUI();
+
+  if (hasPendingSync) {
+    checkAlarmsWithPending();
+  } else {
+    checkAlarms();
+  }
+
+  addLog(message);
+}
+
+// ==================== UI 更新 ====================
+function updateUI() {
+  // 模式显示
+  const modeBadge = document.getElementById('modeBadge');
+  modeBadge.textContent = currentData.mode || 'NORM';
+  modeBadge.className = 'mode-badge ' + (currentData.mode === 'SLEEP' ? 'mode-sleep' : 'mode-norm');
+
+  // 燃气
+  const gasEl = document.getElementById('gas');
+  if (currentData.gas !== null) {
+    const isAlarm = currentData.thr_gas !== null && currentData.gas > currentData.thr_gas;
+    gasEl.textContent = currentData.gas + (isAlarm ? '!' : '');
+    gasEl.className = 'data-value' + (isAlarm ? ' alarm' : '');
+  } else {
+    gasEl.textContent = '--';
+    gasEl.className = 'data-value';
+  }
+
+  // 温度
+  const tempEl = document.getElementById('temp');
+  if (currentData.temp !== null) {
+    const isAlarmH = currentData.thr_tempH !== null && currentData.temp > currentData.thr_tempH;
+    const isAlarmL = currentData.thr_tempL !== null && currentData.temp < currentData.thr_tempL;
+    const isAlarm = isAlarmH || isAlarmL;
+    tempEl.textContent = currentData.temp + (isAlarm ? '!' : '');
+    tempEl.className = 'data-value' + (isAlarm ? ' alarm' : '');
+  } else {
+    tempEl.textContent = '--';
+    tempEl.className = 'data-value';
+  }
+
+  // 湿度
+  document.getElementById('humid').textContent = currentData.humid !== null ? currentData.humid : '--';
+
+  // 雨滴
+  const rainEl = document.getElementById('rain');
+  if (currentData.rain !== null) {
+    const isAlarm = currentData.thr_rain !== null && currentData.rain > currentData.thr_rain;
+    rainEl.textContent = currentData.rain + (isAlarm ? '!' : '');
+    rainEl.className = 'data-value' + (isAlarm ? ' alarm' : '');
+  } else {
+    rainEl.textContent = '--';
+    rainEl.className = 'data-value';
+  }
+
+  // 人体红外
+  document.getElementById('pir').textContent =
+    currentData.pir !== null ? (currentData.pir === 1 ? '有人' : '无人') : '--';
+
+  // 红外对射
+  document.getElementById('ir_beam').textContent =
+    currentData.ir_beam !== null ? (currentData.ir_beam === 1 ? '正常' : '遮蔽') : '--';
+
+  // 阈值显示（等待期间显示预测值）
+  document.getElementById('thr_gas_display').textContent =
+    waitingSync.gas ? pendingValue.gas : (currentData.thr_gas !== null ? currentData.thr_gas : '--');
+  document.getElementById('thr_tempH_display').textContent =
+    waitingSync.tempH ? pendingValue.tempH : (currentData.thr_tempH !== null ? currentData.thr_tempH : '--');
+  document.getElementById('thr_tempL_display').textContent =
+    waitingSync.tempL ? pendingValue.tempL : (currentData.thr_tempL !== null ? currentData.thr_tempL : '--');
+  document.getElementById('thr_rain_display').textContent =
+    waitingSync.rain ? pendingValue.rain : (currentData.thr_rain !== null ? currentData.thr_rain : '--');
+}
+
+// ==================== 报警判断 ====================
+function checkAlarms() {
+  const alarms = [];
+
+  // 燃气报警
+  if (currentData.gas !== null && currentData.thr_gas !== null && currentData.gas > currentData.thr_gas) {
+    alarms.push('燃气报警');
+    sendAlarmToNative({ which: 'gas', gas: currentData.gas, thr_gas: currentData.thr_gas });
+  }
+
+  // 高温预警
+  if (currentData.temp !== null && currentData.thr_tempH !== null && currentData.temp > currentData.thr_tempH) {
+    alarms.push('高温预警');
+    sendAlarmToNative({ which: 'temp_high', temp: currentData.temp, thr_tempH: currentData.thr_tempH });
+  }
+
+  // 低温预警
+  if (currentData.temp !== null && currentData.thr_tempL !== null && currentData.temp < currentData.thr_tempL) {
+    alarms.push('低温预警');
+    sendAlarmToNative({ which: 'temp_low', temp: currentData.temp, thr_tempL: currentData.thr_tempL });
+  }
+
+  // 安防入侵
+  if ((currentData.pir === 1 || currentData.ir_beam === 0)) {
+    alarms.push('安防入侵');
+    sendAlarmToNative({ which: 'security', pir: currentData.pir, ir_beam: currentData.ir_beam });
+  }
+
+  // 降雨预警
+  if (currentData.rain !== null && currentData.thr_rain !== null && currentData.rain > currentData.thr_rain) {
+    alarms.push('降雨预警');
+    sendAlarmToNative({ which: 'rain', rain: currentData.rain, thr_rain: currentData.thr_rain });
+  }
+
+  renderAlarms(alarms);
+}
+
+function checkAlarmsWithPending() {
+  const alarms = [];
+
+  const thrGas = waitingSync.gas ? pendingValue.gas : currentData.thr_gas;
+  const thrTempH = waitingSync.tempH ? pendingValue.tempH : currentData.thr_tempH;
+  const thrTempL = waitingSync.tempL ? pendingValue.tempL : currentData.thr_tempL;
+  const thrRain = waitingSync.rain ? pendingValue.rain : currentData.thr_rain;
+
+  if (currentData.gas !== null && thrGas !== null && currentData.gas > thrGas) alarms.push('燃气报警');
+  if (currentData.temp !== null && thrTempH !== null && currentData.temp > thrTempH) alarms.push('高温预警');
+  if (currentData.temp !== null && thrTempL !== null && currentData.temp < thrTempL) alarms.push('低温预警');
+  if (currentData.pir === 1 || currentData.ir_beam === 0) alarms.push('安防入侵');
+  if (currentData.rain !== null && thrRain !== null && currentData.rain > thrRain) alarms.push('降雨预警');
+
+  renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+  const container = document.getElementById('alarmContainer');
+  if (alarms.length === 0) {
+    container.innerHTML = '<div class="alarm-normal">运行正常 &#10003;</div>';
+  } else {
+    container.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+  }
+}
+
+// ==================== 原生通知桥 ====================
+function sendAlarmToNative(data) {
+  if (window.Android && typeof window.Android.onAlarm === 'function') {
+    window.Android.onAlarm(JSON.stringify(data));
+  } else if (window.Notification && Notification.permission === 'granted') {
+    new Notification('告警', { body: JSON.stringify(data) });
+  }
+}
+
+// ==================== 阈值设置（预测-同步-接管） ====================
+function setThreshold(type, cmdCode) {
+  const inputId = 'thr_' + type + '_input';
+  const value = document.getElementById(inputId).value;
+
+  if (!value || value === '') {
+    alert('请输入阈值');
+    return;
+  }
+
+  const numValue = parseFloat(value);
+  if (isNaN(numValue)) {
+    alert('请输入有效数字');
+    return;
+  }
+
+  // 检查是否正在等待同步
+  if (waitingSync[type]) {
+    console.log('Already waiting sync for ' + type);
+    return;
+  }
+
+  // 1. 设置等待同步状态
+  waitingSync[type] = true;
+  pendingValue[type] = numValue;
+
+  // 2. 发送指令
+  sendCmd(cmdCode + ',' + numValue);
+
+  // 3. 记录用户操作时间（防抖）
+  lastUserSetTime['thr_' + type] = Date.now();
+
+  // 4. 立即更新显示（预测状态）
+  currentData['thr_' + type] = numValue;
+  updateUI();
+
+  // 5. 立即检查报警（即时反馈）
+  checkAlarmsWithPending();
+
+  // 6. 设置超时保护
+  const typeKey = type;
+  syncTimeoutTimer[type] = setTimeout(() => {
+    if (waitingSync[typeKey]) {
+      console.warn('Sync timeout for ' + typeKey + ', releasing protection');
+      waitingSync[typeKey] = false;
+      pendingValue[typeKey] = null;
+      syncTimeoutTimer[typeKey] = null;
+    }
+  }, SYNC_TIMEOUT_MS);
+
+  document.getElementById(inputId).blur();
+}
+
+// ==================== 发送指令 ====================
+function sendCmd(cmd) {
+  if (client && client.connected) {
+    client.publish(CMD_TOPIC, cmd);
+    addLog('TX: ' + cmd);
+  } else {
+    alert('MQTT 未连接，无法发送指令');
+  }
+}
+
+// ==================== 日志 ====================
+function addLog(msg) {
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString();
+  logs.unshift({ time: timeStr, msg: msg });
+  if (logs.length > 20) logs.pop();
+  renderLogs();
+}
+
+function renderLogs() {
+  const container = document.getElementById('logContent');
+  container.innerHTML = logs.map(l =>
+    '<div class="log-entry">[' + l.time + '] ' + l.msg + '</div>'
+  ).join('');
+}
+
+// 日志折叠
+document.getElementById('logHeader').addEventListener('click', function() {
+  this.classList.toggle('open');
+  document.getElementById('logContent').classList.toggle('open');
+});
+</script>
+</body>
+</html>
