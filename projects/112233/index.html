@@ -926,15 +926,71 @@ let weatherCacheTime = 0;
 async function fetchWeather() {
   // 缓存10分钟
   if (weatherCache && Date.now() - weatherCacheTime < 600000) return weatherCache;
-  try {
-    const resp = await fetch('https://wttr.in/?format=3', {signal: AbortSignal.timeout(5000)});
-    const text = await resp.text();
-    weatherCache = text.trim();
-    weatherCacheTime = Date.now();
-    return weatherCache;
-  } catch(e) {
-    return null;
+
+  // 多源并行竞争，谁先返回成功用谁
+  const sources = [
+    {
+      name: 'wttr.in',
+      fetch: async () => {
+        const resp = await fetch('https://wttr.in/?format=3', {signal: AbortSignal.timeout(5000)});
+        if (!resp.ok) throw new Error('wttr.in HTTP ' + resp.status);
+        const text = (await resp.text()).trim();
+        if (text.startsWith('<')) throw new Error('wttr.in returned HTML');
+        return '当前天气（来自 wttr.in）：\n' + text;
+      }
+    },
+    {
+      name: 'Open-Meteo',
+      fetch: async () => {
+        const resp = await fetch('https://api.open-meteo.com/v1/forecast?latitude=39.9&longitude=116.4&current_weather=true&timezone=auto', {signal: AbortSignal.timeout(5000)});
+        if (!resp.ok) throw new Error('Open-Meteo HTTP ' + resp.status);
+        const data = await resp.json();
+        const w = data.current_weather;
+        const desc = getWeatherDesc(w.weathercode);
+        return `当前天气（来自 Open-Meteo）：\n温度 ${w.temperature}°C，${desc}，风速 ${w.windspeed} km/h`;
+      }
+    },
+    {
+      name: 'wttr.in JSON',
+      fetch: async () => {
+        const resp = await fetch('https://wttr.in/?format=j1', {signal: AbortSignal.timeout(5000)});
+        if (!resp.ok) throw new Error('wttr.in JSON HTTP ' + resp.status);
+        const data = await resp.json();
+        const cur = data.current_condition[0];
+        const desc = cur.weatherDesc[0].value;
+        return `当前天气（来自 wttr.in）：\n温度 ${cur.temp_C}°C，体感 ${cur.FeelsLikeC}°C，${desc}，湿度 ${cur.humidity}%`;
+      }
+    }
+  ];
+
+  // 所有源并行发起，按完成顺序逐个消费
+  const pending = sources.map((s, i) =>
+    s.fetch().then(r => ({ok: true, result: r, idx: i})).catch(e => ({ok: false, error: e, idx: i}))
+  );
+  const seen = new Set();
+  while (seen.size < pending.length) {
+    const r = await Promise.race(pending.filter((_, i) => !seen.has(i)));
+    seen.add(r.idx);
+    if (r.ok) {
+      weatherCache = r.result;
+      weatherCacheTime = Date.now();
+      return weatherCache;
+    }
   }
+  return null;
+}
+
+// WMO 天气代码转中文描述
+function getWeatherDesc(code) {
+  if (code === 0) return '晴';
+  if (code <= 3) return '多云';
+  if (code <= 48) return '雾';
+  if (code <= 57) return '毛毛雨';
+  if (code <= 67) return '雨';
+  if (code <= 77) return '雪';
+  if (code <= 82) return '阵雨';
+  if (code <= 86) return '阵雪';
+  return '雷暴';
 }
 
 function buildScheduleContext() {
@@ -1017,9 +1073,23 @@ async function answerLocally(question) {
     return '你好！我是教师桌面助手 AI。\n我可以帮你：\n• 查询今日 / 本周课程\n• 查看实时教室温湿度\n• 获取天气信息\n• 问我任何问题！';
   }
 
-  // 默认回答
+  // 默认回答：调用 Pollinations AI（免费，无需注册）
   const ctx = buildScheduleContext();
-  return `你的问题我理解为：「${question}」\n\n📋 供参考，当前课程表：\n${ctx}\n\n如需更精准回答，可接入大模型API（将 AI_MODE 设为 'api'）。`;
+  const sensorCtx = sensorData.temp !== null
+    ? `当前教室传感器数据：温度${sensorData.temp}℃，湿度${sensorData.humi}%RH，光照${sensorData.light}%。`
+    : '';
+  const systemPrompt = `你是一个教师桌面助手AI，帮助教师管理日程和了解教室环境。${sensorCtx}当前课程表：${ctx}。请用中文简洁回答。`;
+  try {
+    const fullPrompt = systemPrompt + '\n用户问题：' + question;
+    const resp = await fetch('https://text.pollinations.ai/' + encodeURIComponent(fullPrompt), {
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!resp.ok) throw new Error('API error');
+    const text = await resp.text();
+    return text.trim() || '抱歉，未获取到回答，请重试。';
+  } catch(e) {
+    return `你的问题：「${question}」\n\n📋 当前课程表：\n${ctx}\n\n（AI服务暂时不可用，以上为本地数据）`;
+  }
 }
 
 function timeDiff(from, to) {
