@@ -784,6 +784,11 @@ function toggleLog() {
 // ─────────────────────────────────────────────
 const DAY_NAMES = ['周一','周二','周三','周四','周五'];
 
+// 周六周日统一当周五处理（下位机只支持周一到周五）
+function getTodayIndex() {
+  return Math.min((new Date().getDay() + 6) % 7, 4);
+}
+
 function switchDay(day) {
   currentDay = day;
   document.querySelectorAll('.week-tab').forEach((t,i) => {
@@ -839,7 +844,7 @@ function saveSchedule() {
 
 function updateNextCourse() {
   // 找今天（根据实际星期几）后面最近的一节课
-  const today = (new Date().getDay() + 6) % 7; // 0=周一
+  const today = getTodayIndex();
   const now = new Date().toTimeString().slice(0,5);
   let found = null;
 
@@ -892,7 +897,7 @@ async function sendTodaySchedule() {
     showToast('⚠ 未连接 MQTT');
     return;
   }
-  const today = (new Date().getDay() + 6) % 7;
+  const today = getTodayIndex();
   const courses = (schedule[today] || []).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 5);
 
   showToast('⏳ 翻译并同步日程…');
@@ -994,7 +999,7 @@ function getWeatherDesc(code) {
 }
 
 function buildScheduleContext() {
-  const today = (new Date().getDay() + 6) % 7;
+  const today = getTodayIndex();
   let lines = [];
   for (let d = 0; d < 5; d++) {
     const courses = schedule[d] || [];
@@ -1009,7 +1014,7 @@ function buildScheduleContext() {
 
 async function answerLocally(question) {
   const q = question.toLowerCase();
-  const today = (new Date().getDay() + 6) % 7;
+  const today = getTodayIndex();
   const now = new Date().toTimeString().slice(0,5);
   const todayName = DAY_NAMES[today];
 
@@ -1190,8 +1195,8 @@ function startTimeSyncTimer() {
 function sendTimeNow() {
   if (!mqttClient || !mqttClient.connected) return;
   const now = new Date();
-  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const day = days[now.getDay()];
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Fri'];
+  const day = days[now.getDay()]; // 0=Sun→Fri 6=Sat→Fri（下位机只支持周一到周五）
   const hh = String(now.getHours()).padStart(2, '0');
   const mm = String(now.getMinutes()).padStart(2, '0');
   mqttClient.publish(cmdTopic, '06,' + day + ',' + hh + ':' + mm);
