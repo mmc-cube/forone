@@ -465,24 +465,32 @@ function updateMedSlots(med, state, taken, nextTime) {
     if (activeIdx < 0) activeIdx = 0; // 都过了，取明天早上
   }
 
+  const bitMask = parseInt(taken) || 0;
+
   slots.forEach((slot, i) => {
     let statusHtml = '';
-    if (state !== 'OK' && i === activeIdx) {
-      // 当前活动时段
-      const stateClass = state === 'READY' ? 'state-READY' : 'state-MISSED';
-      statusHtml = ` <span class="${stateClass}">${state === 'READY' ? '待服' : '漏服'}</span>`;
-    } else if (state === 'OK' && i === activeIdx) {
-      // 下一服药时段
-      statusHtml = ' <span style="color:#2196F3;">→</span>';
-    } else if (slotMins[i] < nowMin && state === 'OK') {
-      // 已过时段：根据实际服药记录判断
-      const bitMask = parseInt(taken) || 0;
+    const isPast = slotMins[i] < nowMin;
+    const isActive = (i === activeIdx);
+
+    if (isActive) {
+      // 活动时段优先显示总体状态
+      if (state === 'READY') {
+        statusHtml = ` <span class="state-READY">待服</span>`;
+      } else if (state === 'MISSED' || state === 'ALARM') {
+        statusHtml = ` <span class="state-MISSED">漏服</span>`;
+      } else {
+        statusHtml = ' <span style="color:#2196F3;">→</span>';
+      }
+    } else if (isPast) {
+      // 已过非活动时段：按实际服药记录显示 ✓/✗
       if (bitMask & (1 << i)) {
         statusHtml = ' <span style="color:#4CAF50;">✓</span>';
       } else {
         statusHtml = ' <span style="color:#FF5722;">✗</span>';
       }
     }
+    // 未来时段：留空
+
     document.getElementById('med' + med + '_' + slot.label).innerHTML = slot.time + statusHtml;
   });
 }
