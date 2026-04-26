@@ -129,6 +129,35 @@
             margin: 4px;
         }
 
+        /* ===== 蓝牙 RSSI ===== */
+        .rssi-bar-wrap {
+            padding: 8px 0;
+        }
+        .rssi-bar-bg {
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        .rssi-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A, #FFC107, #F44336);
+            transition: width 0.3s;
+        }
+        .rssi-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--sub);
+        }
+        .rssi-distance {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
         /* ===== 按钮 ===== */
         .btn-row {
             display: flex;
@@ -213,34 +242,7 @@
             cursor: pointer;
         }
 
-        /* ===== 蓝牙 RSSI ===== */
-        .rssi-bar-wrap {
-            padding: 8px 0;
-        }
-        .rssi-bar-bg {
-            height: 20px;
-            background: #e0e0e0;
-            border-radius: 10px;
-            overflow: hidden;
-            position: relative;
-        }
-        .rssi-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4CAF50, #8BC34A, #FFC107, #F44336);
-            transition: width 0.3s;
-        }
-        .rssi-info {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 6px;
-            font-size: 12px;
-            color: var(--sub);
-        }
-        .rssi-distance {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--primary);
-        }
+        /* ===== 蓝牙连接按钮 ===== */
         .bluetooth-btn-wrap {
             margin-top: 12px;
         }
@@ -263,7 +265,7 @@
             <span>MQTT: <span id="mqttStatus">未连接</span></span>
         </div>
         <div class="status-item">
-            <span class="status-dot bluetooth" id="btDot"></span>
+            <span class="status-dot" id="btDot"></span>
             <span>蓝牙：<span id="btStatus">未连接</span></span>
         </div>
     </div>
@@ -302,6 +304,13 @@
             <span class="data-label">跌倒状态</span>
             <div class="data-value">
                 <span class="data-number" style="font-size:18px" id="fallStatus">正常</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">实时加速度</span>
+            <div class="data-value">
+                <span class="data-number" style="font-size:20px" id="accelValue">--</span>
+                <span class="data-unit">g</span>
             </div>
         </div>
     </div>
@@ -349,36 +358,43 @@
         <div class="threshold-row">
             <span class="data-label">心率上限</span>
             <div>
-                <input type="number" class="threshold-input" id="hrThresholdMaxInput" value="130">
+                <input type="number" class="threshold-input" id="hrThresholdMaxInput" value="90" min="85" max="120">
                 <button class="btn-small" onclick="setHrThresholdMax()">发送</button>
             </div>
         </div>
         <div class="threshold-row">
             <span class="data-label">心率下限</span>
             <div>
-                <input type="number" class="threshold-input" id="hrThresholdMinInput" value="60">
+                <input type="number" class="threshold-input" id="hrThresholdMinInput" value="60" min="50" max="80">
                 <button class="btn-small" onclick="setHrThresholdMin()">发送</button>
             </div>
         </div>
         <div class="threshold-row">
             <span class="data-label">血氧下限</span>
             <div>
-                <input type="number" class="threshold-input" id="spo2ThresholdInput" value="95">
+                <input type="number" class="threshold-input" id="spo2ThresholdInput" value="95" min="90" max="99">
                 <button class="btn-small" onclick="setSpo2Threshold()">发送</button>
             </div>
         </div>
         <div class="threshold-row">
             <span class="data-label">体温上限</span>
             <div>
-                <input type="number" class="threshold-input" id="tempThresholdMaxInput" value="25.0" step="0.1" min="20" max="42">
+                <input type="number" class="threshold-input" id="tempThresholdMaxInput" value="25.0" min="20.0" max="42.0" step="0.1">
                 <button class="btn-small" onclick="setTempThresholdMax()">发送</button>
             </div>
         </div>
         <div class="threshold-row">
             <span class="data-label">体温下限</span>
             <div>
-                <input type="number" class="threshold-input" id="tempThresholdMinInput" value="20.0" step="0.1" min="10" max="30">
+                <input type="number" class="threshold-input" id="tempThresholdMinInput" value="20.0" min="10.0" max="30.0" step="0.1">
                 <button class="btn-small" onclick="setTempThresholdMin()">发送</button>
+            </div>
+        </div>
+        <div class="threshold-row">
+            <span class="data-label">加速度阈值</span>
+            <div>
+                <input type="number" class="threshold-input" id="accelThresholdInput" value="2.50" min="2.0" max="3.5" step="0.1">
+                <button class="btn-small" onclick="setAccelThreshold()">发送</button>
             </div>
         </div>
     </div>
@@ -421,6 +437,13 @@
                 <span class="data-unit">°C</span>
             </div>
         </div>
+        <div class="data-row">
+            <span class="data-label">加速度阈值</span>
+            <div class="data-value">
+                <span class="data-number" style="font-size:20px" id="accelThresholdDisplay">--</span>
+                <span class="data-unit">g</span>
+            </div>
+        </div>
     </div>
 
     <!-- 日志卡 -->
@@ -454,22 +477,25 @@
             gpsLat: null,
             gpsLng: null,
             fall: 0,
-            manualAlarm: 0,
+            manualAlarm: 0,  // 新增手动报警字段
             sos: 0,
-            hrThresholdMax: null,  /* 心率上限 */
-            hrThresholdMin: null,  /* 心率下限 */
-            spo2Threshold: null,   /* 血氧下限 */
-            tempThresholdMax: null, /* 体温上限 */
-            tempThresholdMin: null  /* 体温下限 */
+            hrThresholdMax: null,  // 心率上限
+            hrThresholdMin: null,  // 心率下限
+            spo2Threshold: null,
+            tempThresholdMax: null, // 体温上限
+            tempThresholdMin: null, // 体温下限
+            accel: null,           // 实时加速度
+            accelThreshold: null   // 加速度阈值
         };
 
         // 防抖保护
-        let lastUserSetTime = { hrMax: 0, hrMin: 0, spo2: 0, tempMax: 0, tempMin: 0 };
+        let lastUserSetTime = { hrMax: 0, hrMin: 0, spo2: 0, tempMax: 0, tempMin: 0, accel: 0 };
         const DEBOUNCE_MS = 500;
 
         // 蓝牙状态
+        let bluetoothSocket = null;
         let isBluetoothConnected = false;
-        let rssiSimulateTimer = null;
+        let rssiValues = [];
 
         // ==================== 初始化 ====================
         document.addEventListener('DOMContentLoaded', () => {
@@ -543,10 +569,10 @@
         }
 
         // ==================== 解析上行数据 ====================
-        // 格式：心率，血氧，体温，跌倒，手动报警，纬度，经度，SOS，心率上限，心率下限，血氧下限，体温上限，体温下限
+        // 格式：心率，血氧，体温，跌倒，手动报警，纬度，经度，SOS，心率上限，心率下限，血氧下限，体温上限，体温下限，加速度，加速度阈值
         function parseMessage(message) {
             const parts = message.split(',');
-            if (parts.length < 13) {
+            if (parts.length < 15) {
                 addLog('数据格式错误：' + message);
                 return;
             }
@@ -557,15 +583,17 @@
                 spo2: parseInt(parts[1]) || 0,
                 bodyTemp: parseFloat(parts[2]) || 0,
                 fall: parseInt(parts[3]) || 0,
-                manualAlarm: parseInt(parts[4]) || 0,
+                manualAlarm: parseInt(parts[4]) || 0,  // 新增手动报警字段
                 gpsLat: parseFloat(parts[5]) || 0,
                 gpsLng: parseFloat(parts[6]) || 0,
                 sos: parseInt(parts[7]) || 0,
-                hrThresholdMax: parseInt(parts[8]) || 130,
-                hrThresholdMin: parseInt(parts[9]) || 60,
+                hrThresholdMax: parseInt(parts[8]) || 90,    // 心率上限
+                hrThresholdMin: parseInt(parts[9]) || 60,    // 心率下限
                 spo2Threshold: parseInt(parts[10]) || 95,
-                tempThresholdMax: parseFloat(parts[11]) || 25.0,
-                tempThresholdMin: parseFloat(parts[12]) || 20.0
+                tempThresholdMax: parseFloat(parts[11]) || 25.0,  // 体温上限
+                tempThresholdMin: parseFloat(parts[12]) || 20.0,  // 体温下限
+                accel: parseFloat(parts[13]) || 0,         // 实时加速度
+                accelThreshold: parseFloat(parts[14]) || 2.5  // 加速度阈值
             };
 
             // 更新数据（防抖保护）- 0 值也更新，表示数据无效
@@ -577,7 +605,7 @@
                 currentData.gpsLng = newData.gpsLng;
             }
             currentData.fall = newData.fall;
-            currentData.manualAlarm = newData.manualAlarm;
+            currentData.manualAlarm = newData.manualAlarm;  // 更新手动报警
             currentData.sos = newData.sos;
 
             // 阈值更新（带防抖）
@@ -595,6 +623,9 @@
             }
             if (!lastUserSetTime.tempMin || (now - lastUserSetTime.tempMin) >= DEBOUNCE_MS) {
                 currentData.tempThresholdMin = newData.tempThresholdMin;
+            }
+            if (!lastUserSetTime.accel || (now - lastUserSetTime.accel) >= DEBOUNCE_MS) {
+                currentData.accelThreshold = newData.accelThreshold;
             }
 
             updateUI();
@@ -651,6 +682,18 @@
             if (currentData.spo2Threshold !== null) {
                 document.getElementById('spo2ThresholdDisplay').textContent = currentData.spo2Threshold;
             }
+
+            // 加速度显示
+            if (currentData.accel !== null) {
+                document.getElementById('accelValue').textContent = currentData.accel.toFixed(2);
+            }
+
+            // 加速度阈值显示（只读）- 不更新输入框，避免覆盖用户输入
+            if (currentData.accelThreshold !== null) {
+                document.getElementById('accelThresholdDisplay').textContent = currentData.accelThreshold.toFixed(2);
+            }
+
+            // 体温阈值显示
             if (currentData.tempThresholdMax !== null) {
                 document.getElementById('tempThresholdMaxDisplay').textContent = currentData.tempThresholdMax.toFixed(1);
             }
@@ -694,14 +737,13 @@
                 }
             }
 
-            // 体温过高（使用动态阈值）- 0 值不报警
+            // 体温过高（使用动态阈值）
             if (currentData.bodyTemp !== null && currentData.bodyTemp > 0 && currentData.tempThresholdMax !== null) {
                 if (currentData.bodyTemp >= currentData.tempThresholdMax) {
                     alarms.push('体温过高');
                 }
             }
-
-            // 体温过低（使用动态阈值）- 0 值不报警
+            // 体温过低
             if (currentData.bodyTemp !== null && currentData.bodyTemp > 0 && currentData.tempThresholdMin !== null) {
                 if (currentData.bodyTemp <= currentData.tempThresholdMin) {
                     alarms.push('体温过低');
@@ -719,6 +761,29 @@
             } else {
                 alarmStatus.className = 'alarm-status warning';
                 alarmStatus.innerHTML = alarms.map(a => `<span class="alarm-item">${a}</span>`).join('');
+
+                // 报警时通知 Android 原生（传递完整数据）
+                sendAlarmToNative({
+                    alarms: alarms,
+                    heartRate: currentData.heartRate,
+                    spo2: currentData.spo2,
+                    bodyTemp: currentData.bodyTemp,
+                    fall: currentData.fall,
+                    manualAlarm: currentData.manualAlarm,
+                    sos: currentData.sos,
+                    gpsLat: currentData.gpsLat,
+                    gpsLng: currentData.gpsLng,
+                    hrThresholdMax: currentData.hrThresholdMax,
+                    hrThresholdMin: currentData.hrThresholdMin,
+                    spo2Threshold: currentData.spo2Threshold,
+                    tempThresholdMax: currentData.tempThresholdMax,
+                    tempThresholdMin: currentData.tempThresholdMin,
+                    accel: currentData.accel,
+                    accelThreshold: currentData.accelThreshold
+                });
+            } else {
+                // 报警解除，通知原生端清除通知
+                sendAlarmToNative({ alarms: [], cleared: true });
             }
 
             // 高亮数据 - 0 值不高亮
@@ -732,27 +797,15 @@
                               currentData.spo2Threshold !== null &&
                               currentData.spo2 < currentData.spo2Threshold);
             const tempHighAlarm = (currentData.bodyTemp !== null && currentData.bodyTemp > 0 &&
-                                  currentData.tempThresholdMax !== null &&
-                                  currentData.bodyTemp >= currentData.tempThresholdMax);
+                                   currentData.tempThresholdMax !== null &&
+                                   currentData.bodyTemp >= currentData.tempThresholdMax);
             const tempLowAlarm = (currentData.bodyTemp !== null && currentData.bodyTemp > 0 &&
-                                 currentData.tempThresholdMin !== null &&
-                                 currentData.bodyTemp <= currentData.tempThresholdMin);
+                                  currentData.tempThresholdMin !== null &&
+                                  currentData.bodyTemp <= currentData.tempThresholdMin);
 
             document.getElementById('hrValue').classList.toggle('alarm', hrHighAlarm || hrLowAlarm);
             document.getElementById('spo2Value').classList.toggle('alarm', spo2Alarm);
             document.getElementById('tempValue').classList.toggle('alarm', tempHighAlarm || tempLowAlarm);
-
-            // 调用原生通知（如果有报警）
-            if (alarms.length > 0) {
-                sendAlarmToNative({
-                    which: 'multi',
-                    alarms: alarms,
-                    heartRate: currentData.heartRate,
-                    spo2: currentData.spo2,
-                    bodyTemp: currentData.bodyTemp,
-                    fall: currentData.fall
-                });
-            }
         }
 
         // ==================== 发送指令 ====================
@@ -771,8 +824,8 @@
 
         function setHrThresholdMax() {
             const val = document.getElementById('hrThresholdMaxInput').value;
-            if (!val) {
-                alert('请输入心率上限');
+            if (!val || val < 85 || val > 180) {
+                alert('请输入有效的心率上限 (85-180)');
                 return;
             }
             lastUserSetTime.hrMax = Date.now();
@@ -784,8 +837,8 @@
 
         function setHrThresholdMin() {
             const val = document.getElementById('hrThresholdMinInput').value;
-            if (!val) {
-                alert('请输入心率下限');
+            if (!val || val < 50 || val > 80) {
+                alert('请输入有效的心率下限 (50-80)');
                 return;
             }
             lastUserSetTime.hrMin = Date.now();
@@ -797,8 +850,8 @@
 
         function setSpo2Threshold() {
             const val = document.getElementById('spo2ThresholdInput').value;
-            if (!val) {
-                alert('请输入血氧下限');
+            if (!val || val < 85 || val > 99) {
+                alert('请输入有效的血氧下限 (85-99)');
                 return;
             }
             lastUserSetTime.spo2 = Date.now();
@@ -808,39 +861,42 @@
             updateUI();
         }
 
-        function setTempThresholdMax() {
-            const val = document.getElementById('tempThresholdMaxInput').value;
-            if (!val) {
-                alert('请输入温度上限');
+        function setAccelThreshold() {
+            const val = document.getElementById('accelThresholdInput').value;
+            if (!val || val < 2.0 || val > 3.5) {
+                alert('请输入有效的加速度阈值 (2.0-3.5)');
                 return;
             }
-            const numVal = parseFloat(val);
-            if (numVal < 20 || numVal > 42) {
-                alert('温度上限范围：20-42°C');
+            lastUserSetTime.accel = Date.now();
+            sendCmd(`08,${val}`);
+            // 乐观更新
+            currentData.accelThreshold = parseFloat(val);
+            updateUI();
+        }
+
+        function setTempThresholdMax() {
+            const val = document.getElementById('tempThresholdMaxInput').value;
+            if (!val || val < 20.0 || val > 42.0) {
+                alert('请输入有效的体温上限 (20.0-42.0)');
                 return;
             }
             lastUserSetTime.tempMax = Date.now();
             sendCmd(`05,${val}`);
             // 乐观更新
-            currentData.tempThresholdMax = numVal;
+            currentData.tempThresholdMax = parseFloat(val);
             updateUI();
         }
 
         function setTempThresholdMin() {
             const val = document.getElementById('tempThresholdMinInput').value;
-            if (!val) {
-                alert('请输入温度下限');
-                return;
-            }
-            const numVal = parseFloat(val);
-            if (numVal < 10 || numVal > 30) {
-                alert('温度下限范围：10-30°C');
+            if (!val || val < 10.0 || val > 30.0) {
+                alert('请输入有效的体温下限 (10.0-30.0)');
                 return;
             }
             lastUserSetTime.tempMin = Date.now();
             sendCmd(`06,${val}`);
             // 乐观更新
-            currentData.tempThresholdMin = numVal;
+            currentData.tempThresholdMin = parseFloat(val);
             updateUI();
         }
 
@@ -868,15 +924,6 @@
             return div.innerHTML;
         }
 
-        // ==================== 报警通知（Android WebView 接口） ====================
-        function sendAlarmToNative(data) {
-            if (window.Android) {
-                window.Android.onAlarm(JSON.stringify(data));
-            } else if (window.Notification && Notification.permission === 'granted') {
-                new Notification('告警', { body: JSON.stringify(data) });
-            }
-        }
-
         // ==================== 蓝牙功能（Android BluetoothBridge 对接） ====================
         function connectBluetooth() {
             if (isBluetoothConnected) {
@@ -892,8 +939,11 @@
                 window.BluetoothBridge.getPairedDevices();
             } else {
                 // 降级：非 Android 环境使用模拟数据
+                isBluetoothConnected = true;
+                updateBluetoothStatus(true);
                 addLog('未检测到 Android 环境，使用模拟数据');
-                startSimulateRssi();
+                document.getElementById('btDebug').textContent = '模拟连接成功';
+                simulateRssi();
             }
         }
 
@@ -901,13 +951,6 @@
             if (window.BluetoothBridge) {
                 window.BluetoothBridge.disconnect();
             }
-
-            // 停止 RSSI 模拟
-            if (rssiSimulateTimer) {
-                clearInterval(rssiSimulateTimer);
-                rssiSimulateTimer = null;
-            }
-
             isBluetoothConnected = false;
             updateBluetoothStatus(false);
             document.getElementById('btDebug').textContent = '已断开连接';
@@ -921,29 +964,24 @@
             const dot = document.getElementById('btDot');
             const text = document.getElementById('btStatus');
             if (connected) {
-                dot.className = 'status-dot bluetooth connected';
+                dot.className = 'status-dot bluetooth';
                 text.textContent = '已连接';
             } else {
-                dot.className = 'status-dot bluetooth disconnected';
+                dot.className = 'status-dot disconnected';
                 text.textContent = '未连接';
             }
         }
 
-        function startSimulateRssi() {
-            // 停止之前的模拟
-            if (rssiSimulateTimer) clearInterval(rssiSimulateTimer);
+        function simulateRssi() {
+            if (!isBluetoothConnected) return;
 
-            // 每 2 秒随机扰动 RSSI 值
-            rssiSimulateTimer = setInterval(() => {
-                if (!isBluetoothConnected) return;
+            // 模拟 RSSI 变化 (-30 到 -90 dBm)
+            const rssi = Math.floor(-30 - Math.random() * 60);
+            updateRssiDisplay(rssi);
+            rssiValues.push(rssi);
+            if (rssiValues.length > 10) rssiValues.shift();
 
-                // 模拟 RSSI 变化 (-50 到 -80 dBm，小幅扰动)
-                const baseRssi = -65;  // 基准值
-                const jitter = Math.floor(Math.random() * 20) - 10;  // ±10 扰动
-                const rssi = baseRssi + jitter;
-
-                updateRssiDisplay(rssi);
-            }, 2000);
+            setTimeout(simulateRssi, 2000);
         }
 
         function updateRssiDisplay(rssi) {
@@ -995,9 +1033,6 @@
             updateBluetoothStatus(true);
             document.getElementById('btDebug').textContent = '已连接：' + address;
             addLog('蓝牙连接成功：' + address);
-
-            // 开始模拟 RSSI 值（随机扰动）
-            startSimulateRssi();
         };
 
         // 断开连接
@@ -1019,7 +1054,30 @@
         window.onBtData = function(line) {
             // 蓝牙透传数据到达，可以在这里处理 RSSI 或其他数据
             addLog('蓝牙数据：' + line);
+            try {
+                const parsed = JSON.parse(line);
+                if (parsed.rssi !== undefined) {
+                    updateRssiDisplay(parsed.rssi);
+                    rssiValues.push(parsed.rssi);
+                    if (rssiValues.length > 10) rssiValues.shift();
+                }
+            } catch (e) {
+                // 非 JSON 数据，可能是 RSSI 原始值
+                const rssi = parseInt(line);
+                if (!isNaN(rssi)) {
+                    updateRssiDisplay(rssi);
+                }
+            }
         };
+
+        // ==================== 报警通知（Android WebView 接口） ====================
+        function sendAlarmToNative(data) {
+            if (window.Android) {
+                window.Android.onAlarm(JSON.stringify(data));
+            } else if (window.Notification && Notification.permission === 'granted') {
+                new Notification('告警', { body: JSON.stringify(data) });
+            }
+        }
     </script>
 </body>
 </html>
