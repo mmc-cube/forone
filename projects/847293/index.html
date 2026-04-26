@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>粮仓环境安全监测系统</title>
+    <title>婴儿车环境监测与安全看护系统</title>
     <script src="mqtt.min.js"></script>
     <style>
         :root {
@@ -12,7 +12,6 @@
             --primary: #2196F3;
             --alarm: #F44336;
             --ok: #4CAF50;
-            --warning: #FF9800;
             --text: #212121;
             --sub: #757575;
             --shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -25,7 +24,6 @@
             color: var(--text);
             min-height: 100vh;
             padding: 12px;
-            padding-top: 44px;
         }
         .card {
             background: var(--card);
@@ -38,17 +36,14 @@
             font-size: 14px;
             color: var(--sub);
             margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
         }
         /* 状态栏 */
         .status-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
             gap: 8px;
+            flex-wrap: wrap;
         }
         .status-item {
             display: flex;
@@ -57,8 +52,7 @@
             font-size: 13px;
         }
         .status-dot {
-            width: 8px;
-            height: 8px;
+            width: 8px; height: 8px;
             border-radius: 50%;
         }
         .status-dot.connected { background: var(--ok); }
@@ -71,7 +65,7 @@
         }
         .mode-auto { background: #E3F2FD; color: #1565C0; }
         .mode-manual { background: #FFF3E0; color: #E65100; }
-        /* 数据卡 */
+        /* 实时数据卡 */
         .data-row {
             display: flex;
             justify-content: space-between;
@@ -97,30 +91,13 @@
         .alarm-mark {
             color: var(--alarm);
             font-weight: bold;
+            font-size: 28px;
         }
-        /* 设备状态 */
-        .device-status {
-            display: flex;
-            gap: 16px;
+        .data-row.alarm-row .data-value,
+        .data-row.alarm-row .alarm-mark {
+            color: var(--alarm);
         }
-        .device-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .device-icon {
-            width: 24px;
-            height: 24px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            color: white;
-        }
-        .device-on { background: var(--ok); }
-        .device-off { background: #BDBDBD; }
-        /* 报警卡 */
+        /* 报警状态卡 */
         .alarm-card {
             padding: 12px;
             border-radius: 8px;
@@ -131,15 +108,13 @@
             text-align: center;
             font-weight: bold;
         }
-        .alarm-list {
-            background: #FFEBEE;
-        }
+        .alarm-list { background: #FFEBEE; }
         .alarm-item {
             color: var(--alarm);
             padding: 8px 0;
             font-weight: bold;
         }
-        /* 控制按钮 */
+        /* 控制卡 */
         .control-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -154,48 +129,21 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        .ctrl-btn:active {
-            transform: scale(0.98);
-        }
-        .ctrl-btn.on {
-            background: var(--ok);
-            color: white;
-        }
-        .ctrl-btn.off {
-            background: #BDBDBD;
-            color: white;
-        }
-        .ctrl-btn.mute {
-            background: var(--warning);
+        .ctrl-btn:active { transform: scale(0.98); }
+        .ctrl-btn.mute-btn {
+            background: #FF9800;
             color: white;
             grid-column: span 2;
         }
+        .ctrl-btn.fan-btn { background: var(--primary); color: white; }
+        .ctrl-btn.fan-btn.on-active { background: var(--ok); }
+        .ctrl-btn.mode-btn { background: var(--primary); color: white; }
+        .ctrl-btn.mode-btn.manual-active { background: #FF9800; }
         .ctrl-btn.disabled {
             background: #E0E0E0;
             color: #9E9E9E;
             cursor: not-allowed;
         }
-        .ctrl-btn.mode-btn {
-            background: var(--primary);
-            color: white;
-        }
-        .ctrl-btn.mode-btn.manual-active {
-            background: #FF9800;
-        }
-        /* 阈值显示卡 */
-        .threshold-display {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-        }
-        .thr-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 6px 0;
-            font-size: 13px;
-        }
-        .thr-label { color: var(--sub); }
-        .thr-value { font-weight: bold; }
         /* 阈值设置卡 */
         .threshold-set-row {
             display: flex;
@@ -257,159 +205,169 @@
             border-bottom: 1px dashed #E0E0E0;
         }
         .log-item:last-child { border-bottom: none; }
+        /* 当前阈值显示 */
+        .threshold-display {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .thr-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 13px;
+        }
+        .thr-label { color: var(--sub); }
+        .thr-value { font-weight: bold; }
     </style>
 </head>
 <body>
-    <!-- 状态栏 -->
-    <div class="card">
-        <div class="status-bar">
-            <div class="status-item">
-                <span class="status-dot disconnected" id="mqtt-dot"></span>
-                <span id="mqtt-status">未连接</span>
-            </div>
-            <div class="status-item">
-                <span id="last-update">--:--:--</span>
-            </div>
-            <div class="status-item">
-                <span class="mode-badge mode-auto" id="mode-badge">AUTO</span>
-            </div>
-        </div>
-    </div>
 
-    <!-- 实时数据卡 -->
-    <div class="card">
-        <div class="card-title">实时监测数据</div>
-        <div class="data-row">
-            <span class="data-label">烟雾</span>
-            <span><span class="data-value" id="smoke">--</span><span class="alarm-mark" id="smoke-alarm"></span></span>
+<!-- 状态栏 -->
+<div class="card">
+    <div class="status-bar">
+        <div class="status-item">
+            <span class="status-dot disconnected" id="mqtt-dot"></span>
+            <span id="mqtt-status">未连接</span>
         </div>
-        <div class="data-row">
-            <span class="data-label">CO₂</span>
-            <span><span class="data-value" id="co2">--</span><span class="data-unit">ppm</span><span class="alarm-mark" id="co2-alarm"></span></span>
+        <div class="status-item">
+            <span id="last-update">--:--:--</span>
         </div>
-        <div class="data-row">
-            <span class="data-label">火焰</span>
-            <span><span class="data-value" id="flame">--</span><span class="alarm-mark" id="flame-alarm"></span></span>
-        </div>
-        <div class="data-row">
-            <span class="data-label">温度</span>
-            <span><span class="data-value" id="temp">--</span><span class="data-unit">°C</span><span class="alarm-mark" id="temp-alarm"></span></span>
-        </div>
-        <div class="data-row">
-            <span class="data-label">湿度</span>
-            <span><span class="data-value" id="humi">--</span><span class="data-unit">%</span><span class="alarm-mark" id="humi-alarm"></span></span>
+        <div class="status-item">
+            <span class="mode-badge mode-auto" id="mode-badge">AUTO</span>
         </div>
     </div>
+</div>
 
-    <!-- 设备状态卡 -->
-    <div class="card">
-        <div class="card-title">设备状态</div>
-        <div class="device-status">
-            <div class="device-item">
-                <span class="device-icon device-off" id="fan-icon">F</span>
-                <span>风扇: <span id="fan-status">OFF</span></span>
-            </div>
-            <div class="device-item">
-                <span class="device-icon device-off" id="pump-icon">P</span>
-                <span>水泵: <span id="pump-status">OFF</span></span>
-            </div>
-        </div>
+<!-- 实时数据卡 -->
+<div class="card">
+    <div class="card-title">实时监测数据</div>
+    <div class="data-row" id="row-pm25">
+        <span class="data-label">PM2.5</span>
+        <span><span class="data-value" id="pm25">--</span><span class="data-unit">μg/m³</span><span class="alarm-mark" id="pm25-alarm"></span></span>
     </div>
+    <div class="data-row" id="row-tvoc">
+        <span class="data-label">TVOC</span>
+        <span><span class="data-value" id="tvoc">--</span><span class="data-unit">mg/m³</span><span class="alarm-mark" id="tvoc-alarm"></span></span>
+    </div>
+    <div class="data-row" id="row-ch2o">
+        <span class="data-label">CH₂O（甲醛）</span>
+        <span><span class="data-value" id="ch2o">--</span><span class="data-unit">mg/m³</span></span>
+    </div>
+    <div class="data-row" id="row-co2">
+        <span class="data-label">CO₂</span>
+        <span><span class="data-value" id="co2">--</span><span class="data-unit">ppm</span></span>
+    </div>
+    <div class="data-row" id="row-uv">
+        <span class="data-label">UV指数</span>
+        <span><span class="data-value" id="uv">--</span><span class="alarm-mark" id="uv-alarm"></span></span>
+    </div>
+    <div class="data-row" id="row-temp">
+        <span class="data-label">温度</span>
+        <span><span class="data-value" id="temp">--</span><span class="data-unit">°C</span><span class="alarm-mark" id="temp-alarm"></span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">加速度 (X/Y/Z)</span>
+        <span><span class="data-value" id="acc" style="font-size:18px">-- / -- / --</span><span class="data-unit">g</span></span>
+    </div>
+    <div class="data-row" id="row-fall">
+        <span class="data-label">跌倒/异常移动</span>
+        <span><span class="data-value" id="fall" style="font-size:20px">--</span><span class="alarm-mark" id="fall-alarm"></span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">风扇</span>
+        <span><span class="data-value" id="fan-sta" style="font-size:20px">--</span></span>
+    </div>
+</div>
 
-    <!-- 报警状态卡 -->
-    <div class="card">
-        <div class="card-title">报警状态</div>
-        <div class="alarm-card alarm-ok" id="alarm-box">
-            <span id="alarm-text">运行正常 ✓</span>
-        </div>
+<!-- 报警状态卡 -->
+<div class="card">
+    <div class="card-title">报警状态</div>
+    <div class="alarm-card alarm-ok" id="alarm-box">
+        <span id="alarm-text">运行正常 ✓</span>
     </div>
+</div>
 
-    <!-- 控制卡 -->
-    <div class="card">
-        <div class="card-title">远程控制 <span id="ctrl-hint" style="color:#FF9800;font-size:12px;"></span></div>
-        <div class="control-grid">
-            <button class="ctrl-btn off" id="fan-on-btn" onclick="sendCmd('07,1')">开风扇</button>
-            <button class="ctrl-btn off" id="fan-off-btn" onclick="sendCmd('07,0')">关风扇</button>
-            <button class="ctrl-btn off" id="pump-on-btn" onclick="sendCmd('08,1')">开水泵</button>
-            <button class="ctrl-btn off" id="pump-off-btn" onclick="sendCmd('08,0')">关水泵</button>
-            <button class="ctrl-btn mode-btn" id="mode-btn" onclick="sendCmd('09')">切换模式</button>
-            <button class="ctrl-btn mute" onclick="sendCmd('01')">消警</button>
-        </div>
+<!-- 控制卡 -->
+<div class="card">
+    <div class="card-title">远程控制 <span id="ctrl-hint" style="color:#FF9800;font-size:12px;"></span></div>
+    <div class="control-grid">
+        <button class="ctrl-btn mute-btn" onclick="sendCmd('ALARM_MUTE')">消警</button>
+        <button class="ctrl-btn fan-btn disabled" id="fan-on-btn" onclick="sendCmd('FAN_ON')">风扇开</button>
+        <button class="ctrl-btn fan-btn disabled" id="fan-off-btn" onclick="sendCmd('FAN_OFF')">风扇关</button>
+        <button class="ctrl-btn mode-btn" id="mode-btn" onclick="sendCmd('TOGGLE_MODE')">切换为MANUAL</button>
     </div>
+</div>
 
-    <!-- 阈值显示卡 -->
-    <div class="card">
-        <div class="card-title">当前阈值（下位机上报）</div>
-        <div class="threshold-display">
-            <div class="thr-item"><span class="thr-label">烟雾阈值</span><span class="thr-value" id="thr-smoke">--</span></div>
-            <div class="thr-item"><span class="thr-label">CO₂阈值</span><span class="thr-value" id="thr-co2">-- ppm</span></div>
-            <div class="thr-item"><span class="thr-label">火焰阈值</span><span class="thr-value" id="thr-flame">--</span></div>
-            <div class="thr-item"><span class="thr-label">温度阈值</span><span class="thr-value" id="thr-temp">-- °C</span></div>
-            <div class="thr-item"><span class="thr-label">湿度阈值</span><span class="thr-value" id="thr-humi">-- %</span></div>
-        </div>
+<!-- 当前阈值显示（下位机上报） -->
+<div class="card">
+    <div class="card-title">当前阈值（下位机上报）</div>
+    <div class="threshold-display">
+        <div class="thr-item"><span class="thr-label">PM2.5</span><span class="thr-value" id="thr-pm25">-- μg/m³</span></div>
+        <div class="thr-item"><span class="thr-label">TVOC</span><span class="thr-value" id="thr-tvoc">-- mg/m³</span></div>
+        <div class="thr-item"><span class="thr-label">UV</span><span class="thr-value" id="thr-uv">--</span></div>
+        <div class="thr-item"><span class="thr-label">温度</span><span class="thr-value" id="thr-temp">-- °C</span></div>
     </div>
+</div>
 
-    <!-- 阈值设置卡 -->
-    <div class="card">
-        <div class="card-title">阈值设置</div>
-        <div class="threshold-set-row">
-            <span class="threshold-set-label">烟雾阈值 (0-4095)</span>
-            <input class="threshold-input" type="number" id="input-smoke" placeholder="2000">
-            <button class="threshold-send-btn" onclick="setThreshold('smoke', '02')">发送</button>
-        </div>
-        <div class="threshold-set-row">
-            <span class="threshold-set-label">CO₂阈值 (ppm)</span>
-            <input class="threshold-input" type="number" id="input-co2" placeholder="1000">
-            <button class="threshold-send-btn" onclick="setThreshold('co2', '03')">发送</button>
-        </div>
-        <div class="threshold-set-row">
-            <span class="threshold-set-label">火焰阈值 (0-4095)</span>
-            <input class="threshold-input" type="number" id="input-flame" placeholder="800">
-            <button class="threshold-send-btn" onclick="setThreshold('flame', '04')">发送</button>
-        </div>
-        <div class="threshold-set-row">
-            <span class="threshold-set-label">温度阈值 (°C)</span>
-            <input class="threshold-input" type="number" id="input-temp" placeholder="30" step="0.1">
-            <button class="threshold-send-btn" onclick="setThreshold('temp', '05')">发送</button>
-        </div>
-        <div class="threshold-set-row">
-            <span class="threshold-set-label">湿度阈值 (%)</span>
-            <input class="threshold-input" type="number" id="input-humi" placeholder="70" step="0.1">
-            <button class="threshold-send-btn" onclick="setThreshold('humi', '06')">发送</button>
-        </div>
+<!-- 阈值设置卡 -->
+<div class="card">
+    <div class="card-title">阈值设置</div>
+    <div class="threshold-set-row">
+        <span class="threshold-set-label">PM2.5上限 (μg/m³)</span>
+        <input class="threshold-input" type="number" id="input-pm25" placeholder="2000">
+        <button class="threshold-send-btn" onclick="setThreshold('pm25','SET_PM25H')">发送</button>
     </div>
+    <div class="threshold-set-row">
+        <span class="threshold-set-label">TVOC上限 (mg/m³)</span>
+        <input class="threshold-input" type="number" id="input-tvoc" placeholder="200" step="0.01">
+        <button class="threshold-send-btn" onclick="setThreshold('tvoc','SET_VOCH')">发送</button>
+    </div>
+    <div class="threshold-set-row">
+        <span class="threshold-set-label">UV上限</span>
+        <input class="threshold-input" type="number" id="input-uv" placeholder="8" step="0.1">
+        <button class="threshold-send-btn" onclick="setThreshold('uv','SET_UVH')">发送</button>
+    </div>
+    <div class="threshold-set-row">
+        <span class="threshold-set-label">温度上限 (°C)</span>
+        <input class="threshold-input" type="number" id="input-temp" placeholder="30" step="0.1">
+        <button class="threshold-send-btn" onclick="setThreshold('temp','SET_TEMPH')">发送</button>
+    </div>
+</div>
 
-    <!-- 日志卡 -->
-    <div class="card">
-        <div class="card-title log-header" onclick="toggleLog()">
-            <span>通信日志</span>
-            <span class="log-toggle" id="log-toggle">展开 ▼</span>
-        </div>
-        <div class="log-content" id="log-content"></div>
+<!-- 日志卡 -->
+<div class="card">
+    <div class="card-title log-header" onclick="toggleLog()">
+        <span>通信日志</span>
+        <span class="log-toggle" id="log-toggle">展开 ▼</span>
     </div>
+    <div class="log-content" id="log-content"></div>
+</div>
 
 <script>
 // ==================== MQTT 配置 ====================
-const UPLOAD_TOPIC = '847293/625184/liangcang/upload';
-const CMD_TOPIC = '847293/625184/liangcang/cmd';
+const UPLOAD_TOPIC = '847293/516082/yingerche/upload';
+const CMD_TOPIC    = '847293/516082/yingerche/cmd';
 
 // ==================== 数据状态 ====================
 let currentData = {
-    smoke: null, co2: null, flame: null, temp: null, humi: null,
-    fan_status: null, pump_status: null, system_mode: 'AUTO',
-    smoke_h: null, co2_h: null, flame_h: null, temp_h: null, humi_h: null
+    pm25: null, tvoc: null, ch2o: null, co2: null,
+    uv: null, temp: null,
+    acc_x: null, acc_y: null, acc_z: null,
+    fall: null, fan_sta: null, system_mode: 'AUTO',
+    pm25h: null, voch: null, uvh: null, temph: null
 };
 
-// ==================== 同步保护状态（三步状态机） ====================
-let waitingSync = { smoke: false, co2: false, flame: false, temp: false, humi: false };
-let pendingValue = { smoke: null, co2: null, flame: null, temp: null, humi: null };
-let syncTimeoutTimer = { smoke: null, co2: null, flame: null, temp: null, humi: null };
-let lastUserSetTime = { smoke: 0, co2: 0, flame: 0, temp: 0, humi: 0 };
+// ==================== 同步保护（三步状态机） ====================
+let waitingSync = { pm25: false, tvoc: false, uv: false, temp: false };
+let pendingValue = { pm25: null, tvoc: null, uv: null, temp: null };
+let syncTimeoutTimer = { pm25: null, tvoc: null, uv: null, temp: null };
+let lastUserSetTime = { pm25: 0, tvoc: 0, uv: 0, temp: 0 };
 
 const DEBOUNCE_MS = 500;
 const SYNC_TIMEOUT_MS = 5000;
 
-// ==================== 日志记录 ====================
+// ==================== 日志 ====================
 let logs = [];
 const MAX_LOGS = 20;
 
@@ -509,34 +467,32 @@ function setThreshold(type, cmdCode) {
         return;
     }
 
-    // 温度和湿度需要乘10发送（下位机用0.1单位）
-    if (type === 'temp' || type === 'humi') {
-        numValue = Math.round(numValue * 10);
-    }
-
     if (waitingSync[type]) {
         console.log('Already waiting sync for ' + type);
         return;
     }
 
-    // 1. 设置等待同步状态
+    // 1. 设置等待同步
     waitingSync[type] = true;
     pendingValue[type] = numValue;
 
     // 2. 发送指令
     sendCmd(cmdCode + ',' + numValue);
 
-    // 3. 记录用户操作时间
+    // 3. 记录时间
     lastUserSetTime[type] = Date.now();
 
-    // 4. 立即更新显示（预测状态）
-    currentData[type + '_h'] = numValue;
+    // 4. 立即更新显示（预测）
+    if (type === 'pm25') currentData.pm25h = numValue;
+    else if (type === 'tvoc') currentData.voch = numValue;
+    else if (type === 'uv') currentData.uvh = numValue;
+    else if (type === 'temp') currentData.temph = numValue;
     updateUI();
 
     // 5. 立即检查报警
     checkAlarmsWithPending();
 
-    // 6. 设置超时保护
+    // 6. 超时保护
     syncTimeoutTimer[type] = setTimeout(() => {
         if (waitingSync[type]) {
             console.warn('Sync timeout for ' + type);
@@ -552,43 +508,55 @@ function setThreshold(type, cmdCode) {
 // ==================== 解析消息 ====================
 function parseMessage(msg) {
     const parts = msg.split(',');
-    if (parts.length < 13) return;
+    if (parts.length < 16) return;
 
     const newData = {
-        smoke: parseInt(parts[0]),
-        co2: parseInt(parts[1]),
-        flame: parseInt(parts[2]),
-        temp: parseInt(parts[3]),
-        humi: parseInt(parts[4]),
-        fan_status: parseInt(parts[5]),
-        pump_status: parseInt(parts[6]),
-        system_mode: parts[7],
-        smoke_h: parseInt(parts[8]),
-        co2_h: parseInt(parts[9]),
-        flame_h: parseInt(parts[10]),
-        temp_h: parseInt(parts[11]),
-        humi_h: parseInt(parts[12])
+        pm25: parseFloat(parts[0]),
+        tvoc: parseFloat(parts[1]),
+        ch2o: parseFloat(parts[2]),
+        co2: parseFloat(parts[3]),
+        uv: parseFloat(parts[4]),
+        temp: parseFloat(parts[5]),
+        acc_x: parseFloat(parts[6]),
+        acc_y: parseFloat(parts[7]),
+        acc_z: parseFloat(parts[8]),
+        fall: parseInt(parts[9]),
+        fan_sta: parseInt(parts[10]),
+        system_mode: parts[11],
+        pm25h: parseFloat(parts[12]),
+        voch: parseFloat(parts[13]),
+        uvh: parseFloat(parts[14]),
+        temph: parseFloat(parts[15])
     };
 
     // 传感器值始终更新
-    currentData.smoke = newData.smoke;
+    currentData.pm25 = newData.pm25;
+    currentData.tvoc = newData.tvoc;
+    currentData.ch2o = newData.ch2o;
     currentData.co2 = newData.co2;
-    currentData.flame = newData.flame;
+    currentData.uv = newData.uv;
     currentData.temp = newData.temp;
-    currentData.humi = newData.humi;
-    currentData.fan_status = newData.fan_status;
-    currentData.pump_status = newData.pump_status;
+    currentData.acc_x = newData.acc_x;
+    currentData.acc_y = newData.acc_y;
+    currentData.acc_z = newData.acc_z;
+    currentData.fall = newData.fall;
+    currentData.fan_sta = newData.fan_sta;
     currentData.system_mode = newData.system_mode;
 
     // 检查同步确认
     let hasPendingSync = false;
-    const thresholdKeys = ['smoke', 'co2', 'flame', 'temp', 'humi'];
+    const thresholdKeys = ['pm25', 'tvoc', 'uv', 'temp'];
     for (const key of thresholdKeys) {
         if (waitingSync[key]) {
             hasPendingSync = true;
             const expected = pendingValue[key];
-            const received = newData[key + '_h'];
-            if (expected !== null && Math.abs(received - expected) < 1) {
+            let received;
+            if (key === 'pm25') received = newData.pm25h;
+            else if (key === 'tvoc') received = newData.voch;
+            else if (key === 'uv') received = newData.uvh;
+            else if (key === 'temp') received = newData.temph;
+
+            if (expected !== null && Math.abs(received - expected) < 0.01) {
                 console.log('Sync confirmed: ' + key);
                 if (syncTimeoutTimer[key]) {
                     clearTimeout(syncTimeoutTimer[key]);
@@ -601,10 +569,10 @@ function parseMessage(msg) {
         }
     }
 
-    // 阈值更新（三重保护）
+    // 阈值更新（等待期间冻结）
     const now = Date.now();
     for (const key of thresholdKeys) {
-        const thrKey = key + '_h';
+        const thrKey = key === 'pm25' ? 'pm25h' : key === 'tvoc' ? 'voch' : key === 'uv' ? 'uvh' : 'temph';
         if (!lastUserSetTime[key] || (now - lastUserSetTime[key]) >= DEBOUNCE_MS) {
             if (!waitingSync[key]) {
                 currentData[thrKey] = newData[thrKey];
@@ -626,49 +594,44 @@ function parseMessage(msg) {
 
 // ==================== UI 更新 ====================
 function updateUI() {
-    // 烟雾
-    if (currentData.smoke !== null) {
-        document.getElementById('smoke').textContent = currentData.smoke;
+    // PM2.5
+    if (currentData.pm25 !== null) {
+        document.getElementById('pm25').textContent = currentData.pm25.toFixed(0);
+    }
+    // TVOC
+    if (currentData.tvoc !== null) {
+        document.getElementById('tvoc').textContent = currentData.tvoc.toFixed(2);
+    }
+    // CH2O
+    if (currentData.ch2o !== null) {
+        document.getElementById('ch2o').textContent = currentData.ch2o.toFixed(2);
     }
     // CO2
     if (currentData.co2 !== null) {
-        document.getElementById('co2').textContent = currentData.co2;
+        document.getElementById('co2').textContent = currentData.co2.toFixed(0);
     }
-    // 火焰
-    if (currentData.flame !== null) {
-        document.getElementById('flame').textContent = currentData.flame;
+    // UV
+    if (currentData.uv !== null) {
+        document.getElementById('uv').textContent = currentData.uv.toFixed(1);
     }
-    // 温度（除10显示）
+    // TEMP
     if (currentData.temp !== null) {
-        document.getElementById('temp').textContent = (currentData.temp / 10).toFixed(1);
+        document.getElementById('temp').textContent = currentData.temp.toFixed(1);
     }
-    // 湿度（除10显示）
-    if (currentData.humi !== null) {
-        document.getElementById('humi').textContent = (currentData.humi / 10).toFixed(1);
+    // ACC
+    if (currentData.acc_x !== null) {
+        document.getElementById('acc').textContent =
+            currentData.acc_x.toFixed(2) + ' / ' +
+            currentData.acc_y.toFixed(2) + ' / ' +
+            currentData.acc_z.toFixed(2);
     }
-
-    // 设备状态
-    if (currentData.fan_status !== null) {
-        const fanIcon = document.getElementById('fan-icon');
-        const fanStatus = document.getElementById('fan-status');
-        if (currentData.fan_status === 1) {
-            fanIcon.className = 'device-icon device-on';
-            fanStatus.textContent = 'ON';
-        } else {
-            fanIcon.className = 'device-icon device-off';
-            fanStatus.textContent = 'OFF';
-        }
+    // FALL
+    if (currentData.fall !== null) {
+        document.getElementById('fall').textContent = currentData.fall === 1 ? '跌倒!' : '正常';
     }
-    if (currentData.pump_status !== null) {
-        const pumpIcon = document.getElementById('pump-icon');
-        const pumpStatus = document.getElementById('pump-status');
-        if (currentData.pump_status === 1) {
-            pumpIcon.className = 'device-icon device-on';
-            pumpStatus.textContent = 'ON';
-        } else {
-            pumpIcon.className = 'device-icon device-off';
-            pumpStatus.textContent = 'OFF';
-        }
+    // FAN_STA
+    if (currentData.fan_sta !== null) {
+        document.getElementById('fan-sta').textContent = currentData.fan_sta === 1 ? 'ON' : 'OFF';
     }
 
     // 模式
@@ -682,47 +645,35 @@ function updateUI() {
     }
 
     // 阈值显示（等待期间显示预测值）
-    if (currentData.smoke_h !== null) {
-        const v = waitingSync.smoke ? pendingValue.smoke : currentData.smoke_h;
-        document.getElementById('thr-smoke').textContent = v;
-    }
-    if (currentData.co2_h !== null) {
-        const v = waitingSync.co2 ? pendingValue.co2 : currentData.co2_h;
-        document.getElementById('thr-co2').textContent = v + ' ppm';
-    }
-    if (currentData.flame_h !== null) {
-        const v = waitingSync.flame ? pendingValue.flame : currentData.flame_h;
-        document.getElementById('thr-flame').textContent = v;
-    }
-    if (currentData.temp_h !== null) {
-        const v = waitingSync.temp ? pendingValue.temp : currentData.temp_h;
-        document.getElementById('thr-temp').textContent = (v / 10).toFixed(1) + ' °C';
-    }
-    if (currentData.humi_h !== null) {
-        const v = waitingSync.humi ? pendingValue.humi : currentData.humi_h;
-        document.getElementById('thr-humi').textContent = (v / 10).toFixed(1) + ' %';
-    }
+    const pm25h = waitingSync.pm25 ? pendingValue.pm25 : currentData.pm25h;
+    const voch = waitingSync.tvoc ? pendingValue.tvoc : currentData.voch;
+    const uvh = waitingSync.uv ? pendingValue.uv : currentData.uvh;
+    const temph = waitingSync.temp ? pendingValue.temp : currentData.temph;
+
+    if (pm25h !== null) document.getElementById('thr-pm25').textContent = pm25h.toFixed(0) + ' μg/m³';
+    if (voch !== null) document.getElementById('thr-tvoc').textContent = voch.toFixed(2) + ' mg/m³';
+    if (uvh !== null) document.getElementById('thr-uv').textContent = uvh.toFixed(1);
+    if (temph !== null) document.getElementById('thr-temp').textContent = temph.toFixed(1) + ' °C';
 }
 
 // ==================== 控制按钮状态 ====================
 function updateControlButtons() {
     const isManual = currentData.system_mode === 'MANUAL';
     const hint = document.getElementById('ctrl-hint');
+    const fanOnBtn = document.getElementById('fan-on-btn');
+    const fanOffBtn = document.getElementById('fan-off-btn');
     const modeBtn = document.getElementById('mode-btn');
-    const btns = ['fan-on-btn', 'fan-off-btn', 'pump-on-btn', 'pump-off-btn'];
 
     if (isManual) {
         hint.textContent = '(MANUAL 模式)';
-        btns.forEach(id => {
-            document.getElementById(id).classList.remove('disabled');
-        });
+        fanOnBtn.classList.remove('disabled');
+        fanOffBtn.classList.remove('disabled');
         modeBtn.classList.add('manual-active');
         modeBtn.textContent = '切换为AUTO';
     } else {
-        hint.textContent = '(AUTO 模式)';
-        btns.forEach(id => {
-            document.getElementById(id).classList.add('disabled');
-        });
+        hint.textContent = '(AUTO 模式，风扇自动控制)';
+        fanOnBtn.classList.add('disabled');
+        fanOffBtn.classList.add('disabled');
         modeBtn.classList.remove('manual-active');
         modeBtn.textContent = '切换为MANUAL';
     }
@@ -730,27 +681,31 @@ function updateControlButtons() {
 
 // ==================== 报警判断 ====================
 function getThreshold(key) {
-    return waitingSync[key] ? pendingValue[key] : currentData[key + '_h'];
+    return waitingSync[key] ? pendingValue[key] : currentData[key === 'pm25' ? 'pm25h' : key === 'tvoc' ? 'voch' : key === 'uv' ? 'uvh' : 'temph'];
 }
 
 function checkAlarms() {
     const alarms = [];
 
-    if (currentData.smoke !== null && currentData.smoke_h !== null && currentData.smoke > currentData.smoke_h) {
-        alarms.push('烟雾超标');
+    // PM2.5 超标
+    if (currentData.pm25 !== null && currentData.pm25h !== null && currentData.pm25 > currentData.pm25h) {
+        alarms.push('PM2.5超标');
     }
-    if (currentData.co2 !== null && currentData.co2_h !== null && currentData.co2 > currentData.co2_h) {
-        alarms.push('CO₂超标');
+    // TVOC 超标
+    if (currentData.tvoc !== null && currentData.voch !== null && currentData.tvoc > currentData.voch) {
+        alarms.push('TVOC超标');
     }
-    // ★ 火焰传感器逻辑反向：火焰值低于阈值表示有火灾危险
-    if (currentData.flame !== null && currentData.flame_h !== null && currentData.flame < currentData.flame_h) {
-        alarms.push('火灾危险');
+    // UV 超标
+    if (currentData.uv !== null && currentData.uvh !== null && currentData.uv > currentData.uvh) {
+        alarms.push('UV超标（注意防晒）');
     }
-    if (currentData.temp !== null && currentData.temp_h !== null && currentData.temp > currentData.temp_h) {
+    // 温度过高
+    if (currentData.temp !== null && currentData.temph !== null && currentData.temp > currentData.temph) {
         alarms.push('温度过高');
     }
-    if (currentData.humi !== null && currentData.humi_h !== null && currentData.humi > currentData.humi_h) {
-        alarms.push('湿度过高');
+    // 跌倒/异常移动
+    if (currentData.fall === 1) {
+        alarms.push('异常移动/跌倒');
     }
 
     renderAlarms(alarms);
@@ -760,27 +715,25 @@ function checkAlarms() {
 function checkAlarmsWithPending() {
     const alarms = [];
 
-    const smokeH = getThreshold('smoke');
-    const co2H = getThreshold('co2');
-    const flameH = getThreshold('flame');
-    const tempH = getThreshold('temp');
-    const humiH = getThreshold('humi');
+    const pm25h = getThreshold('pm25');
+    const voch = getThreshold('tvoc');
+    const uvh = getThreshold('uv');
+    const temph = getThreshold('temp');
 
-    if (currentData.smoke !== null && smokeH !== null && currentData.smoke > smokeH) {
-        alarms.push('烟雾超标');
+    if (currentData.pm25 !== null && pm25h !== null && currentData.pm25 > pm25h) {
+        alarms.push('PM2.5超标');
     }
-    if (currentData.co2 !== null && co2H !== null && currentData.co2 > co2H) {
-        alarms.push('CO₂超标');
+    if (currentData.tvoc !== null && voch !== null && currentData.tvoc > voch) {
+        alarms.push('TVOC超标');
     }
-    // ★ 火焰传感器逻辑反向：火焰值低于阈值表示有火灾危险
-    if (currentData.flame !== null && flameH !== null && currentData.flame < flameH) {
-        alarms.push('火灾危险');
+    if (currentData.uv !== null && uvh !== null && currentData.uv > uvh) {
+        alarms.push('UV超标（注意防晒）');
     }
-    if (currentData.temp !== null && tempH !== null && currentData.temp > tempH) {
+    if (currentData.temp !== null && temph !== null && currentData.temp > temph) {
         alarms.push('温度过高');
     }
-    if (currentData.humi !== null && humiH !== null && currentData.humi > humiH) {
-        alarms.push('湿度过高');
+    if (currentData.fall === 1) {
+        alarms.push('异常移动/跌倒');
     }
 
     renderAlarms(alarms);
@@ -798,52 +751,38 @@ function renderAlarms(alarms) {
         box.className = 'alarm-card alarm-list';
         text.innerHTML = alarms.map(a => `<div class="alarm-item">⚠ ${a}</div>`).join('');
     }
-
-    // Android WebView 通知
-    if (alarms.length > 0 && window.Android) {
-        sendAlarmToNative(alarms);
-    }
 }
 
 function updateAlarmMarks(alarms) {
     // 清除所有标记
-    ['smoke', 'co2', 'flame', 'temp', 'humi'].forEach(id => {
+    ['pm25', 'tvoc', 'uv', 'temp', 'fall'].forEach(id => {
         document.getElementById(id + '-alarm').textContent = '';
+    });
+    // 清除报警行样式
+    ['row-pm25', 'row-tvoc', 'row-uv', 'row-temp', 'row-fall'].forEach(id => {
+        document.getElementById(id).classList.remove('alarm-row');
     });
 
     // 添加超限标记
-    if (alarms.includes('烟雾超标')) {
-        document.getElementById('smoke-alarm').textContent = ' !';
+    if (alarms.includes('PM2.5超标')) {
+        document.getElementById('pm25-alarm').textContent = ' !';
+        document.getElementById('row-pm25').classList.add('alarm-row');
     }
-    if (alarms.includes('CO₂超标')) {
-        document.getElementById('co2-alarm').textContent = ' !';
+    if (alarms.includes('TVOC超标')) {
+        document.getElementById('tvoc-alarm').textContent = ' !';
+        document.getElementById('row-tvoc').classList.add('alarm-row');
     }
-    if (alarms.includes('火灾危险')) {
-        document.getElementById('flame-alarm').textContent = ' !';
+    if (alarms.includes('UV超标（注意防晒）')) {
+        document.getElementById('uv-alarm').textContent = ' !';
+        document.getElementById('row-uv').classList.add('alarm-row');
     }
     if (alarms.includes('温度过高')) {
         document.getElementById('temp-alarm').textContent = ' !';
+        document.getElementById('row-temp').classList.add('alarm-row');
     }
-    if (alarms.includes('湿度过高')) {
-        document.getElementById('humi-alarm').textContent = ' !';
-    }
-}
-
-function sendAlarmToNative(alarms) {
-    if (window.Android) {
-        window.Android.onAlarm(JSON.stringify({
-            alarms: alarms,
-            smoke: currentData.smoke,
-            smoke_h: getThreshold('smoke'),
-            co2: currentData.co2,
-            co2_h: getThreshold('co2'),
-            flame: currentData.flame,
-            flame_h: getThreshold('flame'),
-            temp: currentData.temp,
-            temp_h: getThreshold('temp'),
-            humi: currentData.humi,
-            humi_h: getThreshold('humi')
-        }));
+    if (alarms.includes('异常移动/跌倒')) {
+        document.getElementById('fall-alarm').textContent = ' !';
+        document.getElementById('row-fall').classList.add('alarm-row');
     }
 }
 
