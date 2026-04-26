@@ -500,24 +500,23 @@ function setThreshold(type, cmdCode) {
 // ==================== 解析消息 ====================
 function parseMessage(msg) {
     const parts = msg.split(',');
-    if (parts.length < 16) return;
+    if (parts.length < 14) return;
 
     const newData = {
         pm25: parseFloat(parts[0]),
         tvoc: parseFloat(parts[1]),
-        // parts[2]=CH2O, parts[3]=CO2 — 保留但不显示
-        uv: parseFloat(parts[4]),
-        temp: parseFloat(parts[5]),
-        acc_x: parseFloat(parts[6]),
-        acc_y: parseFloat(parts[7]),
-        acc_z: parseFloat(parts[8]),
-        fall: parseInt(parts[9]),
-        fan_sta: parseInt(parts[10]),
-        system_mode: parts[11],
-        pm25h: parseFloat(parts[12]),
-        voch: parseFloat(parts[13]),
-        uvh: parseFloat(parts[14]),
-        temph: parseFloat(parts[15])
+        uv: parseFloat(parts[2]),
+        temp: parseFloat(parts[3]),
+        acc_x: parseFloat(parts[4]),
+        acc_y: parseFloat(parts[5]),
+        acc_z: parseFloat(parts[6]),
+        fall: parseInt(parts[7]),
+        fan_sta: parseInt(parts[8]),
+        system_mode: parts[9],
+        pm25h: parseFloat(parts[10]),
+        voch: parseFloat(parts[11]),
+        uvh: parseFloat(parts[12]),
+        temph: parseFloat(parts[13])
     };
 
     // 传感器值始终更新
