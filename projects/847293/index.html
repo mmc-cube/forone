@@ -263,7 +263,7 @@
         <span><span class="data-value" id="acc" style="font-size:18px">-- / -- / --</span><span class="data-unit">g</span></span>
     </div>
     <div class="data-row" id="row-fall">
-        <span class="data-label">跌倒/异常移动</span>
+        <span class="data-label">婴儿车状态</span>
         <span><span class="data-value" id="fall" style="font-size:20px">--</span><span class="alarm-mark" id="fall-alarm"></span></span>
     </div>
     <div class="data-row">
@@ -607,7 +607,7 @@ function updateUI() {
     }
     // FALL
     if (currentData.fall !== null) {
-        document.getElementById('fall').textContent = currentData.fall === 1 ? '跌倒!' : '正常';
+        document.getElementById('fall').textContent = currentData.fall === 0 ? '正常' : '异常';
     }
     // FAN_STA
     if (currentData.fan_sta !== null) {
@@ -683,10 +683,8 @@ function checkAlarms() {
     if (currentData.temp !== null && currentData.temph !== null && currentData.temp > currentData.temph) {
         alarms.push('温度过高');
     }
-    // 跌倒/异常移动
-    if (currentData.fall === 1) {
-        alarms.push('异常移动/跌倒');
-    }
+    // 异常
+        alarms.push('异常');
 
     renderAlarms(alarms);
     updateAlarmMarks(alarms);
@@ -712,8 +710,8 @@ function checkAlarmsWithPending() {
     if (currentData.temp !== null && temph !== null && currentData.temp > temph) {
         alarms.push('温度过高');
     }
-    if (currentData.fall === 1) {
-        alarms.push('异常移动/跌倒');
+    if (currentData.fall !== null && currentData.fall !== 0) {
+        alarms.push('异常');
     }
 
     renderAlarms(alarms);
@@ -760,7 +758,7 @@ function updateAlarmMarks(alarms) {
         document.getElementById('temp-alarm').textContent = ' !';
         document.getElementById('row-temp').classList.add('alarm-row');
     }
-    if (alarms.includes('异常移动/跌倒')) {
+    if (alarms.includes('异常')) {
         document.getElementById('fall-alarm').textContent = ' !';
         document.getElementById('row-fall').classList.add('alarm-row');
     }
