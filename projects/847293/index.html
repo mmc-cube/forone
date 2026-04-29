@@ -684,7 +684,9 @@ function checkAlarms() {
         alarms.push('温度过高');
     }
     // 异常
+    if (currentData.fall === 1) {
         alarms.push('异常');
+    }
 
     renderAlarms(alarms);
     updateAlarmMarks(alarms);
@@ -710,7 +712,7 @@ function checkAlarmsWithPending() {
     if (currentData.temp !== null && temph !== null && currentData.temp > temph) {
         alarms.push('温度过高');
     }
-    if (currentData.fall !== null && currentData.fall !== 0) {
+    if (currentData.fall === 1) {
         alarms.push('异常');
     }
 

@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>婴儿车环境监测与安全看护系统</title>
+  <style>
+    :root {
+      --bg: #F5F5F5;
+      --card: #FFFFFF;
+      --primary: #2196F3;
+      --alarm: #F44336;
+      --ok: #4CAF50;
+      --text: #212121;
+      --sub: #757575;
+      --border: #E0E0E0;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      --radius: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .app {
+      width: 100%;
+      max-width: 420px;
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: 12px 12px calc(24px + env(safe-area-inset-bottom));
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .status-main {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--alarm);
+      flex: 0 0 auto;
+    }
+
+    .status-dot.connected {
+      background: var(--ok);
+    }
+
+    .status-meta {
+      text-align: right;
+      color: var(--sub);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 8px;
+      min-height: 48px;
+      padding: 0 14px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #fff;
+      background: var(--primary);
+      box-shadow: 0 2px 6px rgba(33, 150, 243, 0.25);
+      transition: transform 0.12s ease, opacity 0.12s ease, background 0.12s ease;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+      opacity: 0.92;
+    }
+
+    .btn.secondary {
+      background: #607D8B;
+      box-shadow: 0 2px 6px rgba(96, 125, 139, 0.25);
+    }
+
+    .btn.alarm {
+      background: var(--alarm);
+      box-shadow: 0 2px 6px rgba(244, 67, 54, 0.25);
+    }
+
+    .btn.ghost {
+      background: #ECEFF1;
+      color: var(--text);
+      box-shadow: none;
+    }
+
+    .data-list,
+    .threshold-list,
+    .control-list,
+    .alarm-list,
+    .current-threshold-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .data-row,
+    .current-threshold-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-row:last-child,
+    .current-threshold-row:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .data-name,
+    .threshold-name {
+      font-size: 13px;
+      color: var(--sub);
+    }
+
+    .data-value-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .data-value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+      word-break: break-all;
+      text-align: right;
+    }
+
+    .data-value.alarm {
+      color: var(--alarm);
+    }
+
+    .data-unit,
+    .current-threshold-value,
+    .mode-chip,
+    .fan-chip {
+      font-size: 13px;
+      color: var(--sub);
+    }
+
+    .mode-chip,
+    .fan-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: #E3F2FD;
+      color: #1565C0;
+      font-weight: 600;
+    }
+
+    .fan-chip {
+      background: #F1F8E9;
+      color: #558B2F;
+    }
+
+    .alarm-empty {
+      background: rgba(76, 175, 80, 0.12);
+      color: var(--ok);
+      border-radius: 10px;
+      padding: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .alarm-item {
+      background: rgba(244, 67, 54, 0.12);
+      color: var(--alarm);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 700;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .threshold-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 88px 84px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .threshold-input {
+      width: 100%;
+      height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 10px;
+      font-size: 15px;
+      color: var(--text);
+      background: #fff;
+    }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--sub);
+      line-height: 1.5;
+    }
+
+    .logs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .logs-body {
+      display: none;
+      margin-top: 12px;
+    }
+
+    .logs-body.expanded {
+      display: block;
+    }
+
+    .log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 280px;
+      overflow: auto;
+    }
+
+    .log-item {
+      background: #FAFAFA;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .empty-log {
+      color: var(--sub);
+      text-align: center;
+      padding: 14px 0;
+      font-size: 13px;
+    }
+
+    .bridge-note {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--sub);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 360px) {
+      .control-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .threshold-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="card">
+      <div class="status-bar">
+        <div class="status-main">
+          <span id="statusDot" class="status-dot"></span>
+          <span id="statusText">未连接</span>
+        </div>
+        <div class="status-meta">
+          <div>设备：YINGERCHE_BT</div>
+          <div id="lastDataText">最近数据：--</div>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="btn secondary" type="button" onclick="requestBluetoothConnect()">连接蓝牙</button>
+        <button class="btn ghost" type="button" onclick="markDisconnected('用户手动断开')">断开显示</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">实时数据</div>
+      </div>
+      <div id="dataList" class="data-list"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">报警状态</div>
+      </div>
+      <div id="alarmList" class="alarm-list"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">控制</div>
+      </div>
+      <div class="control-grid">
+        <button class="btn alarm" type="button" onclick="sendCommand('ALARM_MUTE')">消警</button>
+        <button class="btn" type="button" onclick="sendCommand('FAN_ON')">风扇开</button>
+        <button class="btn" type="button" onclick="sendCommand('FAN_OFF')">风扇关</button>
+        <button class="btn secondary" type="button" onclick="sendCommand('TOGGLE_MODE')">切换模式</button>
+      </div>
+
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">当前阈值</div>
+      </div>
+      <div id="currentThresholdList" class="current-threshold-list"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">阈值设置</div>
+      </div>
+      <div class="threshold-list">
+        <div class="threshold-row">
+          <div class="threshold-name">PM2.5 阈值</div>
+          <input id="input-pm25h" class="threshold-input" type="number" inputmode="decimal" />
+          <button class="btn" type="button" onclick="sendThreshold('pm25h', 'SET_PM25H', 'input-pm25h')">发送</button>
+        </div>
+        <div class="threshold-row">
+          <div class="threshold-name">TVOC 阈值</div>
+          <input id="input-voch" class="threshold-input" type="number" inputmode="decimal" step="0.1" />
+          <button class="btn" type="button" onclick="sendThreshold('voch', 'SET_VOCH', 'input-voch')">发送</button>
+        </div>
+        <div class="threshold-row">
+          <div class="threshold-name">UV 阈值</div>
+          <input id="input-uvh" class="threshold-input" type="number" inputmode="decimal" step="0.1" />
+          <button class="btn" type="button" onclick="sendThreshold('uvh', 'SET_UVH', 'input-uvh')">发送</button>
+        </div>
+        <div class="threshold-row">
+          <div class="threshold-name">温度阈值</div>
+          <input id="input-temph" class="threshold-input" type="number" inputmode="decimal" step="0.1" />
+          <button class="btn" type="button" onclick="sendThreshold('temph', 'SET_TEMPH', 'input-temph')">发送</button>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="card">
+      <div class="logs-header" onclick="toggleLogs()">
+        <div class="card-title">日志</div>
+        <button id="logsToggle" class="btn ghost" type="button">展开</button>
+      </div>
+      <div id="logsBody" class="logs-body">
+        <div id="logList" class="log-list"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const FIELD_CONFIG = [
+      { key: 'pm25', label: 'PM2.5', unit: 'μg/m³', decimals: 0 },
+      { key: 'tvoc', label: 'TVOC', unit: 'mg/m³', decimals: 2 },
+      { key: 'uv', label: 'UV', unit: '', decimals: 1 },
+      { key: 'temp', label: '温度', unit: '°C', decimals: 1 },
+      { key: 'acc_x', label: 'ACC_X', unit: 'g', decimals: 2 },
+      { key: 'acc_y', label: 'ACC_Y', unit: 'g', decimals: 2 },
+      { key: 'acc_z', label: 'ACC_Z', unit: 'g', decimals: 2 },
+      { key: 'fall', label: '异常状态', unit: '', decimals: null },
+      { key: 'fan_sta', label: '风扇状态', unit: '', decimals: null },
+      { key: 'system_mode', label: '系统模式', unit: '', decimals: null }
+    ];
+
+    const THRESHOLD_CONFIG = [
+      { key: 'pm25h', label: 'PM2.5 阈值', unit: 'μg/m³', decimals: 0, inputId: 'input-pm25h' },
+      { key: 'voch', label: 'TVOC 阈值', unit: 'mg/m³', decimals: 1, inputId: 'input-voch' },
+      { key: 'uvh', label: 'UV 阈值', unit: '', decimals: 1, inputId: 'input-uvh' },
+      { key: 'temph', label: '温度阈值', unit: '°C', decimals: 1, inputId: 'input-temph' }
+    ];
+
+    const state = {
+      connected: false,
+      connectionText: '未连接',
+      lastDataAt: 0,
+      currentData: {
+        pm25: null,
+        tvoc: null,
+        uv: null,
+        temp: null,
+        acc_x: null,
+        acc_y: null,
+        acc_z: null,
+        fall: 0,
+        fan_sta: 0,
+        system_mode: 'AUTO',
+        pm25h: 2000,
+        voch: 200,
+        uvh: 8.0,
+        temph: 30
+      },
+      waitingSync: {
+        pm25h: false,
+        voch: false,
+        uvh: false,
+        temph: false
+      },
+      predictedAlarms: null,
+      bluetoothAlarm: false,
+      logsExpanded: false,
+      logs: []
+    };
+
+    function formatNumber(value, decimals) {
+      if (value === null || value === undefined || Number.isNaN(value)) return '--';
+      if (decimals === null) return String(value);
+      return Number(value).toFixed(decimals);
+    }
+
+    function getDisplayValue(key) {
+      const value = state.currentData[key];
+      if (key === 'fall') return value === 1 ? '异常' : '正常';
+      if (key === 'fan_sta') return value === 1 ? 'ON' : 'OFF';
+      if (key === 'system_mode') return value || '--';
+      return value;
+    }
+
+    function isFieldAlarmed(key) {
+      if (key === 'pm25') return Number(state.currentData.pm25) > Number(state.currentData.pm25h);
+      if (key === 'tvoc') return Number(state.currentData.tvoc) > Number(state.currentData.voch);
+      if (key === 'uv') return Number(state.currentData.uv) > Number(state.currentData.uvh);
+      if (key === 'temp') return Number(state.currentData.temp) > Number(state.currentData.temph);
+      if (key === 'fall') return Number(state.currentData.fall) === 1;
+      return false;
+    }
+
+    function renderData() {
+      const container = document.getElementById('dataList');
+      container.innerHTML = FIELD_CONFIG.map((field) => {
+        const rawValue = getDisplayValue(field.key);
+        const value = typeof rawValue === 'number' ? formatNumber(rawValue, field.decimals) : rawValue;
+        const alarmClass = isFieldAlarmed(field.key) ? 'alarm' : '';
+        const trailing = field.unit ? `<span class="data-unit">${field.unit}</span>` : '';
+        return `
+          <div class="data-row">
+            <div class="data-name">${field.label}</div>
+            <div class="data-value-wrap">
+              <div class="data-value ${alarmClass}">${value}</div>
+              ${trailing}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderCurrentThresholds() {
+      const container = document.getElementById('currentThresholdList');
+      container.innerHTML = THRESHOLD_CONFIG.map((field) => {
+        const value = formatNumber(state.currentData[field.key], field.decimals);
+        const unit = field.unit ? ` ${field.unit}` : '';
+        const syncing = state.waitingSync[field.key] ? '（同步中）' : '';
+        return `
+          <div class="current-threshold-row">
+            <div class="threshold-name">${field.label}</div>
+            <div class="current-threshold-value">${value}${unit}${syncing}</div>
+          </div>
+        `;
+      }).join('');
+
+      THRESHOLD_CONFIG.forEach((field) => {
+        const input = document.getElementById(field.inputId);
+        if (document.activeElement !== input) {
+          input.value = state.currentData[field.key] ?? '';
+        }
+      });
+    }
+
+    function computeAlarms() {
+      const alarms = [];
+      if (Number(state.currentData.pm25) > Number(state.currentData.pm25h)) alarms.push('PM2.5超标');
+      if (Number(state.currentData.tvoc) > Number(state.currentData.voch)) alarms.push('TVOC超标');
+      if (Number(state.currentData.uv) > Number(state.currentData.uvh)) alarms.push('UV超标（注意防晒）');
+      if (Number(state.currentData.temp) > Number(state.currentData.temph)) alarms.push('温度过高');
+      if (Number(state.currentData.fall) === 1) alarms.push('异常');
+      if (state.bluetoothAlarm) alarms.push('蓝牙连接已断开');
+      return alarms;
+    }
+
+    function renderAlarms() {
+      const container = document.getElementById('alarmList');
+      const alarms = state.predictedAlarms || computeAlarms();
+      if (!alarms.length) {
+        container.innerHTML = '<div class="alarm-empty">运行正常 ✓</div>';
+        return;
+      }
+      container.innerHTML = alarms.map((text) => `<div class="alarm-item">${text}</div>`).join('');
+    }
+
+    function updateStatusUi() {
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      const lastData = document.getElementById('lastDataText');
+      dot.classList.toggle('connected', state.connected);
+      text.textContent = state.connectionText;
+      lastData.textContent = `最近数据：${state.lastDataAt ? new Date(state.lastDataAt).toLocaleTimeString('zh-CN', { hour12: false }) : '--'}`;
+    }
+
+    function renderLogs() {
+      const container = document.getElementById('logList');
+      if (!state.logs.length) {
+        container.innerHTML = '<div class="empty-log">暂无日志</div>';
+        return;
+      }
+      container.innerHTML = state.logs.map((item) => `<div class="log-item">${item}</div>`).join('');
+    }
+
+    function addLog(message) {
+      const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      state.logs.unshift(`[${timestamp}] ${message}`);
+      state.logs = state.logs.slice(0, 20);
+      renderLogs();
+    }
+
+    function renderAll() {
+      renderData();
+      renderCurrentThresholds();
+      renderAlarms();
+      updateStatusUi();
+      renderLogs();
+    }
+
+    function allSyncSettled() {
+      return Object.values(state.waitingSync).every((flag) => !flag);
+    }
+
+    function maybeResolveThresholdSync(key, incomingValue) {
+      if (!state.waitingSync[key]) return;
+      const currentValue = Number(state.currentData[key]);
+      if (Number.isNaN(incomingValue)) return;
+      if (Math.abs(incomingValue - currentValue) < 0.0001) {
+        state.waitingSync[key] = false;
+      }
+    }
+
+    function normalizeNumber(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function parseFrame(payload) {
+      const parts = String(payload).trim().split(',');
+      if (parts.length < 14) {
+        addLog(`RX 无效帧: ${payload}`);
+        return;
+      }
+
+      const parsed = {
+        pm25: normalizeNumber(parts[0]),
+        tvoc: normalizeNumber(parts[1]),
+        uv: normalizeNumber(parts[2]),
+        temp: normalizeNumber(parts[3]),
+        acc_x: normalizeNumber(parts[4]),
+        acc_y: normalizeNumber(parts[5]),
+        acc_z: normalizeNumber(parts[6]),
+        fall: normalizeNumber(parts[7]),
+        fan_sta: normalizeNumber(parts[8]),
+        system_mode: (parts[9] || '').trim() || 'AUTO',
+        pm25h: normalizeNumber(parts[10]),
+        voch: normalizeNumber(parts[11]),
+        uvh: normalizeNumber(parts[12]),
+        temph: normalizeNumber(parts[13])
+      };
+
+      state.currentData.pm25 = parsed.pm25;
+      state.currentData.tvoc = parsed.tvoc;
+      state.currentData.uv = parsed.uv;
+      state.currentData.temp = parsed.temp;
+      state.currentData.acc_x = parsed.acc_x;
+      state.currentData.acc_y = parsed.acc_y;
+      state.currentData.acc_z = parsed.acc_z;
+      state.currentData.fall = parsed.fall ?? 0;
+      state.currentData.fan_sta = parsed.fan_sta ?? 0;
+      state.currentData.system_mode = parsed.system_mode;
+
+      maybeResolveThresholdSync('pm25h', parsed.pm25h);
+      maybeResolveThresholdSync('voch', parsed.voch);
+      maybeResolveThresholdSync('uvh', parsed.uvh);
+      maybeResolveThresholdSync('temph', parsed.temph);
+
+      if (!state.waitingSync.pm25h && parsed.pm25h !== null) state.currentData.pm25h = parsed.pm25h;
+      if (!state.waitingSync.voch && parsed.voch !== null) state.currentData.voch = parsed.voch;
+      if (!state.waitingSync.uvh && parsed.uvh !== null) state.currentData.uvh = parsed.uvh;
+      if (!state.waitingSync.temph && parsed.temph !== null) state.currentData.temph = parsed.temph;
+
+      state.connected = true;
+      state.connectionText = '已连接';
+      state.bluetoothAlarm = false;
+      state.lastDataAt = Date.now();
+      addLog(`RX ${String(payload).trim()}`);
+
+      if (allSyncSettled()) {
+        state.predictedAlarms = null;
+      }
+
+      renderAll();
+    }
+
+    function updatePredictedAlarms() {
+      const alarms = [];
+      if (Number(state.currentData.pm25) > Number(state.currentData.pm25h)) alarms.push('PM2.5超标');
+      if (Number(state.currentData.tvoc) > Number(state.currentData.voch)) alarms.push('TVOC超标');
+      if (Number(state.currentData.uv) > Number(state.currentData.uvh)) alarms.push('UV超标（注意防晒）');
+      if (Number(state.currentData.temp) > Number(state.currentData.temph)) alarms.push('温度过高');
+      if (Number(state.currentData.fall) === 1) alarms.push('异常');
+      if (state.bluetoothAlarm) alarms.push('蓝牙连接已断开');
+      state.predictedAlarms = alarms;
+      renderAlarms();
+    }
+
+    function sendRaw(text) {
+      const payload = `${text}\n`;
+      const bridge = window.BluetoothBridge || window.AndroidBluetooth || window.Android;
+      let sent = false;
+
+      if (bridge && typeof bridge.send === 'function') {
+        bridge.send(payload);
+        sent = true;
+      } else if (bridge && typeof bridge.write === 'function') {
+        bridge.write(payload);
+        sent = true;
+      } else if (bridge && typeof bridge.sendMessage === 'function') {
+        bridge.sendMessage(payload);
+        sent = true;
+      }
+
+      addLog(`TX ${text}`);
+      if (!sent) {
+        addLog('未检测到蓝牙桥接对象，已保留发送日志');
+      }
+      return sent;
+    }
+
+    function sendCommand(command) {
+      sendRaw(command);
+    }
+
+    function sendThreshold(key, code, inputId) {
+      const input = document.getElementById(inputId);
+      const raw = input.value.trim();
+      if (!raw) {
+        addLog(`阈值发送失败: ${code} 值为空`);
+        return;
+      }
+
+      const value = Number(raw);
+      if (!Number.isFinite(value)) {
+        addLog(`阈值发送失败: ${code} 值非法`);
+        return;
+      }
+
+      state.currentData[key] = value;
+      state.waitingSync[key] = true;
+      sendRaw(`${code},${raw}`);
+      updatePredictedAlarms();
+      renderCurrentThresholds();
+      renderData();
+    }
+
+    function requestBluetoothConnect() {
+      const bridge = window.BluetoothBridge || window.AndroidBluetooth || window.Android;
+      let invoked = false;
+
+      if (bridge && typeof bridge.connect === 'function') {
+        bridge.connect();
+        invoked = true;
+      } else if (bridge && typeof bridge.requestConnect === 'function') {
+        bridge.requestConnect();
+        invoked = true;
+      } else if (bridge && typeof bridge.openBluetooth === 'function') {
+        bridge.openBluetooth();
+        invoked = true;
+      }
+
+      addLog(invoked ? '已请求原生层连接蓝牙' : '未检测到可用的蓝牙连接接口');
+    }
+
+    function markDisconnected(reason) {
+      state.connected = false;
+      state.connectionText = '未连接';
+      state.bluetoothAlarm = false;
+      addLog(reason || '蓝牙连接断开');
+      renderAll();
+    }
+
+    function setBridgeConnected(connected, reason) {
+      state.connected = Boolean(connected);
+      state.connectionText = connected ? '已连接' : '未连接';
+      addLog(reason || (connected ? '蓝牙已连接' : '蓝牙已断开'));
+      renderAll();
+    }
+
+    function setBluetoothAlarm(active) {
+      state.bluetoothAlarm = Boolean(active);
+      if (active) {
+        state.connected = false;
+        state.connectionText = '断链报警';
+        addLog('蓝牙断开持续超过 3 秒');
+      }
+      if (!allSyncSettled()) {
+        updatePredictedAlarms();
+      } else {
+        renderAlarms();
+      }
+      updateStatusUi();
+    }
+
+    function toggleLogs() {
+      state.logsExpanded = !state.logsExpanded;
+      document.getElementById('logsBody').classList.toggle('expanded', state.logsExpanded);
+      document.getElementById('logsToggle').textContent = state.logsExpanded ? '收起' : '展开';
+    }
+
+    window.AppBridge = {
+      onBluetoothData(payload) {
+        parseFrame(payload);
+      },
+      onBluetoothConnected() {
+        setBridgeConnected(true, '蓝牙已连接');
+      },
+      onBluetoothDisconnected(reason) {
+        markDisconnected(reason || '蓝牙连接断开');
+      },
+      onBluetoothAlarm() {
+        setBluetoothAlarm(true);
+      },
+      onBluetoothRecovered() {
+        state.bluetoothAlarm = false;
+        state.connectionText = state.connected ? '已连接' : '未连接';
+        addLog('蓝牙连接恢复');
+        if (allSyncSettled()) {
+          state.predictedAlarms = null;
+        }
+        renderAll();
+      }
+    };
+
+    window.receiveBluetoothLine = (payload) => parseFrame(payload);
+    window.setBluetoothConnected = (connected, reason) => setBridgeConnected(connected, reason);
+    window.setBluetoothAlarm = (active) => setBluetoothAlarm(active);
+
+    renderAll();
+  </script>
+</body>
+</html>
