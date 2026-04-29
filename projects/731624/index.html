@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>大气污染物检测系统</title>
+  <style>
+    :root {
+      --bg: #F5F5F5;
+      --card: #FFFFFF;
+      --primary: #2196F3;
+      --alarm: #F44336;
+      --ok: #4CAF50;
+      --text: #212121;
+      --sub: #757575;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08);
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .page {
+      max-width: 420px;
+      margin: 0 auto;
+      padding: 12px;
+      min-height: 100vh;
+    }
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--alarm);
+      flex: 0 0 auto;
+    }
+    .dot.connected { background: var(--ok); }
+    .data-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+      gap: 8px;
+    }
+    .data-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .data-label {
+      font-size: 13px;
+      color: var(--sub);
+    }
+    .data-value-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .data-value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .data-value.alarm { color: var(--alarm); }
+    .data-unit {
+      font-size: 13px;
+      color: var(--sub);
+    }
+    .mode-tag {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--sub);
+    }
+    .alarm-ok {
+      color: var(--ok);
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .alarm-item {
+      background: #FDECEC;
+      color: var(--alarm);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .alarm-item:last-child { margin-bottom: 0; }
+    .button-grid,
+    .threshold-list {
+      display: grid;
+      gap: 10px;
+    }
+    button {
+      border: none;
+      border-radius: 8px;
+      min-height: 48px;
+      padding: 12px 14px;
+      font-size: 15px;
+      font-weight: 700;
+      background: var(--primary);
+      color: #fff;
+      cursor: pointer;
+      transition: transform .05s ease, opacity .2s ease, background .2s ease;
+    }
+    button:active {
+      transform: scale(0.98);
+      opacity: 0.9;
+    }
+    .threshold-card {
+      border: 1px solid #E3F2FD;
+      background: #FAFCFF;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .threshold-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .threshold-name {
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 700;
+    }
+    .threshold-current {
+      font-size: 12px;
+      color: var(--sub);
+    }
+    .threshold-row {
+      display: grid;
+      grid-template-columns: 1fr 96px;
+      gap: 8px;
+      align-items: center;
+    }
+    .threshold-input {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .threshold-input label {
+      font-size: 12px;
+      color: var(--sub);
+      font-weight: 600;
+    }
+    input[type="number"] {
+      width: 100%;
+      height: 42px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 0 10px;
+      font-size: 15px;
+      background: #fff;
+    }
+    .ghost-btn {
+      background: #E3F2FD;
+      color: var(--primary);
+      min-height: 42px;
+      font-size: 14px;
+      align-self: end;
+    }
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    .log-header .card-title { margin-bottom: 0; }
+    .log-toggle {
+      font-size: 13px;
+      color: var(--sub);
+    }
+    .log-body {
+      display: none;
+      margin-top: 12px;
+      background: #111;
+      color: #E0E0E0;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      max-height: 280px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-body.open { display: block; }
+    .hint {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--sub);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="card-title">状态栏</div>
+      <div class="status-row">
+        <div class="status-pill"><span id="connDot" class="dot"></span><span id="connText">未连接</span></div>
+        <div id="lastMessageTime" class="hint">等待数据</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">实时数据</div>
+      <div id="dataRows"></div>
+      <div class="mode-tag">SYSTEM_MODE：<span id="modeText">--</span></div>
+    </div>
+
+    <div class="card" id="alarmCard">
+      <div class="card-title">报警状态</div>
+      <div id="alarmList" class="alarm-ok">运行正常 ✓</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">控制</div>
+      <div class="button-grid">
+        <button type="button" id="muteBtn">发送消警指令</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">阈值设置</div>
+      <div class="threshold-list" id="thresholdList"></div>
+      <div class="hint">发送后本地界面会立即更新，并等待下位机上报同步。</div>
+    </div>
+
+    <div class="card">
+      <div class="log-header" id="logHeader">
+        <div class="card-title">日志</div>
+        <div class="log-toggle" id="logToggle">展开</div>
+      </div>
+      <div id="logBody" class="log-body"></div>
+    </div>
+  </div>
+
+  <script src="mqtt.min.js"></script>
+  <script>
+    const UPLOAD_TOPIC = '731624/418503/daqiwuran/upload';
+    const CMD_TOPIC = '731624/418503/daqiwuran/cmd';
+    const SENSOR_CONFIG = [
+      { key: 'MQ135', label: 'MQ135', unit: '' },
+      { key: 'MQ4', label: 'MQ4', unit: '' },
+      { key: 'CO', label: 'CO', unit: '' },
+      { key: 'PM25', label: 'PM2.5', unit: '' }
+    ];
+    const THRESHOLD_CONFIG = [
+      { code: '02', key: 'MQ135H', label: 'MQ135 阈值' },
+      { code: '03', key: 'MQ4H', label: 'MQ4 阈值' },
+      { code: '04', key: 'COH', label: 'CO 阈值' },
+      { code: '05', key: 'PM25H', label: 'PM2.5 阈值' }
+    ];
+
+    const state = {
+      data: {
+        MQ135: 0,
+        MQ4: 0,
+        CO: 0,
+        PM25: 0,
+        SYSTEM_MODE: '--',
+        MQ135H: 200,
+        MQ4H: 150,
+        COH: 100,
+        PM25H: 75
+      },
+      waitingSync: {
+        MQ135H: false,
+        MQ4H: false,
+        COH: false,
+        PM25H: false
+      },
+      alarms: [],
+      logs: []
+    };
+
+    const dataRowsEl = document.getElementById('dataRows');
+    const modeTextEl = document.getElementById('modeText');
+    const alarmListEl = document.getElementById('alarmList');
+    const thresholdListEl = document.getElementById('thresholdList');
+    const logBodyEl = document.getElementById('logBody');
+    const logHeaderEl = document.getElementById('logHeader');
+    const logToggleEl = document.getElementById('logToggle');
+    const connDotEl = document.getElementById('connDot');
+    const connTextEl = document.getElementById('connText');
+    const lastMessageTimeEl = document.getElementById('lastMessageTime');
+
+    function renderData() {
+      dataRowsEl.innerHTML = SENSOR_CONFIG.map(({ key, label, unit }) => {
+        const isAlarm = isValueAlarm(key);
+        const value = state.data[key] ?? '--';
+        const displayValue = isAlarm ? `${value}!` : value;
+        return `
+          <div class="data-row">
+            <div class="data-label">${label}</div>
+            <div class="data-value-wrap">
+              <div class="data-value ${isAlarm ? 'alarm' : ''}">${displayValue}</div>
+              <div class="data-unit">${unit}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      modeTextEl.textContent = state.data.SYSTEM_MODE || '--';
+    }
+
+    function renderThresholds() {
+      thresholdListEl.innerHTML = THRESHOLD_CONFIG.map(({ code, key, label }) => `
+        <div class="threshold-card">
+          <div class="threshold-head">
+            <div class="threshold-name">${label}</div>
+            <div class="threshold-current">当前值：<span id="current_${key}">${state.data[key]}</span></div>
+          </div>
+          <div class="threshold-row">
+            <div class="threshold-input">
+              <label for="input_${key}">输入新阈值</label>
+              <input id="input_${key}" type="number" inputmode="numeric" value="${state.data[key]}">
+            </div>
+            <button type="button" class="ghost-btn" data-code="${code}" data-key="${key}">发送</button>
+          </div>
+        </div>
+      `).join('');
+
+      thresholdListEl.querySelectorAll('button').forEach((button) => {
+        button.addEventListener('click', () => {
+          const key = button.dataset.key;
+          const code = button.dataset.code;
+          const input = document.getElementById(`input_${key}`);
+          const raw = input.value.trim();
+          if (!/^[-]?\d+(\.\d+)?$/.test(raw)) {
+            input.focus();
+            return;
+          }
+          sendThreshold(code, key, Number(raw));
+        });
+      });
+    }
+
+    function syncThresholdDisplays() {
+      THRESHOLD_CONFIG.forEach(({ key }) => {
+        const current = document.getElementById(`current_${key}`);
+        const input = document.getElementById(`input_${key}`);
+        if (current) current.textContent = state.data[key];
+        if (input && document.activeElement !== input) input.value = state.data[key];
+      });
+    }
+
+    function renderAlarms() {
+      if (!state.alarms.length) {
+        alarmListEl.className = 'alarm-ok';
+        alarmListEl.textContent = '运行正常 ✓';
+        return;
+      }
+      alarmListEl.className = '';
+      alarmListEl.innerHTML = state.alarms.map((text) => `<div class="alarm-item">${text}</div>`).join('');
+    }
+
+    function renderLogs() {
+      logBodyEl.textContent = state.logs.join('\n');
+    }
+
+    function addLog(line) {
+      const stamp = new Date().toLocaleTimeString();
+      state.logs.unshift(`[${stamp}] ${line}`);
+      state.logs = state.logs.slice(0, 20);
+      renderLogs();
+    }
+
+    function isValueAlarm(key) {
+      return (
+        (key === 'MQ135' && Number(state.data.MQ135) > Number(state.data.MQ135H)) ||
+        (key === 'MQ4' && Number(state.data.MQ4) > Number(state.data.MQ4H)) ||
+        (key === 'CO' && Number(state.data.CO) > Number(state.data.COH)) ||
+        (key === 'PM25' && Number(state.data.PM25) > Number(state.data.PM25H))
+      );
+    }
+
+    function checkAlarms() {
+      const alarms = [];
+      if (Number(state.data.MQ135) > Number(state.data.MQ135H)) alarms.push('MQ135 浓度超限');
+      if (Number(state.data.MQ4) > Number(state.data.MQ4H)) alarms.push('MQ4 浓度超限');
+      if (Number(state.data.CO) > Number(state.data.COH)) alarms.push('CO 浓度超限');
+      if (Number(state.data.PM25) > Number(state.data.PM25H)) alarms.push('PM2.5 浓度超限');
+      state.alarms = alarms;
+      renderAlarms();
+      renderData();
+    }
+
+    function allSyncDone() {
+      return Object.values(state.waitingSync).every((flag) => !flag);
+    }
+
+    function sendCmd(cmd) {
+      if (!client || !client.connected) {
+        addLog(`发送失败（未连接）：${cmd}`);
+        return;
+      }
+      client.publish(CMD_TOPIC, cmd);
+      addLog(`发送指令：${cmd}`);
+    }
+
+    function sendThreshold(code, key, value) {
+      sendCmd(`${code},${value}`);
+      state.data[key] = value;
+      state.waitingSync[key] = true;
+      syncThresholdDisplays();
+      renderData();
+      checkAlarms();
+    }
+
+    function parsePayload(payload) {
+      const parts = payload.split(',');
+      if (parts.length < 9) {
+        addLog(`收到异常数据：${payload}`);
+        return;
+      }
+
+      const next = {
+        MQ135: Number(parts[0]),
+        MQ4: Number(parts[1]),
+        CO: Number(parts[2]),
+        PM25: Number(parts[3]),
+        SYSTEM_MODE: parts[4] || '--',
+        MQ135H: Number(parts[5]),
+        MQ4H: Number(parts[6]),
+        COH: Number(parts[7]),
+        PM25H: Number(parts[8])
+      };
+
+      ['MQ135H', 'MQ4H', 'COH', 'PM25H'].forEach((key) => {
+        if (state.waitingSync[key] && Number(next[key]) === Number(state.data[key])) {
+          state.waitingSync[key] = false;
+        }
+      });
+
+      state.data.MQ135 = next.MQ135;
+      state.data.MQ4 = next.MQ4;
+      state.data.CO = next.CO;
+      state.data.PM25 = next.PM25;
+      state.data.SYSTEM_MODE = next.SYSTEM_MODE;
+
+      ['MQ135H', 'MQ4H', 'COH', 'PM25H'].forEach((key) => {
+        if (!state.waitingSync[key]) {
+          state.data[key] = next[key];
+          const input = document.getElementById(`input_${key}`);
+          if (input && document.activeElement !== input) input.value = next[key];
+        }
+      });
+
+      syncThresholdDisplays();
+      lastMessageTimeEl.textContent = `最近数据：${new Date().toLocaleTimeString()}`;
+      renderData();
+      if (allSyncDone()) {
+        checkAlarms();
+      }
+      addLog(`收到上行：${payload}`);
+    }
+
+    function setConnection(connected) {
+      connDotEl.classList.toggle('connected', connected);
+      connTextEl.textContent = connected ? '已连接' : '未连接';
+    }
+
+    logHeaderEl.addEventListener('click', () => {
+      const open = logBodyEl.classList.toggle('open');
+      logToggleEl.textContent = open ? '收起' : '展开';
+    });
+
+    document.getElementById('muteBtn').addEventListener('click', () => sendCmd('01'));
+
+    renderData();
+    renderThresholds();
+    renderAlarms();
+    renderLogs();
+
+    const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+      clientId: 'webview_' + Math.random().toString(36).slice(2, 8),
+      reconnectPeriod: 3000
+    });
+
+    client.on('connect', () => {
+      setConnection(true);
+      client.subscribe(UPLOAD_TOPIC);
+      addLog(`已连接并订阅：${UPLOAD_TOPIC}`);
+    });
+
+    client.on('reconnect', () => {
+      setConnection(false);
+      addLog('MQTT 重连中');
+    });
+
+    client.on('close', () => {
+      setConnection(false);
+      addLog('连接已关闭');
+    });
+
+    client.on('error', (err) => {
+      setConnection(false);
+      addLog(`连接错误：${err.message || err}`);
+    });
+
+    client.on('message', (topic, payload) => {
+      if (topic !== UPLOAD_TOPIC) return;
+      parsePayload(payload.toString());
+    });
+  </script>
+</body>
+</html>
