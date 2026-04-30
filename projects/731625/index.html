@@ -551,6 +551,7 @@
       selectedDeviceAddress: '',
       selectedDeviceName: '',
       connectingDeviceAddress: '',
+      rxFrame: { num: 0, total: 0, parts: {} },
       currentData: {
         pm25: null,
         tvoc: null,
@@ -829,21 +830,22 @@
         return;
       }
 
+      // 整数化编码解码：恢复乘数
       const parsed = {
-        pm25: normalizeNumber(parts[0]),
-        tvoc: normalizeNumber(parts[1]),
-        uv: normalizeNumber(parts[2]),
-        temp: normalizeNumber(parts[3]),
-        acc_x: normalizeNumber(parts[4]),
-        acc_y: normalizeNumber(parts[5]),
-        acc_z: normalizeNumber(parts[6]),
+        pm25: normalizeNumber(parts[0]) / 1,
+        tvoc: normalizeNumber(parts[1]) / 100,
+        uv: normalizeNumber(parts[2]) / 1,
+        temp: normalizeNumber(parts[3]) / 10,
+        acc_x: normalizeNumber(parts[4]) / 100,
+        acc_y: normalizeNumber(parts[5]) / 100,
+        acc_z: normalizeNumber(parts[6]) / 100,
         fall: normalizeNumber(parts[7]),
         fan_sta: normalizeNumber(parts[8]),
-        system_mode: (parts[9] || '').trim() || 'AUTO',
-        pm25h: normalizeNumber(parts[10]),
-        voch: normalizeNumber(parts[11]),
-        uvh: normalizeNumber(parts[12]),
-        temph: normalizeNumber(parts[13])
+        system_mode: (normalizeNumber(parts[9]) === 0) ? 'AUTO' : 'MANUAL',
+        pm25h: normalizeNumber(parts[10]) / 1,
+        voch: normalizeNumber(parts[11]) / 10,
+        uvh: normalizeNumber(parts[12]) / 10,
+        temph: normalizeNumber(parts[13]) / 1
       };
 
       state.currentData.pm25 = parsed.pm25;
@@ -1101,6 +1103,24 @@
 
     window.onBtData = function(line) {
       addLog(`[RX RAW] ${String(line).substring(0, 120)} (len=${line.length})`);
+      // Check for frame header "#N/M:"
+      var match = line.match(/^#(\d+)\/(\d+):(.+)$/);
+      if (match) {
+        var num = parseInt(match[1]);
+        var total = parseInt(match[2]);
+        var data = match[3];
+        state.rxFrame.parts[num] = data;
+        if (num === total && Object.keys(state.rxFrame.parts).length === total) {
+          // All chunks received, reassemble
+          var full = '';
+          for (var i = 1; i <= total; i++) full += state.rxFrame.parts[i];
+          addLog(`[RX] 重组帧: ${full}`);
+          state.rxFrame = { num: 0, total: 0, parts: {} };
+          parseFrame(full.trim());
+        }
+        return;
+      }
+      // No frame header, parse directly (backward compatible)
       parseFrame(line.trim());
     };
 
