@@ -627,7 +627,7 @@
         let currentData = {
             temp: 0, humi: 0, co2: 0, pm25: 0, light: 0, pir: 0,
             relay1: 0, relay2: 0, relay3: 0,
-            thr_temp: 30, thr_humi: 60, thr_co2: 1000, thr_pm25: 75, thr_light: 2000,
+            thr_temp: 35, thr_humi: 60, thr_co2: 2000, thr_pm25: 75, thr_light: 2000,
             mode: 0, activity_count: 0, aqi_score: 0, alarm_flag: 0
         };
 
@@ -764,11 +764,11 @@
 
         function checkAlarms() {
             const alarms = [];
-            if (currentData.temp > 35) alarms.push('🔥 温度过高：' + currentData.temp.toFixed(1) + '°C > 35°C');
+            if (currentData.temp > currentData.thr_temp) alarms.push('🔥 温度过高：' + currentData.temp.toFixed(1) + '°C > ' + currentData.thr_temp + '°C');
             if (currentData.temp < 0) alarms.push('❄️ 温度过低：' + currentData.temp.toFixed(1) + '°C < 0°C');
             if (currentData.humi > currentData.thr_humi) alarms.push('💧 湿度超标：' + currentData.humi.toFixed(1) + '%RH > ' + currentData.thr_humi + '%RH');
-            if (currentData.co2 > 1200) alarms.push('☁️ CO₂超标：' + currentData.co2 + 'ppm > 1200ppm');
-            if (currentData.pm25 > 150) alarms.push('😷 PM2.5 超标：' + currentData.pm25 + 'μg/m³ > 150μg/m³');
+            if (currentData.co2 > currentData.thr_co2) alarms.push('☁️ CO₂超标：' + currentData.co2 + 'ppm > ' + currentData.thr_co2 + 'ppm');
+            if (currentData.pm25 > currentData.thr_pm25) alarms.push('😷 PM2.5 超标：' + currentData.pm25 + 'μg/m³ > ' + currentData.thr_pm25 + 'μg/m³');
             const list = document.getElementById('alarmList');
             if (alarms.length === 0) {
                 list.innerHTML = '<div class="normal-status">运行正常 ✓</div>';
