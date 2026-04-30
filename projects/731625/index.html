@@ -645,13 +645,23 @@
 
     function computeAlarms() {
       const alarms = [];
-      if (Number(state.currentData.pm25) > Number(state.currentData.pm25h)) alarms.push('PM2.5超标');
-      if (Number(state.currentData.tvoc) > Number(state.currentData.voch)) alarms.push('TVOC超标');
-      if (Number(state.currentData.uv) > Number(state.currentData.uvh)) alarms.push('UV超标（注意防晒）');
-      if (Number(state.currentData.temp) > Number(state.currentData.temph)) alarms.push('温度过高');
-      if (Number(state.currentData.fall) === 1) alarms.push('异常');
-      if (state.bluetoothAlarm) alarms.push('蓝牙连接已断开');
+      if (Number(state.currentData.pm25) > Number(state.currentData.pm25h)) alarms.push({ which: 'pm25', mag: state.currentData.pm25, thr: state.currentData.pm25h, text: 'PM2.5超标' });
+      if (Number(state.currentData.tvoc) > Number(state.currentData.voch)) alarms.push({ which: 'tvoc', mag: state.currentData.tvoc, thr: state.currentData.voch, text: 'TVOC超标' });
+      if (Number(state.currentData.uv) > Number(state.currentData.uvh)) alarms.push({ which: 'uv', mag: state.currentData.uv, thr: state.currentData.uvh, text: 'UV超标（注意防晒）' });
+      if (Number(state.currentData.temp) > Number(state.currentData.temph)) alarms.push({ which: 'temp', mag: state.currentData.temp, thr: state.currentData.temph, text: '温度过高' });
+      if (Number(state.currentData.fall) === 1) alarms.push({ which: 'fall', mag: null, thr: null, text: '异常' });
+      if (state.bluetoothAlarm) alarms.push({ which: 'bt_disconnect', mag: null, thr: null, text: '蓝牙连接已断开' });
       return alarms;
+    }
+
+    function pushNativeAlarm(alarms) {
+      if (alarms.length > 0 && typeof Android !== 'undefined' && typeof Android.onAlarm === 'function') {
+        Android.onAlarm(JSON.stringify({
+          which: alarms[0].which,
+          mag: alarms[0].mag ?? 0,
+          thr: alarms[0].thr ?? 0
+        }));
+      }
     }
 
     function normalizeDevice(device) {
@@ -749,11 +759,12 @@
     function renderAlarms() {
       const container = document.getElementById('alarmList');
       const alarms = state.predictedAlarms || computeAlarms();
+      pushNativeAlarm(alarms);
       if (!alarms.length) {
         container.innerHTML = '<div class="alarm-empty">运行正常 ✓</div>';
         return;
       }
-      container.innerHTML = alarms.map((text) => `<div class="alarm-item">${text}</div>`).join('');
+      container.innerHTML = alarms.map((a) => `<div class="alarm-item">${a.text}</div>`).join('');
     }
 
     function updateStatusUi() {
@@ -870,13 +881,8 @@
     }
 
     function updatePredictedAlarms() {
-      const alarms = [];
-      if (Number(state.currentData.pm25) > Number(state.currentData.pm25h)) alarms.push('PM2.5超标');
-      if (Number(state.currentData.tvoc) > Number(state.currentData.voch)) alarms.push('TVOC超标');
-      if (Number(state.currentData.uv) > Number(state.currentData.uvh)) alarms.push('UV超标（注意防晒）');
-      if (Number(state.currentData.temp) > Number(state.currentData.temph)) alarms.push('温度过高');
-      if (Number(state.currentData.fall) === 1) alarms.push('异常');
-      if (state.bluetoothAlarm) alarms.push('蓝牙连接已断开');
+      const alarms = computeAlarms();
+      pushNativeAlarm(alarms);
       state.predictedAlarms = alarms;
       renderAlarms();
     }
@@ -987,6 +993,7 @@
 
     function markDisconnected(reason) {
       const bridge = window.BluetoothBridge;
+      clearDisconnectAlarmTimer();
       if (bridge && typeof bridge.disconnect === 'function') {
         bridge.disconnect();
       }
@@ -1020,6 +1027,37 @@
       document.getElementById('logsToggle').textContent = state.logsExpanded ? '收起' : '展开';
     }
 
+    // ==================== 初始化 ====================
+
+    // ESP32-S3 使用 BLE 模式，页面加载后立即设置
+    (function initBtMode() {
+      const bridge = window.BluetoothBridge;
+      if (bridge && typeof bridge.setMode === 'function') {
+        bridge.setMode('ble');
+        addLog('已设置蓝牙模式: BLE (NUS)');
+      } else {
+        addLog('未检测到蓝牙桥接接口，等待 Android WebView 注入');
+      }
+    })();
+
+    // 蓝牙断链报警定时器：断开超过 3 秒触发断链报警
+    let btDisconnectTimer = null;
+
+    function startDisconnectAlarmTimer() {
+      if (btDisconnectTimer) return;
+      btDisconnectTimer = setTimeout(function() {
+        setBluetoothAlarm(true);
+        btDisconnectTimer = null;
+      }, 3000);
+    }
+
+    function clearDisconnectAlarmTimer() {
+      if (btDisconnectTimer) {
+        clearTimeout(btDisconnectTimer);
+        btDisconnectTimer = null;
+      }
+    }
+
     // ==================== Android WebView 回调（仅文档中定义的 5 个） ====================
 
     window.onBtDeviceList = function(deviceArray) {
@@ -1036,6 +1074,7 @@
 
     window.onBtConnected = function(address) {
       addLog(`[DEBUG onBtConnected] 原始参数: ${JSON.stringify(address)}, 类型: ${typeof address}`);
+      clearDisconnectAlarmTimer();
       state.connected = true;
       state.connectingDeviceAddress = '';
       state.connectionText = '已连接';
@@ -1048,7 +1087,7 @@
 
     window.onBtDisconnected = function() {
       addLog('[DEBUG onBtDisconnected] 收到断开连接回调');
-      markDisconnected('蓝牙连接断开');
+      startDisconnectAlarmTimer();
     };
 
     window.onBtError = function(errMsg) {
