@@ -1100,6 +1100,7 @@
     };
 
     window.onBtData = function(line) {
+      addLog(`[RX RAW] ${String(line).substring(0, 120)} (len=${line.length})`);
       parseFrame(line.trim());
     };
 
