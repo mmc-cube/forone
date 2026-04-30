@@ -665,6 +665,9 @@
       }
     }
 
+    // 目标蓝牙设备名称（仅显示此设备，其余过滤）
+    const TARGET_DEVICE_NAME = 'YINGERCHE_BT';
+
     function normalizeDevice(device) {
       if (!device) return null;
       if (typeof device === 'string') {
@@ -690,8 +693,8 @@
 
       if (!state.deviceList.length) {
         const text = state.scanState === 'done'
-          ? '未找到可用蓝牙设备，请先在系统蓝牙中完成配对'
-          : '点击“扫描设备”获取可连接蓝牙设备';
+          ? `未找到设备 “${TARGET_DEVICE_NAME}”，请先在系统蓝牙中完成配对`
+          : `点击”扫描设备”查找 “${TARGET_DEVICE_NAME}”`;
         container.innerHTML = `<div class="device-empty">${text}</div>`;
         return;
       }
@@ -736,7 +739,7 @@
     function handleDeviceList(devices) {
       state.deviceList = (Array.isArray(devices) ? devices : [])
         .map(normalizeDevice)
-        .filter(Boolean);
+        .filter(d => d && d.name === TARGET_DEVICE_NAME);
       addLog(`收到设备列表：${state.deviceList.length} 个`);
       state.deviceList.forEach(d => addLog(`  → ${d.name} (${d.address})`));
       if (!state.selectedDeviceAddress && state.deviceList.length === 1) {
