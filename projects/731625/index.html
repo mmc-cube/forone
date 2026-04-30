@@ -1104,7 +1104,7 @@
     window.onBtData = function(line) {
       addLog(`[RX RAW] ${String(line).substring(0, 120)} (len=${line.length})`);
       // Check for frame header "#N/M:"
-      var match = line.match(/^#(\d+)\/(\d+):(.+)$/);
+      var match = line.match(/^(\d+)\/(\d+):(.+)$/);
       if (match) {
         var num = parseInt(match[1]);
         var total = parseInt(match[2]);
