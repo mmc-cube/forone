@@ -87,11 +87,111 @@
       background: var(--ok);
     }
 
+    .status-dot.scanning {
+      background: #FFC107;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
     .status-meta {
       text-align: right;
       color: var(--sub);
       font-size: 12px;
       line-height: 1.5;
+    }
+
+    .device-list {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .device-empty {
+      padding: 10px 12px;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      color: var(--sub);
+      font-size: 13px;
+      text-align: center;
+      background: #FAFAFA;
+    }
+
+    .device-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #FAFAFA;
+    }
+
+    .device-item.active {
+      border-color: #90CAF9;
+      background: #E3F2FD;
+    }
+
+    .device-info {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .device-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .device-address {
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--sub);
+      word-break: break-all;
+    }
+
+    .device-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .device-btn {
+      min-height: 40px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .device-btn.secondary {
+      background: #90A4AE;
+    }
+
+    .device-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: rgba(33, 150, 243, 0.12);
+      color: #1565C0;
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 6px;
     }
 
     .action-row {
@@ -333,13 +433,17 @@
           <span id="statusText">未连接</span>
         </div>
         <div class="status-meta">
-          <div>设备：YINGERCHE_BT</div>
+          <div id="deviceNameText">设备：未选择</div>
           <div id="lastDataText">最近数据：--</div>
         </div>
       </div>
       <div class="action-row">
         <button class="btn secondary" type="button" onclick="requestBluetoothConnect()">连接蓝牙</button>
+        <button class="btn" type="button" onclick="requestBluetoothScan()">扫描设备</button>
         <button class="btn ghost" type="button" onclick="markDisconnected('用户手动断开')">断开显示</button>
+      </div>
+      <div id="deviceList" class="device-list">
+        <div class="device-empty">点击“扫描设备”获取可连接蓝牙设备</div>
       </div>
     </section>
 
@@ -442,6 +546,11 @@
       connected: false,
       connectionText: '未连接',
       lastDataAt: 0,
+      scanState: 'idle',
+      deviceList: [],
+      selectedDeviceAddress: '',
+      selectedDeviceName: '',
+      connectingDeviceAddress: '',
       currentData: {
         pm25: null,
         tvoc: null,
@@ -545,6 +654,93 @@
       return alarms;
     }
 
+    function normalizeDevice(device) {
+      if (!device) return null;
+      if (typeof device === 'string') {
+        return { name: device, address: device };
+      }
+      const name = String(device.name || device.deviceName || '未知设备').trim();
+      const address = String(device.address || device.mac || device.id || '').trim();
+      if (!address && !name) return null;
+      return {
+        name: name || '未知设备',
+        address: address || name,
+        bonded: Boolean(device.bonded),
+        rssi: device.rssi ?? null
+      };
+    }
+
+    function renderDeviceList() {
+      const container = document.getElementById('deviceList');
+      if (state.scanState === 'scanning') {
+        container.innerHTML = '<div class="device-empty">正在扫描或获取已配对设备...</div>';
+        return;
+      }
+
+      if (!state.deviceList.length) {
+        const text = state.scanState === 'done'
+          ? '未找到可用蓝牙设备，请先在系统蓝牙中完成配对'
+          : '点击“扫描设备”获取可连接蓝牙设备';
+        container.innerHTML = `<div class="device-empty">${text}</div>`;
+        return;
+      }
+
+      container.innerHTML = state.deviceList.map((device) => {
+        const active = state.selectedDeviceAddress === device.address || (state.connected && state.selectedDeviceAddress === device.address);
+        const connecting = state.connectingDeviceAddress === device.address;
+        const badge = state.selectedDeviceAddress === device.address
+          ? '<div class="device-badge">已选择</div>'
+          : '';
+        return `
+          <div class="device-item ${active ? 'active' : ''}">
+            <div class="device-info" onclick="selectDevice(${JSON.stringify(device.address)}, ${JSON.stringify(device.name)})">
+              <div class="device-name">${device.name || '未知设备'}</div>
+              <div class="device-address">${device.address || '--'}</div>
+              ${badge}
+            </div>
+            <div class="device-actions">
+              <button class="device-btn secondary" type="button" onclick="selectDevice(${JSON.stringify(device.address)}, ${JSON.stringify(device.name)})">选择</button>
+              <button class="device-btn" type="button" onclick="connectToScannedDevice(${JSON.stringify(device.address)}, ${JSON.stringify(device.name)})">${connecting ? '连接中' : '连接'}</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getDeviceDisplayText() {
+      if (state.selectedDeviceName || state.selectedDeviceAddress) {
+        return `设备：${state.selectedDeviceName || state.selectedDeviceAddress}`;
+      }
+      return '设备：未选择';
+    }
+
+    function setScanState(nextState) {
+      state.scanState = nextState;
+      updateStatusUi();
+      renderDeviceList();
+    }
+
+    function handleDeviceList(devices) {
+      state.deviceList = (Array.isArray(devices) ? devices : [])
+        .map(normalizeDevice)
+        .filter(Boolean);
+      addLog(`收到设备列表：${state.deviceList.length} 个`);
+      if (!state.selectedDeviceAddress && state.deviceList.length === 1) {
+        state.selectedDeviceAddress = state.deviceList[0].address;
+        state.selectedDeviceName = state.deviceList[0].name;
+      }
+      state.connectingDeviceAddress = '';
+      setScanState('done');
+      renderAll();
+    }
+
+    function selectDevice(address, name) {
+      state.selectedDeviceAddress = address || '';
+      state.selectedDeviceName = name || address || '';
+      addLog(`已选择设备：${state.selectedDeviceName || state.selectedDeviceAddress}`);
+      renderAll();
+    }
+
     function renderAlarms() {
       const container = document.getElementById('alarmList');
       const alarms = state.predictedAlarms || computeAlarms();
@@ -559,8 +755,11 @@
       const dot = document.getElementById('statusDot');
       const text = document.getElementById('statusText');
       const lastData = document.getElementById('lastDataText');
+      const deviceName = document.getElementById('deviceNameText');
       dot.classList.toggle('connected', state.connected);
+      dot.classList.toggle('scanning', state.scanState === 'scanning' || Boolean(state.connectingDeviceAddress));
       text.textContent = state.connectionText;
+      deviceName.textContent = getDeviceDisplayText();
       lastData.textContent = `最近数据：${state.lastDataAt ? new Date(state.lastDataAt).toLocaleTimeString('zh-CN', { hour12: false }) : '--'}`;
     }
 
@@ -583,6 +782,7 @@
     function renderAll() {
       renderData();
       renderCurrentThresholds();
+      renderDeviceList();
       renderAlarms();
       updateStatusUi();
       renderLogs();
@@ -740,26 +940,107 @@
         invoked = true;
       }
 
+      if (invoked) {
+        state.connectionText = '连接中...';
+        state.connectingDeviceAddress = state.selectedDeviceAddress || '';
+      }
       addLog(invoked ? '已请求原生层连接蓝牙' : '未检测到可用的蓝牙连接接口');
+      renderAll();
+    }
+
+    function requestBluetoothScan() {
+      const bridge = window.BluetoothBridge || window.AndroidBluetooth || window.Android;
+      let invoked = false;
+      state.connectingDeviceAddress = '';
+
+      if (bridge && typeof bridge.getPairedDevices === 'function') {
+        bridge.getPairedDevices();
+        invoked = true;
+      } else if (bridge && typeof bridge.scanDevices === 'function') {
+        bridge.scanDevices();
+        invoked = true;
+      } else if (bridge && typeof bridge.requestDeviceList === 'function') {
+        bridge.requestDeviceList();
+        invoked = true;
+      }
+
+      if (invoked) {
+        state.connectionText = '扫描中...';
+        setScanState('scanning');
+        addLog('已请求原生层扫描蓝牙设备');
+      } else {
+        addLog('当前原生层未提供扫描设备接口');
+      }
+      renderAll();
+    }
+
+    function connectToScannedDevice(address, name) {
+      const bridge = window.BluetoothBridge || window.AndroidBluetooth || window.Android;
+      const deviceAddress = address || state.selectedDeviceAddress;
+      const deviceName = name || state.selectedDeviceName || deviceAddress;
+      let invoked = false;
+
+      if (!deviceAddress) {
+        addLog('连接失败：未选择设备');
+        return;
+      }
+
+      state.selectedDeviceAddress = deviceAddress;
+      state.selectedDeviceName = deviceName || deviceAddress;
+      state.connectingDeviceAddress = deviceAddress;
+
+      if (bridge && typeof bridge.connect === 'function') {
+        bridge.connect(deviceAddress);
+        invoked = true;
+      } else if (bridge && typeof bridge.connectDevice === 'function') {
+        bridge.connectDevice(deviceAddress);
+        invoked = true;
+      } else if (bridge && typeof bridge.requestConnect === 'function') {
+        bridge.requestConnect(deviceAddress);
+        invoked = true;
+      }
+
+      if (invoked) {
+        state.connectionText = '连接中...';
+        addLog(`正在连接设备：${deviceName}`);
+      } else {
+        state.connectingDeviceAddress = '';
+        addLog('当前原生层未提供按设备地址连接接口');
+      }
+      renderAll();
     }
 
     function markDisconnected(reason) {
       state.connected = false;
       state.connectionText = '未连接';
       state.bluetoothAlarm = false;
+      state.connectingDeviceAddress = '';
       addLog(reason || '蓝牙连接断开');
       renderAll();
     }
 
-    function setBridgeConnected(connected, reason) {
+    function setBridgeConnected(connected, reason, device) {
       state.connected = Boolean(connected);
-      state.connectionText = connected ? '已连接' : '未连接';
+      state.connectingDeviceAddress = '';
+      if (connected) {
+        state.scanState = 'done';
+        state.connectionText = '已连接';
+        state.bluetoothAlarm = false;
+        const normalized = normalizeDevice(device);
+        if (normalized) {
+          state.selectedDeviceAddress = normalized.address;
+          state.selectedDeviceName = normalized.name;
+        }
+      } else {
+        state.connectionText = '未连接';
+      }
       addLog(reason || (connected ? '蓝牙已连接' : '蓝牙已断开'));
       renderAll();
     }
 
     function setBluetoothAlarm(active) {
       state.bluetoothAlarm = Boolean(active);
+      state.connectingDeviceAddress = '';
       if (active) {
         state.connected = false;
         state.connectionText = '断链报警';
@@ -783,8 +1064,17 @@
       onBluetoothData(payload) {
         parseFrame(payload);
       },
-      onBluetoothConnected() {
-        setBridgeConnected(true, '蓝牙已连接');
+      onBluetoothConnected(device) {
+        let reason = '蓝牙已连接';
+        let normalized = null;
+        if (typeof device === 'string') {
+          normalized = normalizeDevice({ name: state.selectedDeviceName || device, address: device });
+          reason = `蓝牙已连接：${device}`;
+        } else if (device) {
+          normalized = normalizeDevice(device);
+          reason = `蓝牙已连接：${normalized?.name || normalized?.address || '设备'}`;
+        }
+        setBridgeConnected(true, reason, normalized);
       },
       onBluetoothDisconnected(reason) {
         markDisconnected(reason || '蓝牙连接断开');
@@ -800,9 +1090,33 @@
           state.predictedAlarms = null;
         }
         renderAll();
+      },
+      onBluetoothDeviceList(devices) {
+        handleDeviceList(devices);
+      },
+      onBluetoothScanStarted() {
+        state.connectionText = '扫描中...';
+        setScanState('scanning');
+        addLog('开始扫描蓝牙设备');
+      },
+      onBluetoothScanFinished() {
+        if (state.scanState === 'scanning') {
+          setScanState('done');
+        }
+        addLog('蓝牙设备扫描结束');
+      },
+      onBluetoothScanError(message) {
+        state.connectingDeviceAddress = '';
+        state.connectionText = '未连接';
+        setScanState('done');
+        addLog(`扫描失败：${message || '未知错误'}`);
       }
     };
 
+    window.onBtDeviceList = (devices) => handleDeviceList(devices);
+    window.onBtConnected = (device) => window.AppBridge.onBluetoothConnected(device);
+    window.onBtDisconnected = (reason) => window.AppBridge.onBluetoothDisconnected(reason);
+    window.onBtError = (message) => window.AppBridge.onBluetoothScanError(message);
     window.receiveBluetoothLine = (payload) => parseFrame(payload);
     window.setBluetoothConnected = (connected, reason) => setBridgeConnected(connected, reason);
     window.setBluetoothAlarm = (active) => setBluetoothAlarm(active);
