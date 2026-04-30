@@ -691,16 +691,18 @@
         const badge = state.selectedDeviceAddress === device.address
           ? '<div class="device-badge">已选择</div>'
           : '';
+        const selectCall = `selectDevice(${JSON.stringify(device.address)}, ${JSON.stringify(device.name)})`;
+        const connectCall = `connectToScannedDevice(${JSON.stringify(device.address)}, ${JSON.stringify(device.name)})`;
         return `
           <div class="device-item ${active ? 'active' : ''}">
-            <div class="device-info" onclick="selectDevice(${JSON.stringify(device.address)}, ${JSON.stringify(device.name)})">
+            <div class="device-info" onclick='${selectCall}'>
               <div class="device-name">${device.name || '未知设备'}</div>
               <div class="device-address">${device.address || '--'}</div>
               ${badge}
             </div>
             <div class="device-actions">
-              <button class="device-btn secondary" type="button" onclick="selectDevice(${JSON.stringify(device.address)}, ${JSON.stringify(device.name)})">选择</button>
-              <button class="device-btn" type="button" onclick="connectToScannedDevice(${JSON.stringify(device.address)}, ${JSON.stringify(device.name)})">${connecting ? '连接中' : '连接'}</button>
+              <button class="device-btn secondary" type="button" onclick='${selectCall}'>选择</button>
+              <button class="device-btn" type="button" onclick='${connectCall}'>${connecting ? '连接中' : '连接'}</button>
             </div>
           </div>
         `;
