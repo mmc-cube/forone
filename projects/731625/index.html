@@ -727,9 +727,11 @@
         .map(normalizeDevice)
         .filter(Boolean);
       addLog(`收到设备列表：${state.deviceList.length} 个`);
+      state.deviceList.forEach(d => addLog(`  → ${d.name} (${d.address})`));
       if (!state.selectedDeviceAddress && state.deviceList.length === 1) {
         state.selectedDeviceAddress = state.deviceList[0].address;
         state.selectedDeviceName = state.deviceList[0].name;
+        addLog(`自动选择唯一设备：${state.selectedDeviceName}`);
       }
       state.connectingDeviceAddress = '';
       setScanState('done');
@@ -737,6 +739,7 @@
     }
 
     function selectDevice(address, name) {
+      addLog(`[DEBUG selectDevice] address=${JSON.stringify(address)}, name=${JSON.stringify(name)}`);
       state.selectedDeviceAddress = address || '';
       state.selectedDeviceName = name || address || '';
       addLog(`已选择设备：${state.selectedDeviceName || state.selectedDeviceAddress}`);
@@ -955,6 +958,11 @@
       const deviceAddress = address || state.selectedDeviceAddress;
       const deviceName = name || state.selectedDeviceName || deviceAddress;
 
+      addLog(`[DEBUG connectToScannedDevice] address=${JSON.stringify(address)}, name=${JSON.stringify(name)}`);
+      addLog(`[DEBUG] 解析后 address=${JSON.stringify(deviceAddress)}`);
+      addLog(`[DEBUG] BluetoothBridge=${typeof bridge}`);
+      addLog(`[DEBUG] bridge.connect=${typeof bridge?.connect}`);
+
       if (!deviceAddress) {
         addLog('连接失败：未选择设备');
         return;
@@ -965,12 +973,14 @@
       state.connectingDeviceAddress = deviceAddress;
 
       if (bridge && typeof bridge.connect === 'function') {
+        addLog(`[DEBUG] 调用 bridge.connect(${JSON.stringify(deviceAddress)})`);
         bridge.connect(deviceAddress);
         state.connectionText = '连接中...';
         addLog(`正在连接设备：${deviceName}`);
+        addLog(`[DEBUG] bridge.connect 调用完毕，等待 onBtConnected 回调...`);
       } else {
         state.connectingDeviceAddress = '';
-        addLog('未检测到蓝牙桥接接口');
+        addLog('未检测到蓝牙桥接接口或 connect 方法不存在');
       }
       renderAll();
     }
@@ -1013,25 +1023,36 @@
     // ==================== Android WebView 回调（仅文档中定义的 5 个） ====================
 
     window.onBtDeviceList = function(deviceArray) {
+      addLog(`[DEBUG onBtDeviceList] 原始参数类型: ${typeof deviceArray}, 长度: ${deviceArray?.length}`);
+      if (Array.isArray(deviceArray) && deviceArray.length > 0) {
+        deviceArray.forEach((d, i) => {
+          addLog(`[DEBUG] 设备[${i}] 原始数据: ${JSON.stringify(d)}`);
+          const norm = normalizeDevice(d);
+          addLog(`[DEBUG] 设备[${i}] 标准化后: name="${norm?.name}" address="${norm?.address}"`);
+        });
+      }
       handleDeviceList(deviceArray);
     };
 
     window.onBtConnected = function(address) {
+      addLog(`[DEBUG onBtConnected] 原始参数: ${JSON.stringify(address)}, 类型: ${typeof address}`);
       state.connected = true;
       state.connectingDeviceAddress = '';
       state.connectionText = '已连接';
       state.bluetoothAlarm = false;
       state.selectedDeviceAddress = address;
-      state.selectedDeviceName = state.selectedDeviceName || address;
+      state.selectedDeviceName = state.selectedDeviceName || String(address);
       addLog(`蓝牙已连接：${address}`);
       renderAll();
     };
 
     window.onBtDisconnected = function() {
+      addLog('[DEBUG onBtDisconnected] 收到断开连接回调');
       markDisconnected('蓝牙连接断开');
     };
 
     window.onBtError = function(errMsg) {
+      addLog(`[DEBUG onBtError] 错误信息: ${JSON.stringify(errMsg)}`);
       state.connectingDeviceAddress = '';
       state.connectionText = '未连接';
       setScanState('done');
