@@ -655,16 +655,6 @@
       return alarms;
     }
 
-    function pushNativeAlarm(alarms) {
-      if (alarms.length > 0 && typeof Android !== 'undefined' && typeof Android.onAlarm === 'function') {
-        Android.onAlarm(JSON.stringify({
-          which: alarms[0].which,
-          mag: alarms[0].mag ?? 0,
-          thr: alarms[0].thr ?? 0
-        }));
-      }
-    }
-
     // 目标蓝牙设备名称（仅显示此设备，其余过滤）
     const TARGET_DEVICE_NAME = 'YINGERCHE_BT';
 
@@ -763,7 +753,6 @@
     function renderAlarms() {
       const container = document.getElementById('alarmList');
       const alarms = state.predictedAlarms || computeAlarms();
-      pushNativeAlarm(alarms);
       if (!alarms.length) {
         container.innerHTML = '<div class="alarm-empty">运行正常 ✓</div>';
         return;
@@ -887,7 +876,6 @@
 
     function updatePredictedAlarms() {
       const alarms = computeAlarms();
-      pushNativeAlarm(alarms);
       state.predictedAlarms = alarms;
       renderAlarms();
     }
