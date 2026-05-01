@@ -168,7 +168,12 @@ let currentData = {
 };
 // 阈值显示值（用于乐观刷新，发送后保持用户值直到下位机确认）
 let thrDisplay = {temph:30,humil:50,soill:35,lightl:300,co2h:1000};
-let waitingSync = {};
+// 乐观刷新锁：驱动器和模式发送后锁定，防止下位机旧数据覆盖
+// key: {expected: 0/1} or {expected: 'AUTO'|'MANUAL'}
+let optimisticLock = {
+  mist:null,pump:null,fan:null,cooler:null,shade:null,led:null,
+  mode:null
+};
 let logLines = [];
 let alarmMuted = false;
 
@@ -207,19 +212,19 @@ function parseAndUpdate(msg) {
   if (parts.length < 18) { addLog('WARN: invalid payload, ' + parts.length + ' fields'); return; }
 
   const newTempH = parseFloat(parts[13]);
-  if (waitingSync.temph && Math.abs(newTempH - currentData.temph) < 0.5) waitingSync.temph = false;
+  if (optimisticLock.temph && Math.abs(newTempH - optimisticLock.temph.expected) < 0.5) optimisticLock.temph = null;
 
   const newHumil = parseInt(parts[14]);
-  if (waitingSync.humil && Math.abs(newHumil - currentData.humil) < 1) waitingSync.humil = false;
+  if (optimisticLock.humil && Math.abs(newHumil - optimisticLock.humil.expected) < 1) optimisticLock.humil = null;
 
   const newSoill = parseInt(parts[15]);
-  if (waitingSync.soill && Math.abs(newSoill - currentData.soill) < 1) waitingSync.soill = false;
+  if (optimisticLock.soill && Math.abs(newSoill - optimisticLock.soill.expected) < 1) optimisticLock.soill = null;
 
   const newLightl = parseInt(parts[16]);
-  if (waitingSync.lightl && Math.abs(newLightl - currentData.lightl) < 1) waitingSync.lightl = false;
+  if (optimisticLock.lightl && Math.abs(newLightl - optimisticLock.lightl.expected) < 1) optimisticLock.lightl = null;
 
   const newCo2h = parseInt(parts[17]);
-  if (waitingSync.co2h && Math.abs(newCo2h - currentData.co2h) < 1) waitingSync.co2h = false;
+  if (optimisticLock.co2h && Math.abs(newCo2h - optimisticLock.co2h.expected) < 1) optimisticLock.co2h = null;
 
   // 传感器值始终更新
   currentData.temp  = parseFloat(parts[0]);
@@ -227,28 +232,43 @@ function parseAndUpdate(msg) {
   currentData.soil  = parseInt(parts[2]);
   currentData.lux   = parseInt(parts[3]);
   currentData.co2   = parseInt(parts[4]);
-  currentData.mist  = parseInt(parts[5]);
-  currentData.pump  = parseInt(parts[6]);
-  currentData.fan   = parseInt(parts[7]);
-  currentData.cooler = parseInt(parts[8]);
-  currentData.shade = parseInt(parts[9]);
-  currentData.led   = parseInt(parts[10]);
+
+  // 驱动器状态：仅在未等待乐观确认时更新（防止旧数据覆盖用户操作）
+  if (!optimisticLock.mist)   currentData.mist  = parseInt(parts[5]);
+  if (!optimisticLock.pump)   currentData.pump  = parseInt(parts[6]);
+  if (!optimisticLock.fan)    currentData.fan   = parseInt(parts[7]);
+  if (!optimisticLock.cooler) currentData.cooler = parseInt(parts[8]);
+  if (!optimisticLock.shade)  currentData.shade = parseInt(parts[9]);
+  if (!optimisticLock.led)    currentData.led   = parseInt(parts[10]);
+
+  // 模式：仅在未等待乐观确认时更新
+  if (!optimisticLock.mode) currentData.system_mode = parts[12];
   currentData.buzzer = parseInt(parts[11]);
-  currentData.system_mode = parts[12];
+
+  // 检查驱动器乐观确认是否完成（下位机回传状态与预期一致）
+  if (optimisticLock.mist   && currentData.mist   === optimisticLock.mist.expected)   optimisticLock.mist = null;
+  if (optimisticLock.pump   && currentData.pump   === optimisticLock.pump.expected)   optimisticLock.pump = null;
+  if (optimisticLock.fan    && currentData.fan    === optimisticLock.fan.expected)    optimisticLock.fan = null;
+  if (optimisticLock.cooler && currentData.cooler === optimisticLock.cooler.expected) optimisticLock.cooler = null;
+  if (optimisticLock.shade  && currentData.shade  === optimisticLock.shade.expected)  optimisticLock.shade = null;
+  if (optimisticLock.led    && currentData.led    === optimisticLock.led.expected)    optimisticLock.led = null;
+
+  // 模式确认：下位机回传的 mode 与预期一致
+  if (optimisticLock.mode && currentData.system_mode === optimisticLock.mode.expected) optimisticLock.mode = null;
 
   // 阈值：仅在未等待同步时更新（不影响正在设置中的值）
-  if (!waitingSync.temph)  { currentData.temph = newTempH;  thrDisplay.temph = newTempH; }
-  if (!waitingSync.humil)  { currentData.humil = newHumil;  thrDisplay.humil = newHumil; }
-  if (!waitingSync.soill)  { currentData.soill = newSoill;  thrDisplay.soill = newSoill; }
-  if (!waitingSync.lightl) { currentData.lightl = newLightl; thrDisplay.lightl = newLightl; }
-  if (!waitingSync.co2h)   { currentData.co2h = newCo2h;    thrDisplay.co2h = newCo2h; }
+  if (!optimisticLock.temph)  { currentData.temph = newTempH;  thrDisplay.temph = newTempH; }
+  if (!optimisticLock.humil)  { currentData.humil = newHumil;  thrDisplay.humil = newHumil; }
+  if (!optimisticLock.soill)  { currentData.soill = newSoill;  thrDisplay.soill = newSoill; }
+  if (!optimisticLock.lightl) { currentData.lightl = newLightl; thrDisplay.lightl = newLightl; }
+  if (!optimisticLock.co2h)   { currentData.co2h = newCo2h;    thrDisplay.co2h = newCo2h; }
 
   updateDataRows();
   updateMode();
   updateDeviceCtrl();
   updateThrDisplay();
 
-  const allSynced = !waitingSync.temph && !waitingSync.humil && !waitingSync.soill && !waitingSync.lightl && !waitingSync.co2h;
+  const allSynced = !optimisticLock.temph && !optimisticLock.humil && !optimisticLock.soill && !optimisticLock.lightl && !optimisticLock.co2h;
   if (allSynced) {
     checkAlarms();
   }
@@ -351,17 +371,25 @@ function sendCmd(cmd) {
 }
 
 function sendMode(mode) {
-  if (currentData.system_mode === mode) return;
+  if (currentData.system_mode === mode && !optimisticLock.mode) return;
   sendCmd('MODE,' + mode);
-  addLog('Mode switch requested: ' + mode);
+  // 乐观刷新：立即切换UI，锁定直到下位机确认
+  currentData.system_mode = mode;
+  optimisticLock.mode = {expected: mode};
+  updateMode();
+  updateDeviceCtrl();
+  addLog('模式切换: ' + mode + ' (等待下位机确认)');
 }
 
 function toggleDevice(cmd, key) {
   const isOn = currentData[key] === 1;
+  const newVal = isOn ? 0 : 1;
   sendCmd('CTRL,' + cmd + ',' + (isOn ? 'OFF' : 'ON'));
-  currentData[key] = isOn ? 0 : 1;
+  // 乐观刷新：立即更新状态，锁定直到下位机确认
+  currentData[key] = newVal;
+  optimisticLock[key] = {expected: newVal};
   updateDeviceCtrl();
-  checkAlarms();
+  addLog('设备控制: ' + cmd + '=' + (newVal ? 'ON' : 'OFF') + ' (等待下位机确认)');
 }
 
 function sendThr(cmd, key, type) {
@@ -369,9 +397,9 @@ function sendThr(cmd, key, type) {
   const val = type === 'float' ? parseFloat(input.value) : parseInt(input.value);
   if (isNaN(val)) { addLog('WARN: invalid threshold value'); return; }
   sendCmd('SET,' + cmd + ',' + val);
-  // 乐观刷新：立即更新显示值，标记等待同步
+  // 乐观刷新：立即更新显示值，锁定直到下位机确认
   thrDisplay[key] = val;
-  waitingSync[key] = true;
+  optimisticLock[key] = {expected: val};
   addLog('阈值已设置: ' + cmd + '=' + val + ' (等待下位机确认)');
   updateThrDisplay();
   updateThrRows();
