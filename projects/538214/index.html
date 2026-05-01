@@ -86,40 +86,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 
 <!-- 实时数据卡 -->
 <div class="card">
-  <div class="card-title">Real-time Data</div>
+  <div class="card-title">实时数据</div>
   <div id="dataRows"></div>
 </div>
 
 <!-- 报警状态卡 -->
 <div class="card">
-  <div class="card-title">Alarm Status</div>
+  <div class="card-title">报警状态</div>
   <div id="alarmBox"><div class="alarm-ok">运行正常 &#10003;</div></div>
 </div>
 
 <!-- 模式切换卡 -->
 <div class="card">
-  <div class="card-title">System Mode</div>
+  <div class="card-title">系统模式</div>
   <div class="mode-btns">
-    <button class="mode-btn active" id="btnAuto" onclick="sendMode('AUTO')">AUTO</button>
-    <button class="mode-btn" id="btnManual" onclick="sendMode('MANUAL')">MANUAL</button>
+    <button class="mode-btn active" id="btnAuto" onclick="sendMode('AUTO')">自动</button>
+    <button class="mode-btn" id="btnManual" onclick="sendMode('MANUAL')">手动</button>
   </div>
 </div>
 
 <!-- 手动控制卡 -->
 <div class="card">
-  <div class="card-title">Manual Control</div>
+  <div class="card-title">设备控制</div>
   <div id="ctrlGrid"></div>
+</div>
+
+<!-- 当前阈值显示卡 -->
+<div class="card">
+  <div class="card-title">当前阈值</div>
+  <div id="thrDisplay"></div>
 </div>
 
 <!-- 阈值设置卡 -->
 <div class="card">
-  <div class="card-title">Threshold</div>
+  <div class="card-title">阈值设置</div>
   <div id="thrRows"></div>
 </div>
 
 <!-- 日志卡 -->
 <div class="card">
-  <div class="card-title log-header" id="logHeader" onclick="toggleLog()">Log</div>
+  <div class="card-title log-header" id="logHeader" onclick="toggleLog()">通信日志</div>
   <div class="log-content" id="logContent"></div>
 </div>
 
@@ -129,10 +135,10 @@ const UPLOAD_TOPIC = '538214/764931/xiaoxingyulin/upload';
 const CMD_TOPIC    = '538214/764931/xiaoxingyulin/cmd';
 
 const DATA_FIELDS = [
-  {key:'temp',     label:'TEMP',     unit:'℃',  type:'float', alarm:'red'},
-  {key:'humi',     label:'HUMI',     unit:'%',       type:'int',   alarm:'red'},
-  {key:'soil',     label:'SOIL',     unit:'%',       type:'int',   alarm:'red'},
-  {key:'lux',      label:'LUX',      unit:'lux',     type:'int',   alarm:'yellow'},
+  {key:'temp',     label:'温度',     unit:'℃',  type:'float', alarm:'red'},
+  {key:'humi',     label:'湿度',     unit:'%',       type:'int',   alarm:'red'},
+  {key:'soil',     label:'土壤湿度', unit:'%',       type:'int',   alarm:'red'},
+  {key:'lux',      label:'光照',     unit:'lux',     type:'int',   alarm:'yellow'},
   {key:'co2',      label:'CO2',      unit:'ppm',     type:'int',   alarm:'red'},
 ];
 
@@ -146,11 +152,11 @@ const DEVICE_FIELDS = [
 ];
 
 const THR_FIELDS = [
-  {key:'temph', label:'TEMPH', unit:'℃',  cmd:'TEMPH',  type:'float'},
-  {key:'humil', label:'HUMIL', unit:'%',       cmd:'HUMIL',  type:'int'},
-  {key:'soill', label:'SOILL', unit:'%',       cmd:'SOILL',  type:'int'},
-  {key:'lightl',label:'LIGHTL',unit:'lux',     cmd:'LIGHTL', type:'int'},
-  {key:'co2h',  label:'CO2H',  unit:'ppm',     cmd:'CO2H',   type:'int'},
+  {key:'temph', label:'温度上限', unit:'℃',  cmd:'TEMPH',  type:'float'},
+  {key:'humil', label:'湿度下限', unit:'%',       cmd:'HUMIL',  type:'int'},
+  {key:'soill', label:'土壤下限', unit:'%',       cmd:'SOILL',  type:'int'},
+  {key:'lightl',label:'光照下限', unit:'lux',     cmd:'LIGHTL', type:'int'},
+  {key:'co2h',  label:'CO2上限',  unit:'ppm',     cmd:'CO2H',   type:'int'},
 ];
 
 // ===== 状态 =====
@@ -160,6 +166,8 @@ let currentData = {
   system_mode:'AUTO',
   temph:30,humil:50,soill:35,lightl:300,co2h:1000
 };
+// 阈值显示值（用于乐观刷新，发送后保持用户值直到下位机确认）
+let thrDisplay = {temph:30,humil:50,soill:35,lightl:300,co2h:1000};
 let waitingSync = {};
 let logLines = [];
 let alarmMuted = false;
@@ -213,7 +221,7 @@ function parseAndUpdate(msg) {
   const newCo2h = parseInt(parts[17]);
   if (waitingSync.co2h && Math.abs(newCo2h - currentData.co2h) < 1) waitingSync.co2h = false;
 
-  const oldMode = currentData.system_mode;
+  // 传感器值始终更新
   currentData.temp  = parseFloat(parts[0]);
   currentData.humi  = parseInt(parts[1]);
   currentData.soil  = parseInt(parts[2]);
@@ -227,13 +235,18 @@ function parseAndUpdate(msg) {
   currentData.led   = parseInt(parts[10]);
   currentData.buzzer = parseInt(parts[11]);
   currentData.system_mode = parts[12];
-  if (!waitingSync.temph) currentData.temph = newTempH;
-  if (!waitingSync.humil) currentData.humil = newHumil;
-  if (!waitingSync.soill) currentData.soill = newSoill;
-  if (!waitingSync.lightl) currentData.lightl = newLightl;
-  if (!waitingSync.co2h) currentData.co2h = newCo2h;
 
-  updateUI();
+  // 阈值：仅在未等待同步时更新（不影响正在设置中的值）
+  if (!waitingSync.temph)  { currentData.temph = newTempH;  thrDisplay.temph = newTempH; }
+  if (!waitingSync.humil)  { currentData.humil = newHumil;  thrDisplay.humil = newHumil; }
+  if (!waitingSync.soill)  { currentData.soill = newSoill;  thrDisplay.soill = newSoill; }
+  if (!waitingSync.lightl) { currentData.lightl = newLightl; thrDisplay.lightl = newLightl; }
+  if (!waitingSync.co2h)   { currentData.co2h = newCo2h;    thrDisplay.co2h = newCo2h; }
+
+  updateDataRows();
+  updateMode();
+  updateDeviceCtrl();
+  updateThrDisplay();
 
   const allSynced = !waitingSync.temph && !waitingSync.humil && !waitingSync.soill && !waitingSync.lightl && !waitingSync.co2h;
   if (allSynced) {
@@ -242,18 +255,7 @@ function parseAndUpdate(msg) {
 }
 
 // ===== UI 更新 =====
-function updateUI() {
-  // 模式
-  const mode = currentData.system_mode;
-  const modeBadge = document.getElementById('modeBadge');
-  modeBadge.textContent = mode;
-  modeBadge.className = 'mode-badge' + (mode === 'MANUAL' ? ' manual' : '');
-  document.getElementById('btnAuto').className = 'mode-btn' + (mode === 'AUTO' ? ' active' : '');
-  document.getElementById('btnManual').className = 'mode-btn' + (mode === 'MANUAL' ? ' active' : '');
-  const isManual = mode === 'MANUAL';
-  document.querySelectorAll('.ctrl-toggle').forEach(btn => btn.disabled = !isManual);
-
-  // 数据行
+function updateDataRows() {
   const dataRows = document.getElementById('dataRows');
   dataRows.innerHTML = DATA_FIELDS.map(f => {
     const val = currentData[f.key];
@@ -264,18 +266,40 @@ function updateUI() {
     const displayVal = (f.type === 'float') ? val.toFixed(1) : val;
     return '<div class="data-row ' + cls + '"><span class="data-label">' + f.label + '</span><span><span class="data-value">' + displayVal + bang + '</span><span class="data-unit">' + f.unit + '</span></span></div>';
   }).join('');
+}
 
-  // 设备控制按钮
+function updateMode() {
+  const mode = currentData.system_mode;
+  const modeBadge = document.getElementById('modeBadge');
+  modeBadge.textContent = mode === 'AUTO' ? '自动' : '手动';
+  modeBadge.className = 'mode-badge' + (mode === 'MANUAL' ? ' manual' : '');
+  document.getElementById('btnAuto').className = 'mode-btn' + (mode === 'AUTO' ? ' active' : '');
+  document.getElementById('btnManual').className = 'mode-btn' + (mode === 'MANUAL' ? ' active' : '');
+  const isManual = mode === 'MANUAL';
+  document.querySelectorAll('.ctrl-toggle').forEach(btn => btn.disabled = !isManual);
+}
+
+function updateDeviceCtrl() {
+  const isManual = currentData.system_mode === 'MANUAL';
   const ctrlGrid = document.getElementById('ctrlGrid');
   ctrlGrid.innerHTML = DEVICE_FIELDS.map(f => {
     const isOn = currentData[f.key] === 1;
-    return '<div class="ctrl-row"><span class="ctrl-name">' + f.label + '</span><button class="ctrl-toggle ' + (isOn ? 'on' : 'off') + '" ' + (!isManual ? 'disabled' : '') + ' onclick="toggleDevice(\'' + f.cmd + '\',\'' + f.key + '\')">' + (isOn ? 'OFF →' : 'ON →') + '</button></div>';
+    return '<div class="ctrl-row"><span class="ctrl-name">' + f.label + '</span><button class="ctrl-toggle ' + (isOn ? 'on' : 'off') + '" ' + (!isManual ? 'disabled' : '') + ' onclick="toggleDevice(\'' + f.cmd + '\',\'' + f.key + '\')">' + (isOn ? '关闭' : '开启') + '</button></div>';
   }).join('');
+}
 
-  // 阈值
+function updateThrDisplay() {
+  const thrDisp = document.getElementById('thrDisplay');
+  thrDisp.innerHTML = THR_FIELDS.map(f => {
+    const val = (f.type === 'float') ? thrDisplay[f.key].toFixed(1) : thrDisplay[f.key];
+    return '<div class="thr-row"><span class="thr-label">' + f.label + '</span><span style="font-size:18px;font-weight:700">' + val + '</span><span class="data-unit">' + f.unit + '</span></div>';
+  }).join('');
+}
+
+function updateThrRows() {
   const thrRows = document.getElementById('thrRows');
   thrRows.innerHTML = THR_FIELDS.map(f => {
-    const val = (f.type === 'float') ? currentData[f.key].toFixed(1) : currentData[f.key];
+    const val = (f.type === 'float') ? thrDisplay[f.key].toFixed(1) : thrDisplay[f.key];
     return '<div class="thr-row"><span class="thr-label">' + f.label + '</span><input class="thr-input" type="number" id="thr_' + f.key + '" value="' + val + '" step="' + (f.type === 'float' ? '0.5' : '1') + '"><button class="thr-send" onclick="sendThr(\'' + f.cmd + '\',\'' + f.key + '\',\'' + f.type + '\')">发送</button></div>';
   }).join('');
 }
@@ -286,6 +310,8 @@ function getThresholdFor(key) {
 }
 
 function checkAlarmFor(key, val, thr) {
+  // SOIL≤5 不触发报警标记（传感器可能处于异常值边界）
+  if (key === 'soil' && val <= 5) return false;
   const rules = {
     temp: () => val > thr ? 'red' : false,
     humi: () => val < thr ? 'red' : false,
@@ -301,7 +327,7 @@ function checkAlarms() {
   const alarms = [];
   if (currentData.temp > currentData.temph) alarms.push({msg:'温度超标! ' + currentData.temp.toFixed(1) + ' > ' + currentData.temph.toFixed(1), level:'red'});
   if (currentData.humi < currentData.humil) alarms.push({msg:'湿度偏低! ' + currentData.humi + ' < ' + currentData.humil, level:'red'});
-  if (currentData.soil < currentData.soill) alarms.push({msg:'土壤过干! ' + currentData.soil + ' < ' + currentData.soill, level:'red'});
+  if (currentData.soil < currentData.soill && currentData.soil > 5) alarms.push({msg:'土壤过干! ' + currentData.soil + ' < ' + currentData.soill, level:'red'});
   if (currentData.lux < currentData.lightl) alarms.push({msg:'光照不足! ' + currentData.lux + ' < ' + currentData.lightl, level:'yellow'});
   if (currentData.co2 > currentData.co2h) alarms.push({msg:'CO2超标! ' + currentData.co2 + ' > ' + currentData.co2h, level:'red'});
 
@@ -334,7 +360,7 @@ function toggleDevice(cmd, key) {
   const isOn = currentData[key] === 1;
   sendCmd('CTRL,' + cmd + ',' + (isOn ? 'OFF' : 'ON'));
   currentData[key] = isOn ? 0 : 1;
-  updateUI();
+  updateDeviceCtrl();
   checkAlarms();
 }
 
@@ -343,17 +369,19 @@ function sendThr(cmd, key, type) {
   const val = type === 'float' ? parseFloat(input.value) : parseInt(input.value);
   if (isNaN(val)) { addLog('WARN: invalid threshold value'); return; }
   sendCmd('SET,' + cmd + ',' + val);
+  // 乐观刷新：立即更新显示值，标记等待同步
+  thrDisplay[key] = val;
   waitingSync[key] = true;
-  currentData[key] = val;
-  addLog('Threshold set: ' + cmd + '=' + val + ' (waiting sync)');
-  updateUI();
+  addLog('阈值已设置: ' + cmd + '=' + val + ' (等待下位机确认)');
+  updateThrDisplay();
+  updateThrRows();
   checkAlarms();
 }
 
 function sendAlarmMute() {
   sendCmd('ALARM_MUTE');
   alarmMuted = true;
-  updateUI();
+  updateMode();
   checkAlarms();
 }
 
@@ -380,7 +408,11 @@ function toggleLog() {
 
 // ===== 初始化 =====
 document.getElementById('topicDisplay').textContent = UPLOAD_TOPIC;
-updateUI();
+updateDataRows();
+updateMode();
+updateDeviceCtrl();
+updateThrDisplay();
+updateThrRows();
 checkAlarms();
 </script>
 </body>
