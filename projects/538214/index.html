@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>小型雨林观赏系统</title>
+<script src="mqtt.min.js"></script>
+<style>
+:root{--bg:#F5F5F5;--card:#FFFFFF;--primary:#2196F3;--alarm:#F44336;--warn:#FF9800;--ok:#4CAF50;--text:#212121;--sub:#757575;--shadow:0 2px 8px rgba(0,0,0,0.08);--radius:12px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:0 12px;min-height:100vh}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
+.card-title{font-size:14px;font-weight:600;color:var(--sub);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px}
+/* 状态栏 */
+.status-bar{display:flex;align-items:center;gap:8px;font-size:13px;padding:10px 14px}
+.status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.status-dot.on{background:var(--ok)}
+.status-dot.off{background:var(--alarm)}
+.mode-badge{background:var(--primary);color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;margin-left:auto}
+.mode-badge.manual{background:var(--warn)}
+/* 实时数据 */
+.data-row{display:flex;align-items:baseline;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0}
+.data-row:last-child{border-bottom:none}
+.data-label{font-size:13px;color:var(--sub);font-weight:500}
+.data-value{font-size:28px;font-weight:700;line-height:1}
+.data-unit{font-size:13px;color:var(--sub);margin-left:4px}
+.data-row.alarm .data-value{color:var(--alarm)}
+.data-row.alarm .data-unit{color:var(--alarm)}
+.data-row.warn .data-value{color:var(--warn)}
+.data-row.warn .data-unit{color:var(--warn)}
+/* 报警卡 */
+.alarm-item{padding:10px;border-radius:8px;margin-bottom:6px;font-size:13px;font-weight:500}
+.alarm-item.red{background:#FFEBEE;color:var(--alarm)}
+.alarm-item.yellow{background:#FFF8E1;color:var(--warn)}
+.alarm-ok{text-align:center;color:var(--ok);font-weight:600;font-size:14px;padding:8px}
+.mute-btn{width:100%;height:40px;border:none;border-radius:8px;background:var(--warn);color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px}
+.mute-btn:active{transform:scale(0.97)}
+.mute-btn.muted{background:var(--ok)}
+/* 模式切换 */
+.mode-btns{display:flex;gap:8px}
+.mode-btn{flex:1;height:48px;border:2px solid var(--primary);border-radius:8px;background:transparent;color:var(--primary);font-size:15px;font-weight:600;cursor:pointer;transition:all 0.15s}
+.mode-btn.active{background:var(--primary);color:#fff}
+.mode-btn:active{transform:scale(0.97)}
+/* 手动控制 */
+.ctrl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.ctrl-btn{height:48px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.15s;color:#fff}
+.ctrl-btn:disabled{opacity:0.4;cursor:not-allowed}
+.ctrl-btn.on{background:var(--alarm)}
+.ctrl-btn.off{background:var(--ok)}
+.ctrl-btn:active:not(:disabled){transform:scale(0.97)}
+.ctrl-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ctrl-row:last-child{margin-bottom:0}
+.ctrl-name{flex:1;font-size:14px;font-weight:500}
+.ctrl-toggle{width:100px;height:48px;border-radius:8px;border:none;font-size:14px;font-weight:600;cursor:pointer;color:#fff;transition:all 0.15s}
+.ctrl-toggle.on{background:var(--alarm)}
+.ctrl-toggle.off{background:var(--ok)}
+.ctrl-toggle:disabled{opacity:0.4;cursor:not-allowed}
+.ctrl-toggle:active:not(:disabled){transform:scale(0.97)}
+/* 阈值设置 */
+.thr-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.thr-row:last-child{margin-bottom:0}
+.thr-label{flex:1;font-size:13px;font-weight:500}
+.thr-input{width:80px;height:40px;border:1px solid #ddd;border-radius:8px;text-align:center;font-size:14px;outline:none}
+.thr-input:focus{border-color:var(--primary)}
+.thr-send{height:40px;width:60px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.thr-send:active{transform:scale(0.95)}
+/* 日志卡 */
+.log-header{cursor:pointer;user-select:none}
+.log-header::after{content:"\25B6";float:right;transition:transform 0.2s}
+.log-header.open::after{transform:rotate(90deg)}
+.log-content{display:none;max-height:200px;overflow-y:auto;font-size:12px;color:var(--sub);font-family:monospace;margin-top:8px}
+.log-content.open{display:block}
+.log-line{padding:3px 0;border-bottom:1px solid #f8f8f8}
+.log-line:last-child{border-bottom:none}
+</style>
+</head>
+<body>
+
+<!-- 状态栏 -->
+<div class="card status-bar">
+  <div class="status-dot off" id="connDot"></div>
+  <span id="connText">未连接</span>
+  <span style="color:var(--sub);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="topicDisplay"></span>
+  <span class="mode-badge" id="modeBadge">AUTO</span>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+  <div class="card-title">Real-time Data</div>
+  <div id="dataRows"></div>
+</div>
+
+<!-- 报警状态卡 -->
+<div class="card">
+  <div class="card-title">Alarm Status</div>
+  <div id="alarmBox"><div class="alarm-ok">运行正常 &#10003;</div></div>
+</div>
+
+<!-- 模式切换卡 -->
+<div class="card">
+  <div class="card-title">System Mode</div>
+  <div class="mode-btns">
+    <button class="mode-btn active" id="btnAuto" onclick="sendMode('AUTO')">AUTO</button>
+    <button class="mode-btn" id="btnManual" onclick="sendMode('MANUAL')">MANUAL</button>
+  </div>
+</div>
+
+<!-- 手动控制卡 -->
+<div class="card">
+  <div class="card-title">Manual Control</div>
+  <div id="ctrlGrid"></div>
+</div>
+
+<!-- 阈值设置卡 -->
+<div class="card">
+  <div class="card-title">Threshold</div>
+  <div id="thrRows"></div>
+</div>
+
+<!-- 日志卡 -->
+<div class="card">
+  <div class="card-title log-header" id="logHeader" onclick="toggleLog()">Log</div>
+  <div class="log-content" id="logContent"></div>
+</div>
+
+<script>
+// ===== 常量 =====
+const UPLOAD_TOPIC = '538214/764931/xiaoxingyulin/upload';
+const CMD_TOPIC    = '538214/764931/xiaoxingyulin/cmd';
+
+const DATA_FIELDS = [
+  {key:'temp',     label:'TEMP',     unit:'℃',  type:'float', alarm:'red'},
+  {key:'humi',     label:'HUMI',     unit:'%',       type:'int',   alarm:'red'},
+  {key:'soil',     label:'SOIL',     unit:'%',       type:'int',   alarm:'red'},
+  {key:'lux',      label:'LUX',      unit:'lux',     type:'int',   alarm:'yellow'},
+  {key:'co2',      label:'CO2',      unit:'ppm',     type:'int',   alarm:'red'},
+];
+
+const DEVICE_FIELDS = [
+  {key:'mist',   label:'雾化器', cmd:'MIST'},
+  {key:'pump',   label:'水泵',     cmd:'PUMP'},
+  {key:'fan',    label:'风扇',     cmd:'FAN'},
+  {key:'cooler', label:'制冷片', cmd:'COOLER'},
+  {key:'shade',  label:'遮阳帘', cmd:'SHADE'},
+  {key:'led',    label:'LED',              cmd:'LED'},
+];
+
+const THR_FIELDS = [
+  {key:'temph', label:'TEMPH', unit:'℃',  cmd:'TEMPH',  type:'float'},
+  {key:'humil', label:'HUMIL', unit:'%',       cmd:'HUMIL',  type:'int'},
+  {key:'soill', label:'SOILL', unit:'%',       cmd:'SOILL',  type:'int'},
+  {key:'lightl',label:'LIGHTL',unit:'lux',     cmd:'LIGHTL', type:'int'},
+  {key:'co2h',  label:'CO2H',  unit:'ppm',     cmd:'CO2H',   type:'int'},
+];
+
+// ===== 状态 =====
+let currentData = {
+  temp:0,humi:0,soil:0,lux:0,co2:0,
+  mist:0,pump:0,fan:0,cooler:0,shade:0,led:0,buzzer:0,
+  system_mode:'AUTO',
+  temph:30,humil:50,soill:35,lightl:300,co2h:1000
+};
+let waitingSync = {};
+let logLines = [];
+let alarmMuted = false;
+
+// ===== MQTT =====
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+  clientId: 'webview_' + Math.random().toString(36).substr(2, 8),
+  reconnectPeriod: 3000
+});
+
+client.on('connect', () => {
+  document.getElementById('connDot').className = 'status-dot on';
+  document.getElementById('connText').textContent = '已连接';
+  client.subscribe(UPLOAD_TOPIC);
+  addLog('MQTT connected, subscribed to ' + UPLOAD_TOPIC);
+});
+
+client.on('close', () => {
+  document.getElementById('connDot').className = 'status-dot off';
+  document.getElementById('connText').textContent = '未连接';
+});
+
+client.on('error', () => {
+  document.getElementById('connDot').className = 'status-dot off';
+  document.getElementById('connText').textContent = '连接错误';
+});
+
+client.on('message', (topic, payload) => {
+  const msg = payload.toString();
+  addLog('RX: ' + msg);
+  parseAndUpdate(msg);
+});
+
+// ===== 数据解析 =====
+function parseAndUpdate(msg) {
+  const parts = msg.split(',');
+  if (parts.length < 18) { addLog('WARN: invalid payload, ' + parts.length + ' fields'); return; }
+
+  const newTempH = parseFloat(parts[13]);
+  if (waitingSync.temph && Math.abs(newTempH - currentData.temph) < 0.5) waitingSync.temph = false;
+
+  const newHumil = parseInt(parts[14]);
+  if (waitingSync.humil && Math.abs(newHumil - currentData.humil) < 1) waitingSync.humil = false;
+
+  const newSoill = parseInt(parts[15]);
+  if (waitingSync.soill && Math.abs(newSoill - currentData.soill) < 1) waitingSync.soill = false;
+
+  const newLightl = parseInt(parts[16]);
+  if (waitingSync.lightl && Math.abs(newLightl - currentData.lightl) < 1) waitingSync.lightl = false;
+
+  const newCo2h = parseInt(parts[17]);
+  if (waitingSync.co2h && Math.abs(newCo2h - currentData.co2h) < 1) waitingSync.co2h = false;
+
+  const oldMode = currentData.system_mode;
+  currentData.temp  = parseFloat(parts[0]);
+  currentData.humi  = parseInt(parts[1]);
+  currentData.soil  = parseInt(parts[2]);
+  currentData.lux   = parseInt(parts[3]);
+  currentData.co2   = parseInt(parts[4]);
+  currentData.mist  = parseInt(parts[5]);
+  currentData.pump  = parseInt(parts[6]);
+  currentData.fan   = parseInt(parts[7]);
+  currentData.cooler = parseInt(parts[8]);
+  currentData.shade = parseInt(parts[9]);
+  currentData.led   = parseInt(parts[10]);
+  currentData.buzzer = parseInt(parts[11]);
+  currentData.system_mode = parts[12];
+  if (!waitingSync.temph) currentData.temph = newTempH;
+  if (!waitingSync.humil) currentData.humil = newHumil;
+  if (!waitingSync.soill) currentData.soill = newSoill;
+  if (!waitingSync.lightl) currentData.lightl = newLightl;
+  if (!waitingSync.co2h) currentData.co2h = newCo2h;
+
+  updateUI();
+
+  const allSynced = !waitingSync.temph && !waitingSync.humil && !waitingSync.soill && !waitingSync.lightl && !waitingSync.co2h;
+  if (allSynced) {
+    checkAlarms();
+  }
+}
+
+// ===== UI 更新 =====
+function updateUI() {
+  // 模式
+  const mode = currentData.system_mode;
+  const modeBadge = document.getElementById('modeBadge');
+  modeBadge.textContent = mode;
+  modeBadge.className = 'mode-badge' + (mode === 'MANUAL' ? ' manual' : '');
+  document.getElementById('btnAuto').className = 'mode-btn' + (mode === 'AUTO' ? ' active' : '');
+  document.getElementById('btnManual').className = 'mode-btn' + (mode === 'MANUAL' ? ' active' : '');
+  const isManual = mode === 'MANUAL';
+  document.querySelectorAll('.ctrl-toggle').forEach(btn => btn.disabled = !isManual);
+
+  // 数据行
+  const dataRows = document.getElementById('dataRows');
+  dataRows.innerHTML = DATA_FIELDS.map(f => {
+    const val = currentData[f.key];
+    const thr = getThresholdFor(f.key);
+    const isAlarm = checkAlarmFor(f.key, val, thr);
+    const cls = isAlarm ? (isAlarm === 'red' ? 'alarm' : 'warn') : '';
+    const bang = isAlarm ? '<span style="color:' + (isAlarm === 'red' ? 'var(--alarm)' : 'var(--warn)') + ';font-size:20px">!</span>' : '';
+    const displayVal = (f.type === 'float') ? val.toFixed(1) : val;
+    return '<div class="data-row ' + cls + '"><span class="data-label">' + f.label + '</span><span><span class="data-value">' + displayVal + bang + '</span><span class="data-unit">' + f.unit + '</span></span></div>';
+  }).join('');
+
+  // 设备控制按钮
+  const ctrlGrid = document.getElementById('ctrlGrid');
+  ctrlGrid.innerHTML = DEVICE_FIELDS.map(f => {
+    const isOn = currentData[f.key] === 1;
+    return '<div class="ctrl-row"><span class="ctrl-name">' + f.label + '</span><button class="ctrl-toggle ' + (isOn ? 'on' : 'off') + '" ' + (!isManual ? 'disabled' : '') + ' onclick="toggleDevice(\'' + f.cmd + '\',\'' + f.key + '\')">' + (isOn ? 'OFF →' : 'ON →') + '</button></div>';
+  }).join('');
+
+  // 阈值
+  const thrRows = document.getElementById('thrRows');
+  thrRows.innerHTML = THR_FIELDS.map(f => {
+    const val = (f.type === 'float') ? currentData[f.key].toFixed(1) : currentData[f.key];
+    return '<div class="thr-row"><span class="thr-label">' + f.label + '</span><input class="thr-input" type="number" id="thr_' + f.key + '" value="' + val + '" step="' + (f.type === 'float' ? '0.5' : '1') + '"><button class="thr-send" onclick="sendThr(\'' + f.cmd + '\',\'' + f.key + '\',\'' + f.type + '\')">发送</button></div>';
+  }).join('');
+}
+
+function getThresholdFor(key) {
+  const map = {temp:'temph',humi:'humil',soil:'soill',lux:'lightl',co2:'co2h'};
+  return currentData[map[key]];
+}
+
+function checkAlarmFor(key, val, thr) {
+  const rules = {
+    temp: () => val > thr ? 'red' : false,
+    humi: () => val < thr ? 'red' : false,
+    soil: () => val < thr ? 'red' : false,
+    lux:  () => val < thr ? 'yellow' : false,
+    co2:  () => val > thr ? 'red' : false,
+  };
+  return (rules[key] || (() => false))();
+}
+
+// ===== 报警检查 =====
+function checkAlarms() {
+  const alarms = [];
+  if (currentData.temp > currentData.temph) alarms.push({msg:'温度超标! ' + currentData.temp.toFixed(1) + ' > ' + currentData.temph.toFixed(1), level:'red'});
+  if (currentData.humi < currentData.humil) alarms.push({msg:'湿度偏低! ' + currentData.humi + ' < ' + currentData.humil, level:'red'});
+  if (currentData.soil < currentData.soill) alarms.push({msg:'土壤过干! ' + currentData.soil + ' < ' + currentData.soill, level:'red'});
+  if (currentData.lux < currentData.lightl) alarms.push({msg:'光照不足! ' + currentData.lux + ' < ' + currentData.lightl, level:'yellow'});
+  if (currentData.co2 > currentData.co2h) alarms.push({msg:'CO2超标! ' + currentData.co2 + ' > ' + currentData.co2h, level:'red'});
+
+  const alarmBox = document.getElementById('alarmBox');
+  if (alarmMuted) {
+    alarmBox.innerHTML = '<div class="alarm-ok">报警已静音 ✓</div><button class="mute-btn muted" onclick="unmuteAlarm()">恢复报警</button>';
+    return;
+  }
+  if (alarms.length === 0) {
+    alarmBox.innerHTML = '<div class="alarm-ok">运行正常 ✓</div>';
+    alarmMuted = false;
+  } else {
+    alarmBox.innerHTML = alarms.map(a => '<div class="alarm-item ' + a.level + '">' + a.msg + '</div>').join('') + '<button class="mute-btn" onclick="sendAlarmMute()">消警 (静音)</button>';
+  }
+}
+
+// ===== 指令发送 =====
+function sendCmd(cmd) {
+  client.publish(CMD_TOPIC, cmd);
+  addLog('TX: ' + cmd);
+}
+
+function sendMode(mode) {
+  if (currentData.system_mode === mode) return;
+  sendCmd('MODE,' + mode);
+  addLog('Mode switch requested: ' + mode);
+}
+
+function toggleDevice(cmd, key) {
+  const isOn = currentData[key] === 1;
+  sendCmd('CTRL,' + cmd + ',' + (isOn ? 'OFF' : 'ON'));
+  currentData[key] = isOn ? 0 : 1;
+  updateUI();
+  checkAlarms();
+}
+
+function sendThr(cmd, key, type) {
+  const input = document.getElementById('thr_' + key);
+  const val = type === 'float' ? parseFloat(input.value) : parseInt(input.value);
+  if (isNaN(val)) { addLog('WARN: invalid threshold value'); return; }
+  sendCmd('SET,' + cmd + ',' + val);
+  waitingSync[key] = true;
+  currentData[key] = val;
+  addLog('Threshold set: ' + cmd + '=' + val + ' (waiting sync)');
+  updateUI();
+  checkAlarms();
+}
+
+function sendAlarmMute() {
+  sendCmd('ALARM_MUTE');
+  alarmMuted = true;
+  updateUI();
+  checkAlarms();
+}
+
+function unmuteAlarm() {
+  alarmMuted = false;
+  checkAlarms();
+}
+
+// ===== 日志 =====
+function addLog(msg) {
+  const time = new Date().toLocaleTimeString();
+  logLines.unshift('[' + time + '] ' + msg);
+  if (logLines.length > 20) logLines.pop();
+  const el = document.getElementById('logContent');
+  el.innerHTML = logLines.map(l => '<div class="log-line">' + l + '</div>').join('');
+}
+
+function toggleLog() {
+  const header = document.getElementById('logHeader');
+  const content = document.getElementById('logContent');
+  header.classList.toggle('open');
+  content.classList.toggle('open');
+}
+
+// ===== 初始化 =====
+document.getElementById('topicDisplay').textContent = UPLOAD_TOPIC;
+updateUI();
+checkAlarms();
+</script>
+</body>
+</html>
