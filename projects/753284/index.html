@@ -1,979 +1,491 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>水质检测与智能控制系统</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>林区火情监测</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--text);padding:12px;min-height:100vh}
+:root{--bg:#F5F5F5;--card:#FFFFFF;--primary:#2196F3;--alarm:#F44336;--ok:#4CAF50;--text:#212121;--sub:#757575;--shadow:0 2px 8px rgba(0,0,0,0.08);--radius:12px}
 
-        :root {
-            --bg: #F5F5F5;
-            --card: #FFFFFF;
-            --primary: #2196F3;
-            --alarm: #F44336;
-            --ok: #4CAF50;
-            --text: #212121;
-            --sub: #757575;
-            --shadow: 0 2px 8px rgba(0,0,0,0.08);
-            --radius: 12px;
-        }
+.header{display:flex;justify-content:space-between;align-items:center;padding:8px 0 16px}
+.header h1{font-size:18px;font-weight:600}
+.status-bar{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub)}
+.status-dot{width:8px;height:8px;border-radius:50%}
+.status-dot.connected{background:var(--ok)}
+.status-dot.disconnected{background:var(--alarm)}
+.alarm-badge{font-size:12px;padding:3px 8px;border-radius:10px;font-weight:600}
+.alarm-badge.normal{background:#E8F5E9;color:#2E7D32}
+.alarm-badge.alarm{background:#FFEBEE;color:#C62828}
+.alarm-badge.muted{background:#FFF3E0;color:#E65100}
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            max-width: 420px;
-            margin: 0 auto;
-            padding: 0 12px 20px;
-        }
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.card-title{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.card-title .icon{font-size:16px}
 
-        .topbar {
-            padding: 44px 16px 10px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: var(--bg);
-        }
+.data-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F0F0F0}
+.data-row:last-child{border-bottom:none}
+.data-label{font-size:13px;color:var(--sub)}
+.data-value{font-size:28px;font-weight:700;line-height:1}
+.data-unit{font-size:13px;color:var(--sub);margin-left:4px}
+.data-value.alarm{color:var(--alarm)}
+.data-value .exclaim{color:var(--alarm);font-weight:700}
 
-        .status-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 16px;
-            background: var(--card);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-        }
+.progress-bar{width:100%;height:6px;background:#E0E0E0;border-radius:3px;margin-top:6px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width 0.3s,background 0.3s}
 
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: var(--sub);
-        }
+.alarm-normal{color:var(--ok);font-size:14px;text-align:center;padding:8px}
+.alarm-item{background:#FFF3F0;color:var(--alarm);padding:10px 12px;border-radius:8px;margin-bottom:6px;font-size:14px;font-weight:500}
+.alarm-item:last-child{margin-bottom:0}
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--sub);
-        }
+.ctrl-btn{width:100%;height:48px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:all 0.15s}
+.ctrl-btn:active{transform:scale(0.97)}
+.ctrl-btn.mute{background:var(--alarm);color:#fff}
+.ctrl-btn.mute:active{background:#D32F2F}
 
-        .status-dot.connected {
-            background: var(--ok);
-        }
+.threshold-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #F0F0F0}
+.threshold-row:last-child{border-bottom:none}
+.threshold-label{font-size:13px;color:var(--sub);min-width:60px}
+.threshold-value{font-size:15px;font-weight:600;color:var(--text);flex:1}
+.threshold-input{flex:1;height:40px;border:1px solid #E0E0E0;border-radius:8px;padding:0 12px;font-size:15px;text-align:center;outline:none}
+.threshold-input:focus{border-color:var(--primary)}
+.threshold-send{width:72px;height:40px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.threshold-send:active{background:#1976D2}
 
-        .status-dot.disconnected {
-            background: var(--alarm);
-        }
+.gps-status{font-size:14px;color:var(--sub);text-align:center;padding:8px}
+.gps-coord{font-size:13px;color:var(--sub);margin-top:4px;text-align:center}
+.gps-location{font-size:16px;font-weight:600;text-align:center;margin-top:8px;color:var(--text)}
 
-        .card {
-            background: var(--card);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            padding: 16px;
-            margin-top: 12px;
-        }
-
-        .card-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--sub);
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .data-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .data-item {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .data-label {
-            font-size: 13px;
-            color: var(--sub);
-        }
-
-        .data-value {
-            font-size: 28px;
-            font-weight: bold;
-            color: var(--text);
-        }
-
-        .data-value.alarm {
-            color: var(--alarm);
-        }
-
-        .data-unit {
-            font-size: 13px;
-            color: var(--sub);
-            font-weight: normal;
-        }
-
-        .alarm-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .alarm-item {
-            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
-            color: var(--alarm);
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .alarm-normal {
-            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-            color: var(--ok);
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            text-align: center;
-        }
-
-        .control-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .control-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .control-label {
-            font-size: 14px;
-            color: var(--text);
-            flex: 1;
-        }
-
-        .control-btn {
-            height: 48px;
-            min-width: 80px;
-            padding: 0 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .control-btn.primary {
-            background: var(--primary);
-            color: white;
-        }
-
-        .control-btn.primary:active {
-            background: #1976D2;
-        }
-
-        .control-btn.alarm {
-            background: var(--alarm);
-            color: white;
-        }
-
-        .control-btn.alarm:active {
-            background: #D32F2F;
-        }
-
-        .control-btn.mode {
-            background: var(--ok);
-            color: white;
-        }
-
-        .control-btn.mode:active {
-            background: #388E3C;
-        }
-
-        .threshold-display-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .threshold-display-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .threshold-display-item:last-child {
-            border-bottom: none;
-        }
-
-        .threshold-display-label {
-            font-size: 14px;
-            color: var(--text);
-        }
-
-        .threshold-display-value {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--primary);
-        }
-
-        .threshold-setting-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .threshold-setting-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .threshold-setting-label {
-            font-size: 14px;
-            color: var(--text);
-            min-width: 70px;
-        }
-
-        .threshold-setting-input {
-            width: 80px;
-            height: 44px;
-            padding: 0 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
-            text-align: center;
-        }
-
-        .threshold-setting-input:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        .threshold-setting-btn {
-            height: 44px;
-            padding: 0 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            background: var(--primary);
-            color: white;
-            transition: all 0.2s;
-        }
-
-        .threshold-setting-btn:active {
-            background: #1976D2;
-        }
-
-        .log-card {
-            cursor: pointer;
-        }
-
-        .log-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .log-toggle {
-            font-size: 18px;
-            color: var(--sub);
-            transition: transform 0.3s;
-        }
-
-        .log-toggle.expanded {
-            transform: rotate(180deg);
-        }
-
-        .log-list {
-            margin-top: 12px;
-            max-height: 300px;
-            overflow-y: auto;
-            display: none;
-        }
-
-        .log-list.expanded {
-            display: block;
-        }
-
-        .log-item {
-            font-family: monospace;
-            font-size: 12px;
-            color: var(--sub);
-            padding: 6px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .log-item:last-child {
-            border-bottom: none;
-        }
-
-        .mode-display {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .mode-display.auto {
-            background: #E3F2FD;
-            color: #1976D2;
-        }
-
-        .mode-display.manual {
-            background: #FFF3E0;
-            color: #F57C00;
-        }
-    </style>
+.log-toggle{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center}
+.log-toggle::after{content:'\25B6';font-size:12px;transition:transform 0.2s}
+.log-toggle.open::after{transform:rotate(90deg)}
+.log-content{max-height:0;overflow:hidden;transition:max-height 0.3s ease}
+.log-content.open{max-height:400px;overflow-y:auto}
+.log-entry{font-size:12px;color:var(--sub);padding:4px 0;border-bottom:1px solid #F5F5F5;font-family:monospace}
+.log-entry:last-child{border-bottom:none}
+</style>
 </head>
 <body>
-    <div class="topbar">
-        <div class="status-bar">
-            <div class="status-item">
-                <div class="status-dot" id="statusDot"></div>
-                <span id="statusText">未连接</span>
+
+<div class="header">
+    <h1>林区火情监测</h1>
+    <div class="status-bar">
+        <span id="statusText">未连接</span>
+        <span class="status-dot disconnected" id="statusDot"></span>
+        <span class="alarm-badge normal" id="alarmBadge" style="display:none">正常</span>
+    </div>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+    <div class="card-title"><span class="icon">📊</span>实时数据</div>
+    <div class="data-row">
+        <span class="data-label">温度</span>
+        <div><span class="data-value" id="val_temp">--</span><span class="data-unit">°C</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">湿度</span>
+        <div><span class="data-value" id="val_humi">--</span><span class="data-unit">%RH</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">烟雾浓度</span>
+        <div style="flex:1;margin-left:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="data-value" id="val_smoke">--</span>
+                <span class="data-unit">/4095</span>
             </div>
-            <div class="status-item">
-                <span class="mode-display auto" id="modeDisplay">AUTO</span>
-            </div>
+            <div class="progress-bar"><div class="progress-fill" id="bar_smoke" style="width:0%;background:#4CAF50"></div></div>
         </div>
     </div>
-
-    <!-- 实时数据卡 -->
-    <div class="card">
-        <div class="card-title">📊 实时数据</div>
-        <div class="data-grid">
-            <div class="data-item">
-                <span class="data-label">PH 值</span>
-                <span class="data-value" id="ph">--<span class="data-unit"></span></span>
-            </div>
-            <div class="data-item">
-                <span class="data-label">浊度</span>
-                <span class="data-value" id="turb">--<span class="data-unit"></span></span>
-            </div>
-            <div class="data-item">
-                <span class="data-label">温度</span>
-                <span class="data-value" id="temp">--<span class="data-unit">℃</span></span>
-            </div>
-            <div class="data-item">
-                <span class="data-label">湿度</span>
-                <span class="data-value" id="humi">--<span class="data-unit">%</span></span>
-            </div>
-        </div>
+    <div class="data-row">
+        <span class="data-label">火焰距离</span>
+        <div><span class="data-value" id="val_flame">--</span><span class="data-unit" id="flame_status"> m</span></div>
     </div>
+</div>
 
-    <!-- 报警状态卡 -->
-    <div class="card" id="alarmCard">
-        <div class="card-title">🚨 报警状态</div>
-        <div class="alarm-list" id="alarmList">
-            <div class="alarm-normal">运行正常 ✓</div>
-        </div>
-        <button class="control-btn alarm" id="silenceBtn" style="width:100%;margin-top:12px;display:none;" onclick="sendSilence()">🔇 消警</button>
+<!-- 报警状态卡 -->
+<div class="card">
+    <div class="card-title"><span class="icon">🔔</span>报警状态</div>
+    <div id="alarm_display">
+        <div class="alarm-normal">环境正常</div>
     </div>
+</div>
 
-    <!-- 控制卡 -->
-    <div class="card">
-        <div class="card-title">🎮 设备控制</div>
-        <div class="control-grid">
-            <div class="control-row">
-                <span class="control-label">模式切换</span>
-                <button class="control-btn mode" onclick="sendModeToggle()">🔄 切换</button>
-            </div>
-            <div class="control-row">
-                <span class="control-label">加热器</span>
-                <button class="control-btn primary" id="relay1Btn" onclick="sendRelay(1)">开启</button>
-            </div>
-            <div class="control-row">
-                <span class="control-label">消毒装置</span>
-                <button class="control-btn primary" id="relay2Btn" onclick="sendRelay(2)">开启</button>
-            </div>
-            <div class="control-row">
-                <span class="control-label">通风设备</span>
-                <button class="control-btn primary" id="relay3Btn" onclick="sendRelay(3)">开启</button>
-            </div>
-        </div>
+<!-- 消警按钮 -->
+<div class="card">
+    <div class="card-title"><span class="icon">🔇</span>消警控制</div>
+    <button class="ctrl-btn mute" onclick="sendMute()">一键消警</button>
+</div>
+
+<!-- 当前阈值（只读，跟随设备回传更新） -->
+<div class="card">
+    <div class="card-title"><span class="icon">📋</span>当前阈值</div>
+    <div class="threshold-row">
+        <span class="threshold-label">TEMPH</span>
+        <span class="threshold-value" id="disp_temp">35</span>
     </div>
-
-    <!-- 阈值显示卡 -->
-    <div class="card">
-        <div class="card-title">📋 当前阈值</div>
-        <div class="threshold-display-list">
-            <div class="threshold-display-item">
-                <span class="threshold-display-label">PH 上限</span>
-                <span class="threshold-display-value" id="phh_display">--</span>
-            </div>
-            <div class="threshold-display-item">
-                <span class="threshold-display-label">浊度上限</span>
-                <span class="threshold-display-value" id="turbh_display">--</span>
-            </div>
-            <div class="threshold-display-item">
-                <span class="threshold-display-label">温度上限</span>
-                <span class="threshold-display-value" id="temph_display">--</span>
-            </div>
-            <div class="threshold-display-item">
-                <span class="threshold-display-label">温度下限</span>
-                <span class="threshold-display-value" id="templ_display">--</span>
-            </div>
-            <div class="threshold-display-item">
-                <span class="threshold-display-label">湿度上限</span>
-                <span class="threshold-display-value" id="humih_display">--</span>
-            </div>
-        </div>
+    <div class="threshold-row">
+        <span class="threshold-label">HUMIH</span>
+        <span class="threshold-value" id="disp_humi">80</span>
     </div>
-
-    <!-- 阈值设置卡 -->
-    <div class="card">
-        <div class="card-title">⚙ 阈值设置</div>
-        <div class="threshold-setting-list">
-            <div class="threshold-setting-row">
-                <span class="threshold-setting-label">PH 上限</span>
-                <input type="number" class="threshold-setting-input" id="phh_input" placeholder="0.0-14.0" step="0.1">
-                <button class="threshold-setting-btn" onclick="setThreshold('phh', '02')">发送</button>
-            </div>
-            <div class="threshold-setting-row">
-                <span class="threshold-setting-label">浊度上限</span>
-                <input type="number" class="threshold-setting-input" id="turbh_input" placeholder="0-4095" step="1">
-                <button class="threshold-setting-btn" onclick="setThreshold('turbh', '03')">发送</button>
-            </div>
-            <div class="threshold-setting-row">
-                <span class="threshold-setting-label">温度上限</span>
-                <input type="number" class="threshold-setting-input" id="temph_input" placeholder="0-100" step="1">
-                <button class="threshold-setting-btn" onclick="setThreshold('temph', '04')">发送</button>
-            </div>
-            <div class="threshold-setting-row">
-                <span class="threshold-setting-label">温度下限</span>
-                <input type="number" class="threshold-setting-input" id="templ_input" placeholder="0-100" step="1">
-                <button class="threshold-setting-btn" onclick="setThreshold('templ', '05')">发送</button>
-            </div>
-            <div class="threshold-setting-row">
-                <span class="threshold-setting-label">湿度上限</span>
-                <input type="number" class="threshold-setting-input" id="humih_input" placeholder="0-100" step="1">
-                <button class="threshold-setting-btn" onclick="setThreshold('humih', '06')">发送</button>
-            </div>
-        </div>
+    <div class="threshold-row">
+        <span class="threshold-label">SMOKEH</span>
+        <span class="threshold-value" id="disp_smoke">1200</span>
     </div>
+</div>
 
-    <!-- 日志卡 -->
-    <div class="card log-card" onclick="toggleLog()">
-        <div class="log-header">
-            <div class="card-title" style="margin-bottom:0;">📝 数据日志</div>
-            <span class="log-toggle" id="logToggle">▼</span>
-        </div>
-        <div class="log-list" id="logList"></div>
+<!-- 阈值设置（手动输入下发，不被回传覆盖） -->
+<div class="card">
+    <div class="card-title"><span class="icon">⚙️</span>阈值设置</div>
+    <div class="threshold-row">
+        <span class="threshold-label">TEMPH</span>
+        <input class="threshold-input" type="number" id="thr_temp" value="35" min="0" max="50">
+        <button class="threshold-send" onclick="sendThreshold('SET_TEMP','thr_temp')">发送</button>
     </div>
+    <div class="threshold-row">
+        <span class="threshold-label">HUMIH</span>
+        <input class="threshold-input" type="number" id="thr_humi" value="80" min="0" max="100">
+        <button class="threshold-send" onclick="sendThreshold('SET_HUMI','thr_humi')">发送</button>
+    </div>
+    <div class="threshold-row">
+        <span class="threshold-label">SMOKEH</span>
+        <input class="threshold-input" type="number" id="thr_smoke" value="1200" min="0" max="4095">
+        <button class="threshold-send" onclick="sendThreshold('SET_SMOKE','thr_smoke')">发送</button>
+    </div>
+</div>
 
-    <script src="mqtt.min.js"></script>
-    <script>
-        // ==================== MQTT 配置 ====================
-        const UPLOAD_TOPIC = '753284/401657/shuizhijiance/upload';
-        const CMD_TOPIC = '753284/401657/shuizhijiance/cmd';
+<!-- GPS 位置卡 -->
+<div class="card">
+    <div class="card-title"><span class="icon">📍</span>GPS 位置</div>
+    <div class="gps-status" id="gps_status">定位中...</div>
+    <div class="gps-coord" id="gps_coord"></div>
+</div>
 
-        // ==================== 同步保护状态（核心改进） ====================
-        let waitingSync = {
-            phh: false,
-            turbh: false,
-            temph: false,
-            templ: false,
-            humih: false
-        };
-        let pendingValue = {
-            phh: null,
-            turbh: null,
-            temph: null,
-            templ: null,
-            humih: null
-        };
-        let syncTimeoutTimer = {
-            phh: null,
-            turbh: null,
-            temph: null,
-            templ: null,
-            humih: null
-        };
+<!-- 日志卡（默认折叠） -->
+<div class="card">
+    <div class="card-title log-toggle" id="log_toggle" onclick="toggleLog()">📋 数据日志</div>
+    <div class="log-content" id="log_content">
+        <div id="log_list"></div>
+    </div>
+</div>
 
-        // 防抖动保护
-        let lastUserSetTime = {
-            phh: 0,
-            turbh: 0,
-            temph: 0,
-            templ: 0,
-            humih: 0
-        };
+<script src="mqtt.min.js"></script>
+<script>
+const UPLOAD_TOPIC = '753284/401657/linquhuoqing/upload';
+const CMD_TOPIC    = '753284/401657/linquhuoqing/cmd';
 
-        const DEBOUNCE_MS = 500;
-        const SYNC_TIMEOUT_MS = 5000;
+// ===== 华为云 IoTDA 配置 =====
+const HW_CONFIG = {
+  hostname:  "f8ba437f04.st1.iotda-device.cn-north-4.myhuaweicloud.com",
+  username:  "69f58461cbb0cf6bb956d0ad_12345",
+  password:  "fc9fddb0e99857c89325932fffc47c29e1547bc87e9ca8b8341f7985c3481be7",
+  clientId:  "69f58461cbb0cf6bb956d0ad_12345_0_0_2026050209",
+  port_wss:  443
+};
+const HW_DEVICE_ID = HW_CONFIG.username;
+const HW_TOPIC = `$oc/devices/${HW_DEVICE_ID}/sys/properties/report`;
+const HW_URL = `wss://${HW_CONFIG.hostname}:${HW_CONFIG.port_wss}/mqtt`;
 
-        // ==================== 当前数据状态 ====================
-        let currentData = {
-            ph: null,
-            turb: null,
-            temp: null,
-            humi: null,
-            relay1: null,
-            relay2: null,
-            relay3: null,
-            mode: 'AUTO',
-            phh: null,
-            turbh: null,
-            temph: null,
-            templ: null,
-            humih: null
-        };
+let currentData = {
+    temp: 0, humi: 0, smoke: 0, flame: 0, fire_distance: 0, lat: 0, lng: 0,
+    TEMPH: 35, HUMIH: 80, SMOKEH: 1200
+};
 
-        let isConnected = false;
-        let logEntries = [];
-        let logExpanded = false;
+let waitingSync = {temp:false,humi:false,smoke:false};
+let alarmState = 'NORMAL';
+let alarmMute = false;
+let logEntries = [];
+let client = null;
+let hwClient = null;
+let hwConnected = false;
+let hwConnecting = false;
 
-        // ==================== MQTT 客户端初始化 ====================
-        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-            clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
-            reconnectPeriod: 3000,
-            clean: true
-        });
+function connect() {
+    client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+        clientId: 'huoqing_' + Math.random().toString(36).substr(2, 8),
+        reconnectPeriod: 3000
+    });
 
-        client.on('connect', () => {
-            console.log('MQTT Connected');
-            isConnected = true;
-            updateConnectionStatus();
-            client.subscribe(UPLOAD_TOPIC);
-        });
+    client.on('connect', () => {
+        document.getElementById('statusText').textContent = '已连接';
+        document.getElementById('statusDot').className = 'status-dot connected';
+        client.subscribe(UPLOAD_TOPIC);
+        addLog('✅ MQTT 已连接');
+        connectHuawei();
+    });
 
-        client.on('disconnect', () => {
-            console.log('MQTT Disconnected');
-            isConnected = false;
-            updateConnectionStatus();
-        });
+    client.on('close', () => {
+        document.getElementById('statusText').textContent = '未连接';
+        document.getElementById('statusDot').className = 'status-dot disconnected';
+    });
 
-        client.on('reconnect', () => {
-            console.log('MQTT Reconnecting...');
-            isConnected = false;
-            updateConnectionStatus();
-        });
+    client.on('message', (topic, payload) => {
+        const msg = payload.toString();
+        addLog(msg);
+        parseAndUpdate(msg);
+    });
+}
 
-        client.on('message', (topic, payload) => {
-            console.log('Received message on topic:', topic);
-            console.log('Expected topic:', UPLOAD_TOPIC);
-            console.log('Topic match:', topic === UPLOAD_TOPIC);
-            if (topic === UPLOAD_TOPIC) {
-                const message = payload.toString();
-                console.log('Message content:', message);
-                parseMessage(message);
-            }
-        });
+// ===== 华为云 IoTDA 连接 =====
+function connectHuawei() {
+    // 防止重复创建连接（EMQX 重连时会再次触发 connectHuawei）
+    if (hwClient && hwConnected) return;
+    if (hwClient && hwConnecting) return;
 
-        // ==================== 连接状态更新 ====================
-        function updateConnectionStatus() {
-            const dot = document.getElementById('statusDot');
-            const text = document.getElementById('statusText');
-            if (isConnected) {
-                dot.className = 'status-dot connected';
-                text.textContent = '已连接';
-            } else {
-                dot.className = 'status-dot disconnected';
-                text.textContent = '未连接';
-            }
+    hwConnecting = true;
+
+    hwClient = mqtt.connect(HW_URL, {
+        clientId:    HW_CONFIG.clientId,
+        username:    HW_CONFIG.username,
+        password:    HW_CONFIG.password,
+        protocolVersion: 4,
+        clean:       true,
+        reconnectPeriod: 30000,  // 失败后 30 秒再重连，避免刷屏
+        connectTimeout: 10000,
+        rejectUnauthorized: false,
+    });
+
+    hwClient.on('connect', () => {
+        hwConnected = true;
+        hwConnecting = false;
+        addLog('☁️ 华为云已连接');
+    });
+
+    hwClient.on('error', (err) => {
+        hwConnecting = false;
+        addLog('☁️ 错误: ' + err.message);
+    });
+
+    hwClient.on('close', () => {
+        hwConnected = false;
+        addLog('☁️ 连接关闭');
+    });
+
+    hwClient.on('reconnect', () => {
+        hwConnecting = true;
+        addLog('☁️ 尝试重连...');
+    });
+
+    hwClient.on('offline', () => {
+        hwConnected = false;
+        addLog('☁️ 离线');
+    });
+}
+
+// ===== 上报数据到华为云 =====
+function reportToHuawei() {
+    if (!hwConnected) return;
+
+    const payload = {
+        services: [{
+            service_id: "stm32",
+            properties: {
+                "温度": currentData.temp,
+                "湿度": currentData.humi,
+                "MQ2": currentData.smoke,
+                "火焰": currentData.fire_distance === 0 ? -1 : currentData.fire_distance
+            },
+            event_time: new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z'
+        }]
+    };
+
+    const jsonStr = JSON.stringify(payload);
+    hwClient.publish(HW_TOPIC, jsonStr, { qos: 0 }, (err) => {
+        if (err) {
+            addLog('☁️ 上报失败: ' + err.message);
         }
+    });
+}
 
-        // ==================== 解析消息并更新 UI ====================
-        function parseMessage(message) {
-            const parts = message.split(',');
-            if (parts.length < 13) return;
+function parseAndUpdate(message) {
+    const parts = message.split(',');
+    if (parts.length < 10) return;
 
-            const now = Date.now();
+    const newThr = {
+        TEMPH: parseFloat(parts[7]),
+        HUMIH: parseFloat(parts[8]),
+        SMOKEH: parseFloat(parts[9])
+    };
 
-            const newData = {
-                ph: parseFloat(parts[0]),
-                turb: parseInt(parts[1]),
-                temp: parseFloat(parts[2]),
-                humi: parseInt(parts[3]),
-                relay1: parseInt(parts[4]),
-                relay2: parseInt(parts[5]),
-                relay3: parseInt(parts[6]),
-                mode: parts[7],
-                phh: parseFloat(parts[8]),
-                turbh: parseInt(parts[9]),
-                temph: parseInt(parts[10]),
-                templ: parseInt(parts[11]),
-                humih: parseInt(parts[12])
-            };
+    // Check sync completion for each threshold
+    if (waitingSync.temp && Math.abs(newThr.TEMPH - currentData.TEMPH) < 0.1) waitingSync.temp = false;
+    if (waitingSync.humi && Math.abs(newThr.HUMIH - currentData.HUMIH) < 0.1) waitingSync.humi = false;
+    if (waitingSync.smoke && Math.abs(newThr.SMOKEH - currentData.SMOKEH) < 0.1) waitingSync.smoke = false;
 
-            // 传感器值始终更新
-            currentData.ph = newData.ph;
-            currentData.turb = newData.turb;
-            currentData.temp = newData.temp;
-            currentData.humi = newData.humi;
-            currentData.relay1 = newData.relay1;
-            currentData.relay2 = newData.relay2;
-            currentData.relay3 = newData.relay3;
-            currentData.mode = newData.mode;
+    currentData.temp = parseFloat(parts[0]);
+    currentData.humi = parseFloat(parts[1]);
+    currentData.smoke = parseFloat(parts[2]);
+    currentData.flame = parseFloat(parts[3]);
+    currentData.fire_distance = parseFloat(parts[4]);
+    currentData.lat = parseFloat(parts[5]);
+    currentData.lng = parseFloat(parts[6]);
 
-            // 检查是否有正在等待同步的阈值
-            let hasPendingSync = false;
-            for (const [key, isWaiting] of Object.entries(waitingSync)) {
-                if (isWaiting) {
-                    hasPendingSync = true;
-                    const expectedValue = pendingValue[key];
-                    const receivedValue = newData[key];
+    if (!waitingSync.temp) currentData.TEMPH = newThr.TEMPH;
+    if (!waitingSync.humi) currentData.HUMIH = newThr.HUMIH;
+    if (!waitingSync.smoke) currentData.SMOKEH = newThr.SMOKEH;
 
-                    // 检查下位机是否确认了新值（允许小范围误差）
-                    if (expectedValue !== null && Math.abs(receivedValue - expectedValue) < 0.5) {
-                        console.log(`Sync confirmed for ${key}: ${receivedValue}`);
+    // Auto-reset mute flag when all data returns to normal
+    const allNormal = currentData.temp <= currentData.TEMPH
+        && currentData.humi <= currentData.HUMIH
+        && currentData.smoke <= currentData.SMOKEH
+        && currentData.fire_distance === 0;
+    if (allNormal && alarmMute) {
+        alarmMute = false;
+    }
 
-                        // 同步成功，清除定时器
-                        if (syncTimeoutTimer[key]) {
-                            clearTimeout(syncTimeoutTimer[key]);
-                            syncTimeoutTimer[key] = null;
-                        }
+    // 先上报到华为云，再更新UI
+    reportToHuawei();
 
-                        // 释放保护状态
-                        waitingSync[key] = false;
-                        pendingValue[key] = null;
-                        lastUserSetTime[key] = 0;
-                    }
-                }
-            }
+    updateUI();
 
-            // 阈值更新逻辑（三重保护）
-            for (const key of ['phh', 'turbh', 'temph', 'templ', 'humih']) {
-                if (!lastUserSetTime[key] || (now - lastUserSetTime[key]) >= DEBOUNCE_MS) {
-                    if (!waitingSync[key]) {
-                        currentData[key] = newData[key];
-                    }
-                }
-            }
+    if (!waitingSync.temp && !waitingSync.humi && !waitingSync.smoke) {
+        checkAlarms();
+    }
+}
 
-            updateUI();
+function updateUI() {
+    const d = currentData;
 
-            // 等待确认期间使用预测值进行报警判断
-            if (hasPendingSync) {
-                checkAlarmsWithPending();
-            } else {
-                checkAlarms();
-            }
+    document.getElementById('val_temp').innerHTML =
+        formatValue('temp', d.temp, d.TEMPH) + '°C';
+    document.getElementById('val_humi').innerHTML =
+        formatValue('humi', d.humi, d.HUMIH) + '%RH';
+    document.getElementById('val_smoke').innerHTML =
+        formatValue('smoke', d.smoke, d.SMOKEH);
 
-            addLog(message);
-        }
+    // Flame distance display
+    if (d.fire_distance === 0) {
+        document.getElementById('val_flame').textContent = '无';
+        document.getElementById('flame_status').textContent = '火焰';
+    } else {
+        document.getElementById('val_flame').innerHTML =
+            '<span class="alarm">' + d.fire_distance + '<span class="exclaim">!</span></span>';
+        document.getElementById('flame_status').textContent = 'm';
+    }
 
-        // ==================== UI 更新函数 ====================
-        function updateUI() {
-            // 传感器数值
-            if (currentData.ph !== null) {
-                document.getElementById('ph').textContent = currentData.ph.toFixed(1);
-            }
-            if (currentData.turb !== null) {
-                document.getElementById('turb').textContent = currentData.turb;
-            }
-            if (currentData.temp !== null) {
-                document.getElementById('temp').textContent = currentData.temp.toFixed(1);
-            }
-            if (currentData.humi !== null) {
-                document.getElementById('humi').textContent = currentData.humi;
-            }
+    // Current threshold display (read-only)
+    document.getElementById('disp_temp').textContent = d.TEMPH;
+    document.getElementById('disp_humi').textContent = d.HUMIH;
+    document.getElementById('disp_smoke').textContent = d.SMOKEH;
 
-            // 继电器按钮状态
-            updateRelayButton(1, currentData.relay1);
-            updateRelayButton(2, currentData.relay2);
-            updateRelayButton(3, currentData.relay3);
+    // Alarm badge
+    updateAlarmBadge();
 
-            // 模式显示
-            const modeDisplay = document.getElementById('modeDisplay');
-            modeDisplay.textContent = currentData.mode;
-            modeDisplay.className = 'mode-display ' + currentData.mode.toLowerCase();
+    // GPS
+    if (d.lat === 0 && d.lng === 0) {
+        document.getElementById('gps_status').textContent = '定位中...';
+        document.getElementById('gps_coord').textContent = '';
+        document.getElementById('gps_location').textContent = '';
+    } else {
+        document.getElementById('gps_status').textContent = '已定位';
+        document.getElementById('gps_coord').textContent = d.lat.toFixed(4) + ', ' + d.lng.toFixed(4);
+    }
+}
 
-            // 阈值显示（关键：等待期间显示预测值，否则显示下位机上报值）
-            if (currentData.phh !== null) {
-                document.getElementById('phh_display').textContent = waitingSync.phh ? pendingValue.phh : currentData.phh.toFixed(1);
-            }
-            if (currentData.turbh !== null) {
-                document.getElementById('turbh_display').textContent = waitingSync.turbh ? pendingValue.turbh : currentData.turbh;
-            }
-            if (currentData.temph !== null) {
-                document.getElementById('temph_display').textContent = waitingSync.temph ? pendingValue.temph : currentData.temph.toFixed(1);
-            }
-            if (currentData.templ !== null) {
-                document.getElementById('templ_display').textContent = waitingSync.templ ? pendingValue.templ : currentData.templ.toFixed(1);
-            }
-            if (currentData.humih !== null) {
-                document.getElementById('humih_display').textContent = waitingSync.humih ? pendingValue.humih : currentData.humih;
-            }
-        }
+function formatValue(key, value, threshold) {
+    const display = (typeof value === 'number') ? value.toFixed(value % 1 === 0 ? 0 : 1) : value;
+    if (threshold !== undefined && value > threshold) {
+        return '<span class="alarm">' + display + '<span class="exclaim">!</span></span>';
+    }
+    return display;
+}
 
-        function updateRelayButton(ch, state) {
-            const btn = document.getElementById(`relay${ch}Btn`);
-            if (state === 1) {
-                btn.textContent = '关闭';
-                btn.classList.add('alarm');
-            } else {
-                btn.textContent = '开启';
-                btn.classList.remove('alarm');
-            }
-        }
+function checkAlarms() {
+    const alarms = [];
+    if (currentData.temp > currentData.TEMPH) alarms.push('⚠ 温度异常：' + currentData.temp + '°C');
+    if (currentData.humi > currentData.HUMIH) alarms.push('⚠ 湿度异常：' + currentData.humi + '%');
+    if (currentData.smoke > currentData.SMOKEH) alarms.push('⚠ 烟雾异常');
+    if (currentData.fire_distance >= 1) alarms.push('🔥 检测到火源！距离 ' + currentData.fire_distance + ' m');
 
-        // ==================== 报警判断函数 ====================
-        function checkAlarms() {
-            const alarms = [];
+    if (alarms.length === 0 && !alarmMute) {
+        alarmState = 'NORMAL';
+    } else if (alarms.length > 0 && !alarmMute) {
+        alarmState = 'ALARM';
+    } else if (alarmMute) {
+        alarmState = 'MUTED';
+    }
 
-            if (currentData.ph !== null && currentData.phh !== null && currentData.ph > currentData.phh) {
-                alarms.push('PH 超限报警');
-            }
-            if (currentData.turb !== null && currentData.turbh !== null && currentData.turb > currentData.turbh) {
-                alarms.push('浊度超限报警');
-            }
-            if (currentData.humi !== null && currentData.humih !== null && currentData.humi > currentData.humih) {
-                alarms.push('湿度超限报警');
-            }
-            // 温度上限报警（上传数据已是×10 后的值，无需再乘）
-            if (currentData.temp !== null && currentData.temph !== null && currentData.temp > currentData.temph) {
-                alarms.push('温度上限报警');
-            }
-            // 温度下限报警
-            if (currentData.temp !== null && currentData.templ !== null && currentData.temp < currentData.templ) {
-                alarms.push('温度下限报警');
-            }
+    renderAlarms(alarms);
+}
 
-            renderAlarms(alarms);
+function updateAlarmBadge() {
+    const badge = document.getElementById('alarmBadge');
+    badge.style.display = 'inline';
+    badge.className = 'alarm-badge ' + alarmState.toLowerCase();
+    if (alarmState === 'NORMAL') badge.textContent = '正常';
+    else if (alarmState === 'ALARM') badge.textContent = '报警';
+    else if (alarmState === 'MUTED') badge.textContent = '已消警';
+}
 
-            if (alarms.length > 0) {
-                sendAlarmToNative({
-                    which: 'water_quality',
-                    ph: currentData.ph,
-                    phh: currentData.phh,
-                    turb: currentData.turb,
-                    turbh: currentData.turbh,
-                    humi: currentData.humi,
-                    humih: currentData.humih,
-                    temp: currentData.temp,
-                    temph: currentData.temph,
-                    templ: currentData.templ
-                });
-            }
-        }
+function renderAlarms(alarms) {
+    const el = document.getElementById('alarm_display');
+    if (alarms.length === 0) {
+        el.innerHTML = '<div class="alarm-normal">环境正常</div>';
+    } else {
+        el.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+    }
+}
 
-        function checkAlarmsWithPending() {
-            const alarms = [];
+function sendMute() {
+    if (!client || !client.connected) { alert('MQTT 未连接'); return; }
+    client.publish(CMD_TOPIC, 'ALARM_MUTE');
+    alarmMute = true;
+    alarmState = 'MUTED';
+    updateAlarmBadge();
+    addLog('🔇 下发消警指令');
+}
 
-            // 使用预测值（如果正在等待同步）或当前值
-            const phh = waitingSync.phh ? pendingValue.phh : currentData.phh;
-            const turbh = waitingSync.turbh ? pendingValue.turbh : currentData.turbh;
-            const temph = waitingSync.temph ? pendingValue.temph : currentData.temph;
-            const templ = waitingSync.templ ? pendingValue.templ : currentData.templ;
-            const humih = waitingSync.humih ? pendingValue.humih : currentData.humih;
+function sendThreshold(cmd, inputId) {
+    if (!client || !client.connected) { alert('MQTT 未连接'); return; }
+    const input = document.getElementById(inputId);
+    const value = parseInt(input.value);
+    if (isNaN(value) || value < 0) { alert('请输入有效数值'); return; }
 
-            if (currentData.ph !== null && phh !== null && currentData.ph > phh) {
-                alarms.push('PH 超限报警');
-            }
-            if (currentData.turb !== null && turbh !== null && currentData.turb > turbh) {
-                alarms.push('浊度超限报警');
-            }
-            if (currentData.humi !== null && humih !== null && currentData.humi > humih) {
-                alarms.push('湿度超限报警');
-            }
-            // 温度上限报警（上传数据已是×10 后的值，无需再乘）
-            if (currentData.temp !== null && temph !== null && currentData.temp > temph) {
-                alarms.push('温度上限报警');
-            }
-            // 温度下限报警
-            if (currentData.temp !== null && templ !== null && currentData.temp < templ) {
-                alarms.push('温度下限报警');
-            }
+    const cmdStr = cmd + ',' + value;
+    client.publish(CMD_TOPIC, cmdStr);
+    addLog('⚙️ 下发 ' + cmdStr);
 
-            renderAlarms(alarms);
+    // Optimistic update
+    const key = cmd.split('_')[1].toLowerCase();
+    if (key === 'temp') { currentData.TEMPH = value; waitingSync.temp = true; }
+    else if (key === 'humi') { currentData.HUMIH = value; waitingSync.humi = true; }
+    else if (key === 'smoke') { currentData.SMOKEH = value; waitingSync.smoke = true; }
 
-            if (alarms.length > 0) {
-                sendAlarmToNative({
-                    which: 'water_quality',
-                    ph: currentData.ph,
-                    phh: phh,
-                    turb: currentData.turb,
-                    turbh: turbh,
-                    humi: currentData.humi,
-                    humih: humih,
-                    temp: currentData.temp,
-                    temph: temph,
-                    templ: templ
-                });
-            }
-        }
+    // Immediate feedback
+    if (waitingSync[key]) {
+        const sensorVal = currentData[key];
+        const newAlarms = [];
+        if (key === 'temp' && sensorVal > value) newAlarms.push('⚠ 温度异常：' + sensorVal + '°C');
+        if (key === 'humi' && sensorVal > value) newAlarms.push('⚠ 湿度异常：' + sensorVal + '%');
+        if (key === 'smoke' && sensorVal > value) newAlarms.push('⚠ 烟雾异常');
+        if (newAlarms.length > 0) renderAlarms(newAlarms);
+    }
 
-        function renderAlarms(alarms) {
-            const alarmList = document.getElementById('alarmList');
-            const silenceBtn = document.getElementById('silenceBtn');
+    updateUI();
+}
 
-            if (alarms.length === 0) {
-                alarmList.innerHTML = '<div class="alarm-normal">运行正常 ✓</div>';
-                silenceBtn.style.display = 'none';
-            } else {
-                alarmList.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
-                silenceBtn.style.display = 'block';
-            }
+// Log
+function addLog(entry) {
+    logEntries.unshift({time: new Date().toLocaleTimeString(), text: entry});
+    if (logEntries.length > 20) logEntries.pop();
+    renderLog();
+}
 
-            // 数据报警高亮
-            updateDataAlarm();
-        }
+function renderLog() {
+    document.getElementById('log_list').innerHTML = logEntries.map(e =>
+        '<div class="log-entry">[' + e.time + '] ' + e.text + '</div>'
+    ).join('');
+}
 
-        function updateDataAlarm() {
-            const phEl = document.getElementById('ph');
-            const turbEl = document.getElementById('turb');
-            const humiEl = document.getElementById('humi');
+function toggleLog() {
+    const toggle = document.getElementById('log_toggle');
+    const content = document.getElementById('log_content');
+    toggle.classList.toggle('open');
+    content.classList.toggle('open');
+}
 
-            if (currentData.ph !== null && currentData.phh !== null && currentData.ph > currentData.phh) {
-                phEl.classList.add('alarm');
-            } else {
-                phEl.classList.remove('alarm');
-            }
-
-            if (currentData.turb !== null && currentData.turbh !== null && currentData.turb > currentData.turbh) {
-                turbEl.classList.add('alarm');
-            } else {
-                turbEl.classList.remove('alarm');
-            }
-
-            if (currentData.humi !== null && currentData.humih !== null && currentData.humi > currentData.humih) {
-                humiEl.classList.add('alarm');
-            } else {
-                humiEl.classList.remove('alarm');
-            }
-        }
-
-        // ==================== 发送指令函数 ====================
-        function sendCmd(cmd) {
-            if (!isConnected) {
-                alert('MQTT 未连接');
-                return;
-            }
-            client.publish(CMD_TOPIC, cmd);
-            console.log('Sending cmd:', cmd);
-        }
-
-        function sendSilence() {
-            sendCmd('01');
-        }
-
-        function sendModeToggle() {
-            sendCmd('20');
-        }
-
-        function sendRelay(ch) {
-            const cmdCode = 9 + ch;
-            const currentState = currentData[`relay${ch}`];
-            const newState = currentState === 1 ? 0 : 1;
-            sendCmd(`${cmdCode},${newState}`);
-        }
-
-        function setThreshold(type, cmdCode) {
-            const inputId = `${type}_input`;
-            const value = document.getElementById(inputId).value;
-
-            if (!value || value === '') {
-                alert('请输入阈值');
-                return;
-            }
-
-            const numValue = parseFloat(value);
-            if (isNaN(numValue)) {
-                alert('请输入有效数字');
-                return;
-            }
-
-            // 检查是否正在等待同步（防止重复发送）
-            if (waitingSync[type]) {
-                console.log(`Already waiting sync for ${type}`);
-                return;
-            }
-
-            // 1. 设置等待同步状态
-            waitingSync[type] = true;
-            pendingValue[type] = numValue;
-
-            // 2. 发送指令
-            sendCmd(`${cmdCode},${numValue}`);
-
-            // 3. 记录用户操作时间（防抖）
-            lastUserSetTime[type] = Date.now();
-
-            // 4. 立即更新显示（预测状态）
-            document.getElementById(`${type}_display`).textContent = numValue.toFixed(type === 'phh' || type === 'temph' || type === 'templ' ? 1 : 0);
-
-            // 5. 立即检查报警（即时反馈）
-            checkAlarmsWithPending();
-
-            // 6. 设置超时保护（如果下位机 5 秒内未确认，自动释放保护状态）
-            syncTimeoutTimer[type] = setTimeout(() => {
-                if (waitingSync[type]) {
-                    console.warn(`Sync timeout for ${type}, releasing protection`);
-                    waitingSync[type] = false;
-                    pendingValue[type] = null;
-                    syncTimeoutTimer[type] = null;
-                }
-            }, SYNC_TIMEOUT_MS);
-
-            // 关闭输入框焦点
-            document.getElementById(inputId).blur();
-        }
-
-        // ==================== 日志函数 ====================
-        function addLog(message) {
-            logEntries.unshift(message);
-            if (logEntries.length > 20) {
-                logEntries = logEntries.slice(0, 20);
-            }
-            if (logExpanded) {
-                renderLog();
-            }
-        }
-
-        function toggleLog() {
-            logExpanded = !logExpanded;
-            const logList = document.getElementById('logList');
-            const logToggle = document.getElementById('logToggle');
-            if (logExpanded) {
-                logList.classList.add('expanded');
-                logToggle.classList.add('expanded');
-                renderLog();
-            } else {
-                logList.classList.remove('expanded');
-                logToggle.classList.remove('expanded');
-            }
-        }
-
-        function renderLog() {
-            const logList = document.getElementById('logList');
-            logList.innerHTML = logEntries.map(entry => `<div class="log-item">${entry}</div>`).join('');
-        }
-
-        // ==================== JS Bridge 通知接口 ====================
-        function sendAlarmToNative(data) {
-            if (window.Android) {
-                window.Android.onAlarm(JSON.stringify(data));
-            } else if (window.Notification && Notification.permission === 'granted') {
-                new Notification('告警', { body: JSON.stringify(data) });
-            }
-        }
-
-        // 初始化连接状态
-        updateConnectionStatus();
-    </script>
+connect();
+</script>
 </body>
 </html>
