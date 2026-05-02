@@ -157,6 +157,8 @@ const THR_FIELDS = [
   {key:'soill', label:'土壤下限', unit:'%',       cmd:'SOILL',  type:'int'},
   {key:'lightl',label:'光照下限', unit:'lux',     cmd:'LIGHTL', type:'int'},
   {key:'co2h',  label:'CO2上限',  unit:'ppm',     cmd:'CO2H',   type:'int'},
+  {key:'co2l',  label:'CO2下限',  unit:'ppm',     cmd:'CO2L',   type:'int'},
+  {key:'lighth',label:'光照上限', unit:'lux',     cmd:'LIGHTH', type:'int'},
 ];
 
 // ===== 状态 =====
@@ -164,15 +166,14 @@ let currentData = {
   temp:0,humi:0,soil:0,lux:0,co2:0,
   mist:0,pump:0,fan:0,cooler:0,shade:0,led:0,buzzer:0,
   system_mode:'AUTO',
-  temph:30,humil:50,soill:35,lightl:300,co2h:1000
+  temph:30,humil:50,soill:35,lightl:300,co2h:1000,co2l:350,lighth:800
 };
 // 阈值显示值（用于乐观刷新，发送后保持用户值直到下位机确认）
-let thrDisplay = {temph:30,humil:50,soill:35,lightl:300,co2h:1000};
+let thrDisplay = {temph:30,humil:50,soill:35,lightl:300,co2h:1000,co2l:350,lighth:800};
 // 乐观刷新锁：驱动器和模式发送后锁定，防止下位机旧数据覆盖
-// key: {expected: 0/1} or {expected: 'AUTO'|'MANUAL'}
 let optimisticLock = {
   mist:null,pump:null,fan:null,cooler:null,shade:null,led:null,
-  mode:null
+  mode:null,temph:null,humil:null,soill:null,lightl:null,co2h:null,co2l:null,lighth:null
 };
 let logLines = [];
 let alarmMuted = false;
@@ -209,7 +210,7 @@ client.on('message', (topic, payload) => {
 // ===== 数据解析 =====
 function parseAndUpdate(msg) {
   const parts = msg.split(',');
-  if (parts.length < 18) { addLog('WARN: invalid payload, ' + parts.length + ' fields'); return; }
+  if (parts.length < 20) { addLog('WARN: invalid payload, ' + parts.length + ' fields'); return; }
 
   const newTempH = parseFloat(parts[13]);
   if (optimisticLock.temph && Math.abs(newTempH - optimisticLock.temph.expected) < 0.5) optimisticLock.temph = null;
@@ -226,6 +227,12 @@ function parseAndUpdate(msg) {
   const newCo2h = parseInt(parts[17]);
   if (optimisticLock.co2h && Math.abs(newCo2h - optimisticLock.co2h.expected) < 1) optimisticLock.co2h = null;
 
+  const newCo2l = parseInt(parts[18]);
+  if (optimisticLock.co2l && Math.abs(newCo2l - optimisticLock.co2l.expected) < 1) optimisticLock.co2l = null;
+
+  const newLighth = parseInt(parts[19]);
+  if (optimisticLock.lighth && Math.abs(newLighth - optimisticLock.lighth.expected) < 1) optimisticLock.lighth = null;
+
   // 传感器值始终更新
   currentData.temp  = parseFloat(parts[0]);
   currentData.humi  = parseInt(parts[1]);
@@ -241,34 +248,37 @@ function parseAndUpdate(msg) {
   if (!optimisticLock.shade)  currentData.shade = parseInt(parts[9]);
   if (!optimisticLock.led)    currentData.led   = parseInt(parts[10]);
 
-  // 模式：仅在未等待乐观确认时更新
-  if (!optimisticLock.mode) currentData.system_mode = parts[12];
+  // 模式：检查下位机回传模式是否与预期一致，一致则释放锁；否则保持锁定防止旧数据覆盖
+  if (optimisticLock.mode) {
+    if (parts[12] === optimisticLock.mode.expected) optimisticLock.mode = null;
+  } else {
+    currentData.system_mode = parts[12];
+  }
   currentData.buzzer = parseInt(parts[11]);
 
-  // 检查驱动器乐观确认是否完成（下位机回传状态与预期一致）
-  if (optimisticLock.mist   && currentData.mist   === optimisticLock.mist.expected)   optimisticLock.mist = null;
-  if (optimisticLock.pump   && currentData.pump   === optimisticLock.pump.expected)   optimisticLock.pump = null;
-  if (optimisticLock.fan    && currentData.fan    === optimisticLock.fan.expected)    optimisticLock.fan = null;
-  if (optimisticLock.cooler && currentData.cooler === optimisticLock.cooler.expected) optimisticLock.cooler = null;
-  if (optimisticLock.shade  && currentData.shade  === optimisticLock.shade.expected)  optimisticLock.shade = null;
-  if (optimisticLock.led    && currentData.led    === optimisticLock.led.expected)    optimisticLock.led = null;
-
-  // 模式确认：下位机回传的 mode 与预期一致
-  if (optimisticLock.mode && currentData.system_mode === optimisticLock.mode.expected) optimisticLock.mode = null;
+  // 检查驱动器乐观确认是否完成（比较设备回传值而非缓存值）
+  if (optimisticLock.mist   && parseInt(parts[5]) === optimisticLock.mist.expected)   optimisticLock.mist = null;
+  if (optimisticLock.pump   && parseInt(parts[6]) === optimisticLock.pump.expected)   optimisticLock.pump = null;
+  if (optimisticLock.fan    && parseInt(parts[7]) === optimisticLock.fan.expected)    optimisticLock.fan = null;
+  if (optimisticLock.cooler && parseInt(parts[8]) === optimisticLock.cooler.expected) optimisticLock.cooler = null;
+  if (optimisticLock.shade  && parseInt(parts[9]) === optimisticLock.shade.expected)  optimisticLock.shade = null;
+  if (optimisticLock.led    && parseInt(parts[10]) === optimisticLock.led.expected)   optimisticLock.led = null;
 
   // 阈值：仅在未等待同步时更新（不影响正在设置中的值）
-  if (!optimisticLock.temph)  { currentData.temph = newTempH;  thrDisplay.temph = newTempH; }
-  if (!optimisticLock.humil)  { currentData.humil = newHumil;  thrDisplay.humil = newHumil; }
-  if (!optimisticLock.soill)  { currentData.soill = newSoill;  thrDisplay.soill = newSoill; }
+  if (!optimisticLock.temph)  { currentData.temph = newTempH;   thrDisplay.temph = newTempH; }
+  if (!optimisticLock.humil)  { currentData.humil = newHumil;   thrDisplay.humil = newHumil; }
+  if (!optimisticLock.soill)  { currentData.soill = newSoill;   thrDisplay.soill = newSoill; }
   if (!optimisticLock.lightl) { currentData.lightl = newLightl; thrDisplay.lightl = newLightl; }
-  if (!optimisticLock.co2h)   { currentData.co2h = newCo2h;    thrDisplay.co2h = newCo2h; }
+  if (!optimisticLock.co2h)   { currentData.co2h = newCo2h;     thrDisplay.co2h = newCo2h; }
+  if (!optimisticLock.co2l)   { currentData.co2l = newCo2l;     thrDisplay.co2l = newCo2l; }
+  if (!optimisticLock.lighth) { currentData.lighth = newLighth; thrDisplay.lighth = newLighth; }
 
   updateDataRows();
   updateMode();
   updateDeviceCtrl();
   updateThrDisplay();
 
-  const allSynced = !optimisticLock.temph && !optimisticLock.humil && !optimisticLock.soill && !optimisticLock.lightl && !optimisticLock.co2h;
+  const allSynced = !optimisticLock.temph && !optimisticLock.humil && !optimisticLock.soill && !optimisticLock.lightl && !optimisticLock.co2h && !optimisticLock.co2l && !optimisticLock.lighth;
   if (allSynced) {
     checkAlarms();
   }
@@ -325,7 +335,7 @@ function updateThrRows() {
 }
 
 function getThresholdFor(key) {
-  const map = {temp:'temph',humi:'humil',soil:'soill',lux:'lightl',co2:'co2h'};
+  const map = {temp:'temph',humi:'humil',soil:'soill',co2:'co2h'};
   return currentData[map[key]];
 }
 
@@ -336,8 +346,8 @@ function checkAlarmFor(key, val, thr) {
     temp: () => val > thr ? 'red' : false,
     humi: () => val < thr ? 'red' : false,
     soil: () => val < thr ? 'red' : false,
-    lux:  () => val < thr ? 'yellow' : false,
-    co2:  () => val > thr ? 'red' : false,
+    lux:  () => (val < currentData.lightl || val > currentData.lighth) ? 'yellow' : false,
+    co2:  () => (val > currentData.co2h ? 'red' : val < currentData.co2l ? 'yellow' : false),
   };
   return (rules[key] || (() => false))();
 }
@@ -349,7 +359,9 @@ function checkAlarms() {
   if (currentData.humi < currentData.humil) alarms.push({msg:'湿度偏低! ' + currentData.humi + ' < ' + currentData.humil, level:'red'});
   if (currentData.soil < currentData.soill && currentData.soil > 5) alarms.push({msg:'土壤过干! ' + currentData.soil + ' < ' + currentData.soill, level:'red'});
   if (currentData.lux < currentData.lightl) alarms.push({msg:'光照不足! ' + currentData.lux + ' < ' + currentData.lightl, level:'yellow'});
+  if (currentData.lux > currentData.lighth) alarms.push({msg:'光照过强! ' + currentData.lux + ' > ' + currentData.lighth, level:'yellow'});
   if (currentData.co2 > currentData.co2h) alarms.push({msg:'CO2超标! ' + currentData.co2 + ' > ' + currentData.co2h, level:'red'});
+  if (currentData.co2 < currentData.co2l) alarms.push({msg:'CO2偏低! ' + currentData.co2 + ' < ' + currentData.co2l, level:'yellow'});
 
   const alarmBox = document.getElementById('alarmBox');
   if (alarmMuted) {
