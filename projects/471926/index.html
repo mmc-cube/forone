@@ -78,19 +78,23 @@
         .data-value.alarm { color: var(--alarm); }
         .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
 
-        /* 车位状态 */
+        /* 车位状态 — 4态 */
         .spots-grid { display: flex; gap: 12px; }
         .spot-item {
             flex: 1; text-align: center; padding: 16px 8px;
             border-radius: 10px; background: #f8f8f8; transition: all 0.3s;
         }
-        .spot-item.free { background: #E8F5E9; border: 2px solid var(--ok); }
-        .spot-item.occupied { background: #FFEBEE; border: 2px solid var(--alarm); }
+        .spot-item.free      { background: #E8F5E9; border: 2px solid var(--ok); }
+        .spot-item.allocated { background: #E3F2FD; border: 2px solid #2196F3; }
+        .spot-item.occupied  { background: #FFEBEE; border: 2px solid var(--alarm); }
+        .spot-item.reserved  { background: #F3E5F5; border: 2px solid #9C27B0; }
         .spot-icon { font-size: 32px; margin-bottom: 6px; }
         .spot-name { font-size: 13px; font-weight: 600; }
         .spot-status { font-size: 11px; margin-top: 2px; }
-        .spot-item.free .spot-status { color: var(--ok); }
-        .spot-item.occupied .spot-status { color: var(--alarm); }
+        .spot-item.free .spot-status      { color: var(--ok); }
+        .spot-item.allocated .spot-status { color: #2196F3; }
+        .spot-item.occupied .spot-status  { color: var(--alarm); }
+        .spot-item.reserved .spot-status  { color: #9C27B0; }
 
         /* 报警状态 */
         .alarm-item {
@@ -114,6 +118,7 @@
             cursor: pointer; margin-top: 8px;
         }
         .vehicle-pay-btn:active { opacity: 0.85; }
+        .vehicle-pay-btn.paid { background: #FF9800; }
         .vehicle-empty { font-size: 13px; color: var(--sub); text-align: center; padding: 12px; }
 
         /* 控制按钮 */
@@ -261,7 +266,7 @@
     </div>
 </div>
 
-<!-- 车位状态卡 -->
+<!-- 车位状态卡（4态） -->
 <div class="card">
     <h3>车位状态</h3>
     <div class="spots-grid">
@@ -386,6 +391,11 @@
     // 在场车辆列表
     let parkedCars = [];
 
+    // 车位4态状态机（APP端维护，对应 PRD 空闲/已分配/已占用/已预约）
+    let spotStates = ['free', 'free', 'free'];  // 3个车位的当前状态
+    let reservedSpots = new Set();                // APP预约的车位号集合
+    let paidSpots = new Set();                    // 已支付但车未离开的车位
+
     // ==================== 蓝牙控制函数 ====================
     function scanDevices() {
         if (window.BluetoothBridge) {
@@ -490,15 +500,24 @@
         const statusText = statusMap[sts] || '未知卡';
 
         if (sts === 1 || sts === 3) {
-            // 有效卡/预约卡 → 记录入场
             const exists = parkedCars.find(c => c.uid === uid);
             if (!exists) {
+                // 分配第一个空闲车位（4态：free 状态）
+                let spotIdx = spotStates.indexOf('free');
+                if (spotIdx === -1) {
+                    addLog('无空闲车位，拒绝分配');
+                    return;
+                }
                 parkedCars.push({
                     uid: uid,
                     entryTime: timestamp,
-                    fee: 0
+                    fee: 0,
+                    spotIndex: spotIdx,
+                    paid: false
                 });
-                addLog('入场: ' + uid + ' @' + timestamp);
+                // 预约卡 → 已预约(P)，有效卡 → 已分配(B)
+                spotStates[spotIdx] = (sts === 3) ? 'reserved' : 'allocated';
+                addLog('入场: ' + uid + ' @' + timestamp + ' → 车位' + (spotIdx + 1));
                 renderVehicles();
             }
         } else if (sts === 2) {
@@ -552,16 +571,58 @@
         if (waitingSync.spot && Math.abs(newData.spot_th - currentData.spot_th) < 1) waitingSync.spot = false;
         if (waitingSync.rate && Math.abs(newData.rate - currentData.rate) < 1) waitingSync.rate = false;
 
-        // 更新在场车辆费用
         updateVehicleFees();
-
+        updateSpotStates();  // 4态状态机更新
         updateUI();
-
-        // 检测车辆离开 → 清除记录
         checkVehicleDeparture();
 
         if (!waitingSync.ent && !waitingSync.spot && !waitingSync.rate) {
             checkAlarms();
+        }
+    }
+
+    // ==================== 车位4态状态机 ====================
+    function isSpotOccupied(idx) {
+        const dists = [currentData.s1_dist, currentData.s2_dist, currentData.s3_dist];
+        const d = dists[idx];
+        return d > 0 && d !== 999 && d < currentData.spot_th;
+    }
+
+    function updateSpotStates() {
+        for (let i = 0; i < 3; i++) {
+            const occ = isSpotOccupied(i);
+            const st = spotStates[i];
+
+            switch (st) {
+                case 'free':
+                    if (occ) spotStates[i] = 'occupied';
+                    else if (reservedSpots.has(i + 1)) spotStates[i] = 'reserved';
+                    break;
+                case 'allocated':
+                    if (occ) spotStates[i] = 'occupied';
+                    break;
+                case 'occupied':
+                    if (!occ) {
+                        // 车离开：已支付 → free，未支付 → 保持 occupied
+                        if (paidSpots.has(i)) {
+                            spotStates[i] = 'free';
+                            paidSpots.delete(i);
+                            reservedSpots.delete(i + 1);
+                        }
+                    }
+                    break;
+                case 'reserved':
+                    if (occ) {
+                        spotStates[i] = 'occupied';
+                        reservedSpots.delete(i + 1);
+                    }
+                    break;
+            }
+        }
+        // 所有车位空闲时，清理残留
+        if (spotStates.every(s => s === 'free')) {
+            paidSpots.clear();
+            reservedSpots.clear();
         }
     }
 
@@ -584,9 +645,9 @@
         document.getElementById('v_time').textContent =
             pad(currentData.hh) + ':' + pad(currentData.mm) + ':' + pad(currentData.ss);
 
-        updateSpot('spot1', currentData.s1_sts);
-        updateSpot('spot2', currentData.s2_sts);
-        updateSpot('spot3', currentData.s3_sts);
+        updateSpotUI('spot1', spotStates[0]);
+        updateSpotUI('spot2', spotStates[1]);
+        updateSpotUI('spot3', spotStates[2]);
 
         document.getElementById('v_fee').textContent = '¥' + (currentData.fee / 100).toFixed(2);
         document.getElementById('v_rate_info').textContent = '费率：' + currentData.rate + ' 元/小时';
@@ -609,16 +670,15 @@
         el.textContent = (val === 0 || val === 999) ? '--' : val;
     }
 
-    function updateSpot(elId, sts) {
+    function updateSpotUI(elId, state) {
         const el = document.getElementById(elId);
-        el.classList.remove('free', 'occupied');
-        if (sts === 0) {
-            el.classList.add('free');
-            el.querySelector('.spot-status').textContent = '空闲';
-        } else {
-            el.classList.add('occupied');
-            el.querySelector('.spot-status').textContent = '占用';
-        }
+        el.classList.remove('free', 'allocated', 'occupied', 'reserved');
+        el.classList.add(state);
+
+        const icons = { free: '\u{1F697}', allocated: '\u{1F535}', occupied: '\u{1F534}', reserved: '\u{1F7E3}' };
+        const labels = { free: '空闲', allocated: '已分配', occupied: '已占用', reserved: '已预约' };
+        el.querySelector('.spot-icon').innerHTML = icons[state] || '\u{1F697}';
+        el.querySelector('.spot-status').textContent = labels[state] || '未知';
     }
 
     function pad(n) { return String(n).padStart(2, '0'); }
@@ -637,14 +697,16 @@
             container.innerHTML = '<div class="vehicle-empty">暂无在场车辆</div>';
             return;
         }
-        container.innerHTML = parkedCars.map((car, i) =>
-            '<div class="vehicle-item">' +
+        container.innerHTML = parkedCars.map((car, i) => {
+            const paidClass = car.paid ? ' paid' : '';
+            const btnText = car.paid ? '已支付，等待离开' : '支付并出场';
+            return '<div class="vehicle-item">' +
                 '<div class="vehicle-uid">' + car.uid + '</div>' +
-                '<div class="vehicle-meta">入场时间：' + formatTime(car.entryTime) + '</div>' +
+                '<div class="vehicle-meta">入场时间：' + formatTime(car.entryTime) + ' · 车位' + (car.spotIndex + 1) + '</div>' +
                 '<div class="vehicle-fee">¥' + car.fee.toFixed(2) + '</div>' +
-                '<button class="vehicle-pay-btn" onclick="payVehicle(' + i + ')">支付并出场</button>' +
-            '</div>'
-        ).join('');
+                '<button class="vehicle-pay-btn' + paidClass + '" onclick="payVehicle(' + i + ')">' + btnText + '</button>' +
+            '</div>';
+        }).join('');
     }
 
     function formatTime(ts) {
@@ -656,10 +718,14 @@
     function payVehicle(index) {
         if (index >= 0 && index < parkedCars.length) {
             const car = parkedCars[index];
+            if (car.paid) {
+                addLog('车辆 ' + car.uid + ' 已支付，等待车离开');
+                return;
+            }
             sendViaBt('05');
+            car.paid = true;
+            paidSpots.add(car.spotIndex);
             addLog('支付: ' + car.uid + ' → 等待车离开');
-            // 不立即移除车辆，等待硬件确认车位空闲后才移除
-            // 如果超时未离开，车辆仍保留在列表中，可再次支付
             renderVehicles();
         }
     }
@@ -667,12 +733,11 @@
     // 检测车位空闲 → 移除车辆记录
     function checkVehicleDeparture() {
         for (let i = parkedCars.length - 1; i >= 0; i--) {
-            // 所有车位都空闲 → 认为车已离开
-            if (currentData.s1_sts === 0 && currentData.s2_sts === 0 && currentData.s3_sts === 0) {
-                addLog('车辆已离开: ' + parkedCars[i].uid);
+            const car = parkedCars[i];
+            if (spotStates[car.spotIndex] === 'free') {
+                addLog('车辆已离开: ' + car.uid);
                 parkedCars.splice(i, 1);
                 renderVehicles();
-                break;
             }
         }
     }
@@ -685,11 +750,8 @@
             alarms.push('入口有车，请刷卡');
         }
 
-        const s1occ = currentData.s1_dist > 0 && currentData.s1_dist !== 999 && currentData.s1_dist < currentData.spot_th;
-        const s2occ = currentData.s2_dist > 0 && currentData.s2_dist !== 999 && currentData.s2_dist < currentData.spot_th;
-        const s3occ = currentData.s3_dist > 0 && currentData.s3_dist !== 999 && currentData.s3_dist < currentData.spot_th;
-
-        if (s1occ && s2occ && s3occ) {
+        const fullCount = spotStates.filter(s => s === 'occupied').length;
+        if (fullCount === 3) {
             alarms.push('满位报警！3个车位全部占用');
             document.getElementById('fullOverlay').classList.add('show');
             playAlarmSound();
@@ -755,7 +817,14 @@
         });
     }
 
-    function doReserve() { sendViaBt('06,' + selectedSpot); }
+    function doReserve() {
+        if (spotStates[selectedSpot - 1] !== 'free') {
+            alert('车位' + selectedSpot + '当前不可预约');
+            return;
+        }
+        sendViaBt('06,' + selectedSpot);
+        addLog('预约车位' + selectedSpot);
+    }
     function cancelReserve() { sendViaBt('07'); }
     function queryReserve() { sendViaBt('08'); }
     function confirmPay() { sendViaBt('05'); }
