@@ -719,8 +719,10 @@
             const normalized = key === 'LIGHTH' ? String(Math.round(value)) : Number(value).toFixed(1);
             publishCommand(code + ',' + normalized);
 
+            // 乐观更新：立即使用用户设置的值
             state.currentData[key] = Number(normalized);
-            state.waitingSync[key] = true;
+            // 时间锁：3 秒内不受设备旧数据覆盖
+            state.waitingSync[key] = Date.now() + 3000;
             updateUI();
         }
 
@@ -751,19 +753,26 @@
             state.currentData.Relay = incoming.Relay;
             state.currentData.SYSTEM_MODE = incoming.SYSTEM_MODE;
 
-            if (state.waitingSync.LIGHTH && Math.abs(incoming.LIGHTH - Number(state.currentData.LIGHTH)) < 1) {
-                state.waitingSync.LIGHTH = false;
-            }
-            if (state.waitingSync.CURRH && Math.abs(incoming.CURRH - Number(state.currentData.CURRH)) < 0.2) {
-                state.waitingSync.CURRH = false;
-            }
-            if (state.waitingSync.POWERH && Math.abs(incoming.POWERH - Number(state.currentData.POWERH)) < 0.5) {
-                state.waitingSync.POWERH = false;
-            }
+            // 阈值层：时间锁机制
+            // 传感器值始终更新，阈值在锁定期内保持用户设置的乐观值
+            var now = Date.now();
+            var keys = ['LIGHTH', 'CURRH', 'POWERH'];
+            var incomingMap = { LIGHTH: incoming.LIGHTH, CURRH: incoming.CURRH, POWERH: incoming.POWERH };
+            var anyLocked = false;
 
-            if (!state.waitingSync.LIGHTH) state.currentData.LIGHTH = incoming.LIGHTH;
-            if (!state.waitingSync.CURRH) state.currentData.CURRH = incoming.CURRH;
-            if (!state.waitingSync.POWERH) state.currentData.POWERH = incoming.POWERH;
+            for (var i = 0; i < keys.length; i++) {
+                var k = keys[i];
+                if (state.waitingSync[k] && now < state.waitingSync[k]) {
+                    // 锁定中：保持用户设置的值，不覆盖
+                    anyLocked = true;
+                } else if (state.waitingSync[k]) {
+                    // 锁到期：接管设备值
+                    state.waitingSync[k] = false;
+                }
+                if (!state.waitingSync[k]) {
+                    state.currentData[k] = incomingMap[k];
+                }
+            }
 
             if (!Number.isNaN(incoming.Power)) {
                 accumulateEnergy(incoming.Power);
