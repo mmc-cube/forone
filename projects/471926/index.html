@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>智能停车场系统</title>
-    <script src="mqtt.min.js"></script>
     <style>
         :root {
             --bg: #F5F5F5;
@@ -39,10 +38,6 @@
         .status-dot.connected { background: var(--ok); }
         .status-text { font-size: 13px; color: var(--sub); }
         .sys-name { font-size: 14px; font-weight: 600; }
-        .config-btn {
-            background: none; border: none; font-size: 18px; cursor: pointer;
-            padding: 4px 8px;
-        }
 
         /* 通用卡片 */
         .card {
@@ -52,6 +47,27 @@
             padding: 16px;
             margin-bottom: 12px;
         }
+
+        /* 蓝牙连接卡 */
+        .connect-card {
+            border-left: 4px solid #FF9800;
+        }
+        .bt-status-row { margin: 12px 0; font-size: 14px; }
+        .status-text-bt { font-weight: bold; }
+        .status-connected { color: var(--ok); }
+        .status-disconnected { color: var(--alarm); }
+        .device-select {
+            width: 100%; padding: 10px; margin: 8px 0;
+            border-radius: 6px; border: 1px solid #ddd; font-size: 14px;
+        }
+        .bt-btn {
+            width: 100%; height: 44px; margin-top: 8px; border-radius: 8px;
+            border: none; color: white; font-size: 14px; font-weight: bold;
+            cursor: pointer;
+        }
+        .bt-btn:active { opacity: 0.85; }
+        .bt-btn-primary { background: var(--primary); }
+        .bt-btn-danger { background: #FF5722; }
 
         /* 实时数据 */
         .data-row {
@@ -191,17 +207,19 @@
         <span class="status-text" id="statusText">未连接</span>
     </div>
     <span class="sys-name">智能停车场</span>
-    <button class="config-btn" onclick="toggleConfig()" title="配置">&#9881;</button>
 </div>
 
-<!-- 配置面板（隐藏） -->
-<div id="configPanel" class="card" style="display:none;">
-    <h3>MQTT 配置</h3>
-    <div style="margin-bottom:8px;">
-        <label style="font-size:12px;color:var(--sub);">Broker</label>
-        <input id="cfgBroker" style="width:100%;height:36px;border:1px solid #e0e0e0;border-radius:8px;padding:0 8px;font-size:13px;" value="wss://broker.emqx.io:8084/mqtt">
+<!-- 蓝牙连接卡 -->
+<div class="card connect-card" id="connectCard">
+    <h3>蓝牙连接</h3>
+    <div class="bt-status-row">
+        <span class="status-label">状态：</span>
+        <span id="btStatus" class="status-text-bt status-disconnected">未连接</span>
     </div>
-    <button onclick="saveConfig()" style="width:100%;height:40px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">保存并连接</button>
+    <button class="bt-btn bt-btn-primary" id="btnScan" onclick="scanDevices()">扫描设备</button>
+    <select id="deviceList" class="device-select"></select>
+    <button class="bt-btn bt-btn-primary" id="btnConnect" onclick="connectSelected()">连接</button>
+    <button class="bt-btn bt-btn-danger" id="btnDisconnect" onclick="disconnectBt()" style="display:none">断开</button>
 </div>
 
 <!-- 实时数据卡 -->
@@ -332,13 +350,8 @@
 </div>
 
 <script>
-    // ========== MQTT 配置 ==========
-    const DEFAULT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
-    const UPLOAD_TOPIC = '471926/583741/zhinengtingchexitong/upload';
-    const CMD_TOPIC    = '471926/583741/zhinengtingchexitong/cmd';
-
-    let broker = localStorage.getItem('mqtt_broker') || DEFAULT_BROKER;
-    let client = null;
+    // ==================== 蓝牙通信状态 ====================
+    let isBtConnected = false;
     let logExpanded = false;
     let selectedSpot = 1;
 
@@ -354,38 +367,97 @@
     // 阈值同步状态机
     let waitingSync = { ent: false, spot: false, rate: false };
 
-    // ========== MQTT 连接 ==========
-    function connect() {
-        document.getElementById('cfgBroker').value = broker;
-        client = mqtt.connect(broker, {
-            clientId: 'parking_' + Math.random().toString(36).substr(2, 8),
-            reconnectPeriod: 3000
-        });
-
-        client.on('connect', () => {
-            document.getElementById('statusDot').classList.add('connected');
-            document.getElementById('statusText').textContent = '已连接';
-            client.subscribe(UPLOAD_TOPIC);
-            addLog('MQTT 已连接，订阅: ' + UPLOAD_TOPIC);
-        });
-
-        client.on('close', () => {
-            document.getElementById('statusDot').classList.remove('connected');
-            document.getElementById('statusText').textContent = '已断开';
-        });
-
-        client.on('reconnect', () => {
-            document.getElementById('statusText').textContent = '重连中...';
-        });
-
-        client.on('message', (topic, payload) => {
-            const msg = payload.toString();
-            addLog('RX: ' + msg);
-            parseAndUpdate(msg);
-        });
+    // ==================== 蓝牙控制函数 ====================
+    function scanDevices() {
+        if (window.BluetoothBridge) {
+            window.BluetoothBridge.getPairedDevices();
+            addLog('BT: 扫描已配对设备');
+        } else {
+            alert('请在 Android WebView 环境中运行');
+        }
     }
 
-    // ========== 数据解析 ==========
+    function connectSelected() {
+        const addr = document.getElementById('deviceList').value;
+        if (!addr) {
+            alert('请先选择设备');
+            return;
+        }
+        if (window.BluetoothBridge) {
+            window.BluetoothBridge.connect(addr);
+            addLog('BT: 连接 ' + addr);
+        }
+    }
+
+    function disconnectBt() {
+        if (window.BluetoothBridge) {
+            window.BluetoothBridge.disconnect();
+            addLog('BT: 断开连接');
+        }
+    }
+
+    function sendViaBt(cmd) {
+        if (!isBtConnected) {
+            alert('蓝牙未连接，请先连接设备');
+            return;
+        }
+        if (window.BluetoothBridge) {
+            window.BluetoothBridge.send(cmd + '\n');
+            addLog('TX: ' + cmd);
+        }
+    }
+
+    // ==================== 回调函数（Android 调用） ====================
+    window.onBtDeviceList = function(deviceArray) {
+        const select = document.getElementById('deviceList');
+        select.innerHTML = '';
+        deviceArray.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.address;
+            opt.textContent = d.name + ' (' + d.address + ')';
+            select.appendChild(opt);
+        });
+        addLog('BT: 发现 ' + deviceArray.length + ' 个设备');
+    };
+
+    window.onBtConnected = function(address) {
+        isBtConnected = true;
+        document.getElementById('btStatus').textContent = '已连接：' + address;
+        document.getElementById('btStatus').className = 'status-text-bt status-connected';
+        document.getElementById('statusDot').classList.add('connected');
+        document.getElementById('statusText').textContent = '蓝牙已连接';
+        document.getElementById('btnScan').style.display = 'none';
+        document.getElementById('deviceList').disabled = true;
+        document.getElementById('btnConnect').style.display = 'none';
+        document.getElementById('btnDisconnect').style.display = 'block';
+        addLog('BT: 已连接 ' + address);
+    };
+
+    window.onBtDisconnected = function() {
+        isBtConnected = false;
+        document.getElementById('btStatus').textContent = '未连接';
+        document.getElementById('btStatus').className = 'status-text-bt status-disconnected';
+        document.getElementById('statusDot').classList.remove('connected');
+        document.getElementById('statusText').textContent = '未连接';
+        document.getElementById('btnScan').style.display = 'block';
+        document.getElementById('deviceList').disabled = false;
+        document.getElementById('btnConnect').style.display = 'block';
+        document.getElementById('btnDisconnect').style.display = 'none';
+        addLog('BT: 已断开');
+    };
+
+    window.onBtError = function(errMsg) {
+        alert('蓝牙错误：' + errMsg);
+        isBtConnected = false;
+        window.onBtDisconnected();
+    };
+
+    window.onBtData = function(line) {
+        addLog('RX: ' + line);
+        parseAndUpdate(line.trim());
+    };
+
+    // ==================== 数据解析 ====================
     function parseAndUpdate(msg) {
         const parts = msg.split(',');
         if (parts.length < 16) { addLog('数据字段不足，忽略'); return; }
@@ -443,39 +515,32 @@
         }
     }
 
-    // ========== UI 更新 ==========
+    // ==================== UI 更新 ====================
     function updateUI() {
-        // 距离
         setDist('v_ent_dist', currentData.ent_dist);
         setDist('v_s1_dist', currentData.s1_dist);
         setDist('v_s2_dist', currentData.s2_dist);
         setDist('v_s3_dist', currentData.s3_dist);
 
-        // 入口报警状态
         const entEl = document.getElementById('v_ent_dist');
         entEl.classList.toggle('alarm', currentData.ent_dist > 0 && currentData.ent_dist !== 999 && currentData.ent_dist < currentData.ent_th);
 
-        // RFID
         const rfidEl = document.getElementById('v_rfid');
         const rfidMap = { 0: ['无卡', 'rfid-0'], 1: ['有效卡', 'rfid-1'], 2: ['无效卡', 'rfid-2'], 3: ['预约卡', 'rfid-3'] };
         const [rfidTxt, rfidCls] = rfidMap[currentData.rfid] || ['未知', 'rfid-0'];
         rfidEl.textContent = rfidTxt;
         rfidEl.className = 'rfid-badge ' + rfidCls;
 
-        // 时间
         document.getElementById('v_time').textContent =
             pad(currentData.hh) + ':' + pad(currentData.mm) + ':' + pad(currentData.ss);
 
-        // 车位状态
         updateSpot('spot1', currentData.s1_sts, currentData.s1_dist, currentData.spot_th);
         updateSpot('spot2', currentData.s2_sts, currentData.s2_dist, currentData.spot_th);
         updateSpot('spot3', currentData.s3_sts, currentData.s3_dist, currentData.spot_th);
 
-        // 费用
         document.getElementById('v_fee').textContent = '¥' + (currentData.fee / 100).toFixed(2);
         document.getElementById('v_rate_info').textContent = '费率：' + currentData.rate + ' 元/小时';
 
-        // 预约信息
         if (currentData.res_sts > 0) {
             document.getElementById('reserveInfo').textContent = '已预约，剩余 ' + currentData.res_sts + ' 分钟';
             document.getElementById('reserveCountdown').textContent = currentData.res_sts + ' min';
@@ -484,7 +549,6 @@
             document.getElementById('reserveCountdown').textContent = '';
         }
 
-        // 阈值输入框（等待同步期间不更新）
         if (!waitingSync.ent) document.getElementById('thr_ent').value = currentData.ent_th;
         if (!waitingSync.spot) document.getElementById('thr_spot').value = currentData.spot_th;
         if (!waitingSync.rate) document.getElementById('thr_rate').value = currentData.rate;
@@ -509,21 +573,18 @@
 
     function pad(n) { return String(n).padStart(2, '0'); }
 
-    // ========== 报警判断 ==========
+    // ==================== 报警判断 ====================
     function checkAlarms() {
         const alarms = [];
 
-        // 入口警示
         if (currentData.ent_dist > 0 && currentData.ent_dist !== 999 && currentData.ent_dist < currentData.ent_th) {
             alarms.push('入口有车，请刷卡');
         }
 
-        // 车位占用判断
         const s1occ = currentData.s1_dist > 0 && currentData.s1_dist !== 999 && currentData.s1_dist < currentData.spot_th;
         const s2occ = currentData.s2_dist > 0 && currentData.s2_dist !== 999 && currentData.s2_dist < currentData.spot_th;
         const s3occ = currentData.s3_dist > 0 && currentData.s3_dist !== 999 && currentData.s3_dist < currentData.spot_th;
 
-        // 满位报警
         if (s1occ && s2occ && s3occ) {
             alarms.push('满位报警！3个车位全部占用');
             document.getElementById('fullOverlay').classList.add('show');
@@ -560,33 +621,26 @@
         document.getElementById('fullOverlay').classList.remove('show');
     }
 
-    // ========== 下行指令 ==========
+    // ==================== 下行指令 ====================
     function sendCmd(cmd) {
-        if (!client || !client.connected) { addLog('MQTT 未连接，无法发送'); return; }
-        client.publish(CMD_TOPIC, cmd);
-        addLog('TX: ' + cmd);
-
+        sendViaBt(cmd);
         if (cmd === '01') {
             renderAlarms([]);
             dismissFullAlarm();
         }
     }
 
-    // 阈值发送（乐观更新 + 状态冻结）
     function sendThreshold(code, inputId) {
         const val = parseInt(document.getElementById(inputId).value);
         if (isNaN(val)) return;
 
-        sendCmd(code + ',' + val);
+        sendViaBt(code + ',' + val);
 
-        // 标记等待同步
         if (code === '02') { waitingSync.ent = true; currentData.ent_th = val; }
         else if (code === '03') { waitingSync.spot = true; currentData.spot_th = val; }
         else if (code === '04') { waitingSync.rate = true; currentData.rate = val; }
 
         updateUI();
-
-        // 发送后立即检查报警
         if (code === '03') checkAlarms();
     }
 
@@ -603,7 +657,7 @@
     function queryReserve() { sendCmd('08'); }
     function confirmPay() { sendCmd('05'); }
 
-    // ========== 日志 ==========
+    // ==================== 日志 ====================
     function addLog(msg) {
         const body = document.getElementById('logBody');
         const now = new Date();
@@ -621,26 +675,8 @@
         document.getElementById('logToggle').textContent = logExpanded ? '▼ 收起' : '▶ 展开';
     }
 
-    // ========== 配置 ==========
-    function toggleConfig() {
-        const panel = document.getElementById('configPanel');
-        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    }
-
-    function saveConfig() {
-        const newBroker = document.getElementById('cfgBroker').value.trim();
-        if (newBroker) {
-            localStorage.setItem('mqtt_broker', newBroker);
-            broker = newBroker;
-            if (client) client.end(true);
-            connect();
-        }
-        toggleConfig();
-    }
-
-    // ========== 启动 ==========
+    // ==================== 启动 ====================
     selSpot(1);
-    connect();
 </script>
 
 </body>
