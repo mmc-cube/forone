@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>智能停车场系统</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 0 12px 24px;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+        h3 { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+
+        /* 状态栏 */
+        .status-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 0; position: sticky; top: 0; z-index: 10;
+            background: var(--bg);
+        }
+        .status-left { display: flex; align-items: center; gap: 8px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--alarm); }
+        .status-dot.connected { background: var(--ok); }
+        .status-text { font-size: 13px; color: var(--sub); }
+        .sys-name { font-size: 14px; font-weight: 600; }
+        .config-btn {
+            background: none; border: none; font-size: 18px; cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        /* 通用卡片 */
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        /* 实时数据 */
+        .data-row {
+            display: flex; align-items: baseline; justify-content: space-between;
+            padding: 8px 0; border-bottom: 1px solid #f0f0f0;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 13px; color: var(--sub); }
+        .data-value { font-size: 28px; font-weight: bold; }
+        .data-value.alarm { color: var(--alarm); }
+        .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+
+        /* 车位状态 */
+        .spots-grid { display: flex; gap: 12px; }
+        .spot-item {
+            flex: 1; text-align: center; padding: 16px 8px;
+            border-radius: 10px; background: #f8f8f8;
+            transition: all 0.3s;
+        }
+        .spot-item.free { background: #E8F5E9; border: 2px solid var(--ok); }
+        .spot-item.occupied { background: #FFEBEE; border: 2px solid var(--alarm); }
+        .spot-item.reserved { background: #E3F2FD; border: 2px solid var(--primary); }
+        .spot-icon { font-size: 32px; margin-bottom: 6px; }
+        .spot-name { font-size: 13px; font-weight: 600; }
+        .spot-status { font-size: 11px; margin-top: 2px; }
+        .spot-item.free .spot-status { color: var(--ok); }
+        .spot-item.occupied .spot-status { color: var(--alarm); }
+        .spot-item.reserved .spot-status { color: var(--primary); }
+
+        /* 报警状态 */
+        .alarm-item {
+            background: #FFEBEE; color: var(--alarm); padding: 10px 12px;
+            border-radius: 8px; margin-bottom: 6px; font-size: 13px; font-weight: 500;
+        }
+        .alarm-item:last-child { margin-bottom: 0; }
+        .alarm-ok { color: var(--ok); font-size: 13px; text-align: center; padding: 8px; }
+
+        /* 控制按钮 */
+        .ctrl-btn {
+            width: 100%; height: 50px; border: none; border-radius: 8px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            margin-bottom: 8px; transition: all 0.15s;
+        }
+        .ctrl-btn:active { transform: scale(0.97); opacity: 0.85; }
+        .ctrl-btn:last-child { margin-bottom: 0; }
+        .btn-alarm { background: #FFCDD2; color: #C62828; }
+        .btn-pay { background: #E8F5E9; color: #2E7D32; }
+        .btn-reserve { background: #E3F2FD; color: #1565C0; }
+        .btn-cancel { background: #FFF3E0; color: #E65100; }
+        .btn-query { background: #F3E5F5; color: #7B1FA2; }
+
+        /* 预约 */
+        .reserve-row {
+            display: flex; gap: 8px; margin-bottom: 8px; align-items: center;
+        }
+        .spot-sel {
+            flex: 1; height: 48px; border: 2px solid #e0e0e0; border-radius: 8px;
+            background: #fafafa; font-size: 15px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .spot-sel.selected { border-color: var(--primary); background: #E3F2FD; color: var(--primary); }
+        .reserve-info { font-size: 13px; color: var(--sub); margin: 8px 0; }
+        .countdown { font-size: 22px; font-weight: bold; color: var(--primary); text-align: center; margin: 8px 0; }
+
+        /* 支付 */
+        .fee-display { text-align: center; margin-bottom: 12px; }
+        .fee-amount { font-size: 36px; font-weight: bold; color: var(--text); }
+        .fee-label { font-size: 13px; color: var(--sub); }
+        .fee-rate { font-size: 12px; color: var(--sub); margin-top: 4px; }
+
+        /* 阈值设置 */
+        .threshold-row {
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 10px;
+        }
+        .threshold-row:last-child { margin-bottom: 0; }
+        .thr-label { font-size: 13px; flex: 1; }
+        .thr-input {
+            width: 80px; height: 40px; border: 1px solid #e0e0e0; border-radius: 8px;
+            text-align: center; font-size: 14px; outline: none;
+        }
+        .thr-input:focus { border-color: var(--primary); }
+        .thr-send {
+            height: 40px; min-width: 60px; border: none; border-radius: 8px;
+            background: var(--primary); color: #fff; font-size: 13px;
+            font-weight: 600; cursor: pointer;
+        }
+        .thr-send:active { opacity: 0.8; }
+
+        /* 日志（折叠） */
+        .log-header {
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; user-select: none;
+        }
+        .log-toggle { font-size: 12px; color: var(--sub); }
+        .log-body { display: none; max-height: 200px; overflow-y: auto; margin-top: 10px; }
+        .log-body.show { display: block; }
+        .log-line { font-size: 11px; color: var(--sub); padding: 3px 0; border-bottom: 1px solid #f5f5f5; font-family: monospace; }
+
+        /* RFID状态 */
+        .rfid-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 6px;
+            font-size: 12px; font-weight: 600;
+        }
+        .rfid-0 { background: #f0f0f0; color: #999; }
+        .rfid-1 { background: #E8F5E9; color: #2E7D32; }
+        .rfid-2 { background: #FFEBEE; color: #C62828; }
+        .rfid-3 { background: #E3F2FD; color: #1565C0; }
+
+        /* 满位报警弹窗 */
+        .full-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4); z-index: 100;
+            align-items: center; justify-content: center;
+        }
+        .full-overlay.show { display: flex; }
+        .full-modal {
+            background: #fff; border-radius: 16px; padding: 24px;
+            max-width: 300px; text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        .full-modal h2 { color: var(--alarm); font-size: 20px; margin-bottom: 8px; }
+        .full-modal p { font-size: 14px; color: var(--sub); margin-bottom: 16px; }
+        .full-modal button {
+            height: 44px; width: 100%; border: none; border-radius: 8px;
+            background: var(--alarm); color: #fff; font-size: 15px;
+            font-weight: 600; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<!-- 状态栏 -->
+<div class="status-bar">
+    <div class="status-left">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-text" id="statusText">未连接</span>
+    </div>
+    <span class="sys-name">智能停车场</span>
+    <button class="config-btn" onclick="toggleConfig()" title="配置">&#9881;</button>
+</div>
+
+<!-- 配置面板（隐藏） -->
+<div id="configPanel" class="card" style="display:none;">
+    <h3>MQTT 配置</h3>
+    <div style="margin-bottom:8px;">
+        <label style="font-size:12px;color:var(--sub);">Broker</label>
+        <input id="cfgBroker" style="width:100%;height:36px;border:1px solid #e0e0e0;border-radius:8px;padding:0 8px;font-size:13px;" value="wss://broker.emqx.io:8084/mqtt">
+    </div>
+    <button onclick="saveConfig()" style="width:100%;height:40px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">保存并连接</button>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+    <h3>实时数据</h3>
+    <div class="data-row">
+        <span class="data-label">入口距离</span>
+        <div><span class="data-value" id="v_ent_dist">--</span><span class="data-unit">cm</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">车位1 距离</span>
+        <div><span class="data-value" id="v_s1_dist">--</span><span class="data-unit">cm</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">车位2 距离</span>
+        <div><span class="data-value" id="v_s2_dist">--</span><span class="data-unit">cm</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">车位3 距离</span>
+        <div><span class="data-value" id="v_s3_dist">--</span><span class="data-unit">cm</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">RFID 状态</span>
+        <span class="rfid-badge rfid-0" id="v_rfid">无卡</span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">时间</span>
+        <div><span class="data-value" id="v_time" style="font-size:22px;">--:--:--</span></div>
+    </div>
+</div>
+
+<!-- 车位状态卡 -->
+<div class="card">
+    <h3>车位状态</h3>
+    <div class="spots-grid">
+        <div class="spot-item free" id="spot1">
+            <div class="spot-icon">&#128663;</div>
+            <div class="spot-name">车位1</div>
+            <div class="spot-status">空闲</div>
+        </div>
+        <div class="spot-item free" id="spot2">
+            <div class="spot-icon">&#128663;</div>
+            <div class="spot-name">车位2</div>
+            <div class="spot-status">空闲</div>
+        </div>
+        <div class="spot-item free" id="spot3">
+            <div class="spot-icon">&#128663;</div>
+            <div class="spot-name">车位3</div>
+            <div class="spot-status">空闲</div>
+        </div>
+    </div>
+</div>
+
+<!-- 报警状态卡 -->
+<div class="card">
+    <h3>报警状态</h3>
+    <div id="alarmBox"><div class="alarm-ok">运行正常 &#10003;</div></div>
+</div>
+
+<!-- 预约卡 -->
+<div class="card">
+    <h3>车位预约</h3>
+    <div class="reserve-row">
+        <button class="spot-sel" data-spot="1" onclick="selSpot(1)">车位1</button>
+        <button class="spot-sel" data-spot="2" onclick="selSpot(2)">车位2</button>
+        <button class="spot-sel" data-spot="3" onclick="selSpot(3)">车位3</button>
+    </div>
+    <div class="reserve-info" id="reserveInfo">当前无预约</div>
+    <div class="countdown" id="reserveCountdown"></div>
+    <button class="ctrl-btn btn-reserve" onclick="doReserve()">预约选定车位</button>
+    <button class="ctrl-btn btn-cancel" onclick="cancelReserve()">取消预约</button>
+    <button class="ctrl-btn btn-query" onclick="queryReserve()">查询预约状态</button>
+</div>
+
+<!-- 支付卡 -->
+<div class="card">
+    <h3>停车费用</h3>
+    <div class="fee-display">
+        <div class="fee-label">当前费用</div>
+        <div class="fee-amount" id="v_fee">&#165;0.00</div>
+        <div class="fee-rate" id="v_rate_info">费率：-- 元/小时</div>
+    </div>
+    <button class="ctrl-btn btn-pay" onclick="confirmPay()">确认支付并抬闸</button>
+</div>
+
+<!-- 阈值设置卡 -->
+<div class="card">
+    <h3>阈值设置</h3>
+    <div class="threshold-row">
+        <span class="thr-label">入口检测阈值 (cm)</span>
+        <input class="thr-input" id="thr_ent" type="number" min="10" max="80" value="30">
+        <button class="thr-send" onclick="sendThreshold('02','thr_ent')">发送</button>
+    </div>
+    <div class="threshold-row">
+        <span class="thr-label">车位占用阈值 (cm)</span>
+        <input class="thr-input" id="thr_spot" type="number" min="5" max="50" value="10">
+        <button class="thr-send" onclick="sendThreshold('03','thr_spot')">发送</button>
+    </div>
+    <div class="threshold-row">
+        <span class="thr-label">费率 (元/小时)</span>
+        <input class="thr-input" id="thr_rate" type="number" min="1" max="20" value="5">
+        <button class="thr-send" onclick="sendThreshold('04','thr_rate')">发送</button>
+    </div>
+</div>
+
+<!-- 控制卡 -->
+<div class="card">
+    <h3>快捷控制</h3>
+    <button class="ctrl-btn btn-alarm" onclick="sendCmd('01')">消警</button>
+</div>
+
+<!-- 日志卡（折叠） -->
+<div class="card">
+    <div class="log-header" onclick="toggleLog()">
+        <h3 style="margin-bottom:0;">通信日志</h3>
+        <span class="log-toggle" id="logToggle">&#9654; 展开</span>
+    </div>
+    <div class="log-body" id="logBody"></div>
+</div>
+
+<!-- 满位报警弹窗 -->
+<div class="full-overlay" id="fullOverlay">
+    <div class="full-modal">
+        <h2>&#9888; 满位报警</h2>
+        <p>3个车位全部占用，停车场已满！</p>
+        <button onclick="dismissFullAlarm()">我知道了</button>
+    </div>
+</div>
+
+<script>
+    // ========== MQTT 配置 ==========
+    const DEFAULT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+    const UPLOAD_TOPIC = '471926/583741/zhinengtingchexitong/upload';
+    const CMD_TOPIC    = '471926/583741/zhinengtingchexitong/cmd';
+
+    let broker = localStorage.getItem('mqtt_broker') || DEFAULT_BROKER;
+    let client = null;
+    let logExpanded = false;
+    let selectedSpot = 1;
+
+    // 状态
+    let currentData = {
+        s1_dist: 0, s2_dist: 0, s3_dist: 0, ent_dist: 0,
+        rfid: 0, s1_sts: 0, s2_sts: 0, s3_sts: 0,
+        res_sts: 0, rate: 0, fee: 0,
+        hh: 0, mm: 0, ss: 0,
+        ent_th: 30, spot_th: 10
+    };
+
+    // 阈值同步状态机
+    let waitingSync = { ent: false, spot: false, rate: false };
+
+    // ========== MQTT 连接 ==========
+    function connect() {
+        document.getElementById('cfgBroker').value = broker;
+        client = mqtt.connect(broker, {
+            clientId: 'parking_' + Math.random().toString(36).substr(2, 8),
+            reconnectPeriod: 3000
+        });
+
+        client.on('connect', () => {
+            document.getElementById('statusDot').classList.add('connected');
+            document.getElementById('statusText').textContent = '已连接';
+            client.subscribe(UPLOAD_TOPIC);
+            addLog('MQTT 已连接，订阅: ' + UPLOAD_TOPIC);
+        });
+
+        client.on('close', () => {
+            document.getElementById('statusDot').classList.remove('connected');
+            document.getElementById('statusText').textContent = '已断开';
+        });
+
+        client.on('reconnect', () => {
+            document.getElementById('statusText').textContent = '重连中...';
+        });
+
+        client.on('message', (topic, payload) => {
+            const msg = payload.toString();
+            addLog('RX: ' + msg);
+            parseAndUpdate(msg);
+        });
+    }
+
+    // ========== 数据解析 ==========
+    function parseAndUpdate(msg) {
+        const parts = msg.split(',');
+        if (parts.length < 16) { addLog('数据字段不足，忽略'); return; }
+
+        const newData = {
+            s1_dist: parseInt(parts[0]),
+            s2_dist: parseInt(parts[1]),
+            s3_dist: parseInt(parts[2]),
+            ent_dist: parseInt(parts[3]),
+            rfid: parseInt(parts[4]),
+            s1_sts: parseInt(parts[5]),
+            s2_sts: parseInt(parts[6]),
+            s3_sts: parseInt(parts[7]),
+            res_sts: parseInt(parts[8]),
+            rate: parseInt(parts[9]),
+            fee: parseInt(parts[10]),
+            hh: parseInt(parts[11]),
+            mm: parseInt(parts[12]),
+            ss: parseInt(parts[13]),
+            ent_th: parseInt(parts[14]),
+            spot_th: parseInt(parts[15])
+        };
+
+        // 传感器值始终更新
+        currentData.s1_dist = newData.s1_dist;
+        currentData.s2_dist = newData.s2_dist;
+        currentData.s3_dist = newData.s3_dist;
+        currentData.ent_dist = newData.ent_dist;
+        currentData.rfid = newData.rfid;
+        currentData.s1_sts = newData.s1_sts;
+        currentData.s2_sts = newData.s2_sts;
+        currentData.s3_sts = newData.s3_sts;
+        currentData.res_sts = newData.res_sts;
+        currentData.rate = newData.rate;
+        currentData.fee = newData.fee;
+        currentData.hh = newData.hh;
+        currentData.mm = newData.mm;
+        currentData.ss = newData.ss;
+
+        // 阈值：等待同步期间保持本地预测值
+        if (!waitingSync.ent) currentData.ent_th = newData.ent_th;
+        if (!waitingSync.spot) currentData.spot_th = newData.spot_th;
+        if (!waitingSync.rate) currentData.rate = newData.rate;
+
+        // 检查同步是否完成
+        if (waitingSync.ent && Math.abs(newData.ent_th - currentData.ent_th) < 1) waitingSync.ent = false;
+        if (waitingSync.spot && Math.abs(newData.spot_th - currentData.spot_th) < 1) waitingSync.spot = false;
+        if (waitingSync.rate && Math.abs(newData.rate - currentData.rate) < 1) waitingSync.rate = false;
+
+        updateUI();
+
+        // 全部同步完成后才接管报警判断
+        if (!waitingSync.ent && !waitingSync.spot && !waitingSync.rate) {
+            checkAlarms();
+        }
+    }
+
+    // ========== UI 更新 ==========
+    function updateUI() {
+        // 距离
+        setDist('v_ent_dist', currentData.ent_dist);
+        setDist('v_s1_dist', currentData.s1_dist);
+        setDist('v_s2_dist', currentData.s2_dist);
+        setDist('v_s3_dist', currentData.s3_dist);
+
+        // 入口报警状态
+        const entEl = document.getElementById('v_ent_dist');
+        entEl.classList.toggle('alarm', currentData.ent_dist > 0 && currentData.ent_dist !== 999 && currentData.ent_dist < currentData.ent_th);
+
+        // RFID
+        const rfidEl = document.getElementById('v_rfid');
+        const rfidMap = { 0: ['无卡', 'rfid-0'], 1: ['有效卡', 'rfid-1'], 2: ['无效卡', 'rfid-2'], 3: ['预约卡', 'rfid-3'] };
+        const [rfidTxt, rfidCls] = rfidMap[currentData.rfid] || ['未知', 'rfid-0'];
+        rfidEl.textContent = rfidTxt;
+        rfidEl.className = 'rfid-badge ' + rfidCls;
+
+        // 时间
+        document.getElementById('v_time').textContent =
+            pad(currentData.hh) + ':' + pad(currentData.mm) + ':' + pad(currentData.ss);
+
+        // 车位状态
+        updateSpot('spot1', currentData.s1_sts, currentData.s1_dist, currentData.spot_th);
+        updateSpot('spot2', currentData.s2_sts, currentData.s2_dist, currentData.spot_th);
+        updateSpot('spot3', currentData.s3_sts, currentData.s3_dist, currentData.spot_th);
+
+        // 费用
+        document.getElementById('v_fee').textContent = '¥' + (currentData.fee / 100).toFixed(2);
+        document.getElementById('v_rate_info').textContent = '费率：' + currentData.rate + ' 元/小时';
+
+        // 预约信息
+        if (currentData.res_sts > 0) {
+            document.getElementById('reserveInfo').textContent = '已预约，剩余 ' + currentData.res_sts + ' 分钟';
+            document.getElementById('reserveCountdown').textContent = currentData.res_sts + ' min';
+        } else {
+            document.getElementById('reserveInfo').textContent = '当前无预约';
+            document.getElementById('reserveCountdown').textContent = '';
+        }
+
+        // 阈值输入框（等待同步期间不更新）
+        if (!waitingSync.ent) document.getElementById('thr_ent').value = currentData.ent_th;
+        if (!waitingSync.spot) document.getElementById('thr_spot').value = currentData.spot_th;
+        if (!waitingSync.rate) document.getElementById('thr_rate').value = currentData.rate;
+    }
+
+    function setDist(elId, val) {
+        const el = document.getElementById(elId);
+        el.textContent = (val === 0 || val === 999) ? '--' : val;
+    }
+
+    function updateSpot(elId, sts, dist, th) {
+        const el = document.getElementById(elId);
+        el.classList.remove('free', 'occupied', 'reserved');
+        if (sts === 0) {
+            el.classList.add('free');
+            el.querySelector('.spot-status').textContent = '空闲';
+        } else {
+            el.classList.add('occupied');
+            el.querySelector('.spot-status').textContent = '占用';
+        }
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    // ========== 报警判断 ==========
+    function checkAlarms() {
+        const alarms = [];
+
+        // 入口警示
+        if (currentData.ent_dist > 0 && currentData.ent_dist !== 999 && currentData.ent_dist < currentData.ent_th) {
+            alarms.push('入口有车，请刷卡');
+        }
+
+        // 车位占用判断
+        const s1occ = currentData.s1_dist > 0 && currentData.s1_dist !== 999 && currentData.s1_dist < currentData.spot_th;
+        const s2occ = currentData.s2_dist > 0 && currentData.s2_dist !== 999 && currentData.s2_dist < currentData.spot_th;
+        const s3occ = currentData.s3_dist > 0 && currentData.s3_dist !== 999 && currentData.s3_dist < currentData.spot_th;
+
+        // 满位报警
+        if (s1occ && s2occ && s3occ) {
+            alarms.push('满位报警！3个车位全部占用');
+            document.getElementById('fullOverlay').classList.add('show');
+            playAlarmSound();
+        } else {
+            document.getElementById('fullOverlay').classList.remove('show');
+        }
+
+        renderAlarms(alarms);
+    }
+
+    function renderAlarms(alarms) {
+        const box = document.getElementById('alarmBox');
+        if (alarms.length === 0) {
+            box.innerHTML = '<div class="alarm-ok">运行正常 &#10003;</div>';
+        } else {
+            box.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+        }
+    }
+
+    let audioCtx = null;
+    function playAlarmSound() {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.value = 800; gain.gain.value = 0.1;
+            osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+        } catch (e) {}
+    }
+
+    function dismissFullAlarm() {
+        document.getElementById('fullOverlay').classList.remove('show');
+    }
+
+    // ========== 下行指令 ==========
+    function sendCmd(cmd) {
+        if (!client || !client.connected) { addLog('MQTT 未连接，无法发送'); return; }
+        client.publish(CMD_TOPIC, cmd);
+        addLog('TX: ' + cmd);
+
+        if (cmd === '01') {
+            renderAlarms([]);
+            dismissFullAlarm();
+        }
+    }
+
+    // 阈值发送（乐观更新 + 状态冻结）
+    function sendThreshold(code, inputId) {
+        const val = parseInt(document.getElementById(inputId).value);
+        if (isNaN(val)) return;
+
+        sendCmd(code + ',' + val);
+
+        // 标记等待同步
+        if (code === '02') { waitingSync.ent = true; currentData.ent_th = val; }
+        else if (code === '03') { waitingSync.spot = true; currentData.spot_th = val; }
+        else if (code === '04') { waitingSync.rate = true; currentData.rate = val; }
+
+        updateUI();
+
+        // 发送后立即检查报警
+        if (code === '03') checkAlarms();
+    }
+
+    // 预约
+    function selSpot(n) {
+        selectedSpot = n;
+        document.querySelectorAll('.spot-sel').forEach(el => {
+            el.classList.toggle('selected', parseInt(el.dataset.spot) === n);
+        });
+    }
+
+    function doReserve() { sendCmd('06,' + selectedSpot); }
+    function cancelReserve() { sendCmd('07'); }
+    function queryReserve() { sendCmd('08'); }
+    function confirmPay() { sendCmd('05'); }
+
+    // ========== 日志 ==========
+    function addLog(msg) {
+        const body = document.getElementById('logBody');
+        const now = new Date();
+        const ts = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+        const line = document.createElement('div');
+        line.className = 'log-line';
+        line.textContent = '[' + ts + '] ' + msg;
+        body.insertBefore(line, body.firstChild);
+        while (body.children.length > 20) body.removeChild(body.lastChild);
+    }
+
+    function toggleLog() {
+        logExpanded = !logExpanded;
+        document.getElementById('logBody').classList.toggle('show', logExpanded);
+        document.getElementById('logToggle').textContent = logExpanded ? '▼ 收起' : '▶ 展开';
+    }
+
+    // ========== 配置 ==========
+    function toggleConfig() {
+        const panel = document.getElementById('configPanel');
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function saveConfig() {
+        const newBroker = document.getElementById('cfgBroker').value.trim();
+        if (newBroker) {
+            localStorage.setItem('mqtt_broker', newBroker);
+            broker = newBroker;
+            if (client) client.end(true);
+            connect();
+        }
+        toggleConfig();
+    }
+
+    // ========== 启动 ==========
+    selSpot(1);
+    connect();
+</script>
+
+</body>
+</html>
