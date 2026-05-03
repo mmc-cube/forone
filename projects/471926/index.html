@@ -557,6 +557,9 @@
 
         updateUI();
 
+        // 检测车辆离开 → 清除记录
+        checkVehicleDeparture();
+
         if (!waitingSync.ent && !waitingSync.spot && !waitingSync.rate) {
             checkAlarms();
         }
@@ -654,9 +657,23 @@
         if (index >= 0 && index < parkedCars.length) {
             const car = parkedCars[index];
             sendViaBt('05');
-            addLog('支付: ' + car.uid);
-            parkedCars.splice(index, 1);
+            addLog('支付: ' + car.uid + ' → 等待车离开');
+            // 不立即移除车辆，等待硬件确认车位空闲后才移除
+            // 如果超时未离开，车辆仍保留在列表中，可再次支付
             renderVehicles();
+        }
+    }
+
+    // 检测车位空闲 → 移除车辆记录
+    function checkVehicleDeparture() {
+        for (let i = parkedCars.length - 1; i >= 0; i--) {
+            // 所有车位都空闲 → 认为车已离开
+            if (currentData.s1_sts === 0 && currentData.s2_sts === 0 && currentData.s3_sts === 0) {
+                addLog('车辆已离开: ' + parkedCars[i].uid);
+                parkedCars.splice(i, 1);
+                renderVehicles();
+                break;
+            }
         }
     }
 
