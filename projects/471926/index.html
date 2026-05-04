@@ -690,7 +690,7 @@
         if (!selectedReserveSpot) { alert('请选择车位'); return; }
         const spotSts = currentData['s' + selectedReserveSpot + '_sts'];
         if (spotSts !== 0) { alert('车位' + selectedReserveSpot + '当前不可预约（状态：' + spotSts + '）'); return; }
-        sendViaBt('06,' + selectedReserveSpot + ',UID_' + sel.value);
+        sendViaBt('06,' + selectedReserveSpot + ',' + sel.value);
         addLog('预约: ' + sel.value + ' → 车位' + selectedReserveSpot);
     }
 
