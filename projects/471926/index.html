@@ -343,10 +343,7 @@
             <div class="spot-sel" id="rs3" data-spot="3" onclick="selRSspot(3)">车位3</div>
         </div>
         <button class="ctrl-btn btn-reserve" onclick="doReserve()">预约</button>
-        <div class="reserve-info" id="reserveInfo">当前无预约</div>
-        <div class="countdown" id="reserveCountdown"></div>
         <button class="ctrl-btn btn-cancel" onclick="cancelReserve()">取消预约</button>
-        <button class="ctrl-btn btn-query" onclick="queryReserve()">查询预约状态</button>
     </div>
     <!-- 折叠：预约卡管理 -->
     <div class="reserve-mgmt-header" onclick="toggleReserveMgmt()">
@@ -854,9 +851,8 @@
         if (code === '03') checkAlarms();
     }
 
-    // 取消预约 / 查询预约 / 确认支付
+    // 取消预约 / 确认支付
     function cancelReserve() { sendViaBt('07'); }
-    function queryReserve() { sendViaBt('08'); }
     function confirmPay() { sendViaBt('05'); }
 
     // ==================== 日志 ====================
