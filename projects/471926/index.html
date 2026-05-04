@@ -190,6 +190,49 @@
         .rfid-2 { background: #FFEBEE; color: #C62828; }
         .rfid-3 { background: #E3F2FD; color: #1565C0; }
 
+        /* 预约卡管理 */
+        .reserve-mgmt-header {
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; user-select: none;
+        }
+        .reserve-mgmt-toggle { font-size: 12px; color: var(--sub); }
+        .reserve-mgmt-body { display: none; margin-top: 10px; }
+        .reserve-mgmt-body.show { display: block; }
+        .last-scanned {
+            display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+        }
+        .last-scanned input {
+            flex: 1; height: 40px; border: 1px solid #e0e0e0; border-radius: 8px;
+            padding: 0 10px; font-size: 13px; font-family: monospace; outline: none;
+        }
+        .last-scanned input:focus { border-color: var(--primary); }
+        .btn-add-card {
+            height: 40px; min-width: 70px; border: none; border-radius: 8px;
+            background: var(--ok); color: #fff; font-size: 13px;
+            font-weight: 600; cursor: pointer; white-space: nowrap;
+        }
+        .btn-add-card:active { opacity: 0.8; }
+        .reserve-card-list { max-height: 150px; overflow-y: auto; }
+        .reserve-card-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 10px; border-radius: 8px; background: #f8f8f8;
+            margin-bottom: 4px; font-size: 13px;
+        }
+        .reserve-card-item:last-child { margin-bottom: 0; }
+        .reserve-card-item .rc-uid { font-family: monospace; font-weight: 600; }
+        .reserve-card-item .rc-name { color: var(--sub); margin-left: 8px; }
+        .btn-remove-card {
+            border: none; background: #FFCDD2; color: #C62828; border-radius: 6px;
+            padding: 4px 10px; font-size: 12px; cursor: pointer;
+        }
+        .btn-remove-card:active { opacity: 0.7; }
+
+        /* 预约卡选择下拉 */
+        .reserve-card-sel {
+            width: 100%; height: 40px; border: 1px solid #e0e0e0; border-radius: 8px;
+            background: #fafafa; font-size: 14px; margin-bottom: 10px; padding: 0 8px;
+        }
+
     </style>
 </head>
 <body>
@@ -288,16 +331,24 @@
 <!-- 预约卡 -->
 <div class="card">
     <h3>车位预约</h3>
-    <div class="reserve-row">
-        <button class="spot-sel" data-spot="1" onclick="selSpot(1)">车位1</button>
-        <button class="spot-sel" data-spot="2" onclick="selSpot(2)">车位2</button>
-        <button class="spot-sel" data-spot="3" onclick="selSpot(3)">车位3</button>
+    <div id="reserveMain">
+        <div class="reserve-info" id="reserveInfo">当前无预约</div>
+        <div class="countdown" id="reserveCountdown"></div>
+        <button class="ctrl-btn btn-cancel" onclick="cancelReserve()">取消预约</button>
+        <button class="ctrl-btn btn-query" onclick="queryReserve()">查询预约状态</button>
     </div>
-    <div class="reserve-info" id="reserveInfo">当前无预约</div>
-    <div class="countdown" id="reserveCountdown"></div>
-    <button class="ctrl-btn btn-reserve" onclick="doReserve()">预约选定车位</button>
-    <button class="ctrl-btn btn-cancel" onclick="cancelReserve()">取消预约</button>
-    <button class="ctrl-btn btn-query" onclick="queryReserve()">查询预约状态</button>
+    <!-- 折叠：预约卡管理 -->
+    <div class="reserve-mgmt-header" onclick="toggleReserveMgmt()">
+        <h3 style="margin-bottom:0; font-size:14px;">预约卡管理</h3>
+        <span class="reserve-mgmt-toggle" id="reserveMgmtToggle">&#9654; 展开</span>
+    </div>
+    <div class="reserve-mgmt-body" id="reserveMgmtBody">
+        <div class="last-scanned">
+            <input id="lastScannedUid" type="text" placeholder="刷卡后自动填入UID" readonly>
+            <button class="btn-add-card" onclick="addReserveCard()">加入</button>
+        </div>
+        <div class="reserve-card-list" id="reserveCardList"></div>
+    </div>
 </div>
 
 <!-- 支付卡 -->
@@ -363,7 +414,7 @@
     // ==================== 状态 ====================
     let isBtConnected = false;
     let logExpanded = false;
-    let selectedSpot = 1;
+    let reserveMgmtExpanded = false;
     let prevSxSts = [0, 0, 0];  /* 上轮车位状态，用于检测变化 */
 
     // 数据状态（纯显示，以下位机为准）
@@ -379,6 +430,12 @@
 
     // 出场刷卡费用（单次显示，不维护列表）
     let currentExitFee = null;  // { uid, fee, elapsedMin }
+
+    // 预约卡列表：[{ uid, name }]，存 localStorage
+    let reserveCards = JSON.parse(localStorage.getItem('park_reserve_cards') || '[]');
+
+    // 最近一次刷卡 UID（用于录入预约卡）
+    let lastCardUid = '';
 
     // ==================== 蓝牙控制函数 ====================
     function scanDevices() {
@@ -522,20 +579,89 @@
         const timestamp = parts[2];
         const sts = parseInt(parts[3]);
 
-        if (sts === 1 || sts === 3) {
+        // 记录最近一次刷卡 UID，用于预约卡录入
+        lastCardUid = uid;
+        var inputEl = document.getElementById('lastScannedUid');
+        if (inputEl) inputEl.value = uid;
+
+        // 判断是否是预约卡（APP 端识别）
+        var isReserveCard = reserveCards.some(function(c) { return c.uid === uid; });
+
+        if (sts === 1 || sts === 3 || isReserveCard) {
+            if (isReserveCard) {
+                // 预约卡：自动找空闲车位，下发 06 指令
+                var freeSpot = findFreeSpot();
+                if (freeSpot >= 0) {
+                    sendViaBt('06,' + (freeSpot + 1));
+                    addLog('预约卡 ' + uid + ' → 预约车位' + (freeSpot + 1));
+                } else {
+                    addLog('预约卡 ' + uid + ' → 无空闲车位');
+                }
+            }
             // 入场刷卡：显示入场通知卡
             const card = document.getElementById('entryNotifCard');
             const body = document.getElementById('entryNotifBody');
             if (card && body) {
-                body.innerHTML = '<div class="entry-notif">' + uid + ' 刷卡入场 → 等待驶入车位</div>';
+                body.innerHTML = '<div class="entry-notif">' + uid + ' 刷卡' + (isReserveCard ? '（预约卡）' : '') + ' → 等待驶入车位</div>';
                 card.style.display = 'block';
-                // 5秒后自动隐藏
                 setTimeout(function() { card.style.display = 'none'; }, 5000);
             }
             addLog('入场刷卡: ' + uid + ' @' + timestamp);
         } else {
             addLog('无效卡: ' + uid);
         }
+    }
+
+    // ==================== 预约卡管理 ====================
+    function toggleReserveMgmt() {
+        reserveMgmtExpanded = !reserveMgmtExpanded;
+        document.getElementById('reserveMgmtBody').classList.toggle('show', reserveMgmtExpanded);
+        document.getElementById('reserveMgmtToggle').textContent = reserveMgmtExpanded ? '▼ 收起' : '▶ 展开';
+    }
+
+    function addReserveCard() {
+        if (!lastCardUid) { alert('请先刷卡获取 UID'); return; }
+        if (reserveCards.some(function(c) { return c.uid === lastCardUid; })) {
+            alert('该卡已在预约卡列表中');
+            return;
+        }
+        const name = prompt('为该卡命名（如：卡1-张三）：', '卡' + (reserveCards.length + 1));
+        if (!name) return;
+        reserveCards.push({ uid: lastCardUid, name: name });
+        localStorage.setItem('park_reserve_cards', JSON.stringify(reserveCards));
+        renderReserveCardList();
+        addLog('添加预约卡: ' + name + ' (' + lastCardUid + ')');
+    }
+
+    function removeReserveCard(index) {
+        const removed = reserveCards.splice(index, 1);
+        localStorage.setItem('park_reserve_cards', JSON.stringify(reserveCards));
+        renderReserveCardList();
+        addLog('移除预约卡: ' + removed[0].name);
+    }
+
+    function renderReserveCardList() {
+        var list = document.getElementById('reserveCardList');
+        if (!list) return;
+        if (reserveCards.length === 0) {
+            list.innerHTML = '<div style="text-align:center;color:#999;font-size:12px;padding:8px;">暂无预约卡，刷卡后点击"加入"</div>';
+            return;
+        }
+        list.innerHTML = reserveCards.map(function(c, i) {
+            return '<div class="reserve-card-item">' +
+                '<span><span class="rc-uid">' + c.uid + '</span>' +
+                '<span class="rc-name">' + c.name + '</span></span>' +
+                '<button class="btn-remove-card" onclick="removeReserveCard(' + i + ')">删除</button>' +
+            '</div>';
+        }).join('');
+    }
+
+    // 找空闲车位（Sx_STS=0），返回 0-based 索引，无则 -1
+    function findFreeSpot() {
+        for (var i = 0; i < 3; i++) {
+            if (currentData['s' + (i + 1) + '_sts'] === 0) return i;
+        }
+        return -1;
     }
 
     // ==================== 周期数据解析 ====================
