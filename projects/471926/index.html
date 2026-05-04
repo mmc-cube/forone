@@ -683,14 +683,14 @@
         });
     }
 
-    // 预约：选择预约卡 + 选择车位 → 下发 06,车位号
+    // 预约：选择预约卡 + 选择车位 → 下发 06,车位号,UID_xxxxxxxx
     function doReserve() {
         const sel = document.getElementById('reserveCardSel');
         if (!sel || !sel.value) { alert('请先选择预约卡'); return; }
         if (!selectedReserveSpot) { alert('请选择车位'); return; }
         const spotSts = currentData['s' + selectedReserveSpot + '_sts'];
         if (spotSts !== 0) { alert('车位' + selectedReserveSpot + '当前不可预约（状态：' + spotSts + '）'); return; }
-        sendViaBt('06,' + selectedReserveSpot);
+        sendViaBt('06,' + selectedReserveSpot + ',UID_' + sel.value);
         addLog('预约: ' + sel.value + ' → 车位' + selectedReserveSpot);
     }
 
