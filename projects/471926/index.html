@@ -506,8 +506,9 @@
         const uid = parts[2];                // UID_XXXXXXXX
 
         addLog('入场分配: ' + uid + ' → 车位' + spotNum + '（已分配）');
-        // APP端状态机：设为已分配，等待超声波检测车驶入
+        // APP端状态机：设为已分配，立即刷新UI
         spotAppStates[spotNum - 1] = 'allocated';
+        updateSpotUI('spot' + spotNum, '已分配', 'allocated');
     }
 
     // ==================== 出场拒绝事件处理（车位有车无法出场） ====================
@@ -616,9 +617,9 @@
             pad(currentData.hh) + ':' + pad(currentData.mm) + ':' + pad(currentData.ss);
 
         // 车位状态由APP端状态机驱动
-        updateSpotUI('spot1', 'spot' + (spotAppStates[0] === 'free' ? '空闲' : spotAppStates[0] === 'allocated' ? '已分配' : '已占用'), spotAppStates[0]);
-        updateSpotUI('spot2', 'spot' + (spotAppStates[1] === 'free' ? '空闲' : spotAppStates[1] === 'allocated' ? '已分配' : '已占用'), spotAppStates[1]);
-        updateSpotUI('spot3', 'spot' + (spotAppStates[2] === 'free' ? '空闲' : spotAppStates[2] === 'allocated' ? '已分配' : '已占用'), spotAppStates[2]);
+        updateSpotUI('spot1', spotAppStates[0] === 'free' ? '空闲' : spotAppStates[0] === 'allocated' ? '已分配' : '已占用', spotAppStates[0]);
+        updateSpotUI('spot2', spotAppStates[1] === 'free' ? '空闲' : spotAppStates[1] === 'allocated' ? '已分配' : '已占用', spotAppStates[1]);
+        updateSpotUI('spot3', spotAppStates[2] === 'free' ? '空闲' : spotAppStates[2] === 'allocated' ? '已分配' : '已占用', spotAppStates[2]);
 
         document.getElementById('v_fee').textContent = '¥' + (currentData.fee / 100).toFixed(2);
         document.getElementById('v_rate_info').textContent = '费率：' + currentData.rate + ' 元/小时';
