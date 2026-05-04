@@ -332,6 +332,17 @@
 <div class="card">
     <h3>车位预约</h3>
     <div id="reserveMain">
+        <!-- 选择预约卡 -->
+        <select class="reserve-card-sel" id="reserveCardSel">
+            <option value="">-- 选择预约卡 --</option>
+        </select>
+        <!-- 选择车位 -->
+        <div class="reserve-row">
+            <div class="spot-sel" id="rs1" data-spot="1" onclick="selRSspot(1)">车位1</div>
+            <div class="spot-sel" id="rs2" data-spot="2" onclick="selRSspot(2)">车位2</div>
+            <div class="spot-sel" id="rs3" data-spot="3" onclick="selRSspot(3)">车位3</div>
+        </div>
+        <button class="ctrl-btn btn-reserve" onclick="doReserve()">预约</button>
         <div class="reserve-info" id="reserveInfo">当前无预约</div>
         <div class="countdown" id="reserveCountdown"></div>
         <button class="ctrl-btn btn-cancel" onclick="cancelReserve()">取消预约</button>
@@ -359,7 +370,6 @@
         <div class="fee-amount" id="v_fee">&#165;0.00</div>
         <div class="fee-rate" id="v_rate_info">费率：-- 元/小时</div>
     </div>
-    <button class="ctrl-btn btn-pay" onclick="confirmPay()">确认支付并抬闸</button>
 </div>
 
 <!-- 阈值回显卡 -->
@@ -416,6 +426,8 @@
     let logExpanded = false;
     let reserveMgmtExpanded = false;
     let prevSxSts = [0, 0, 0];  /* 上轮车位状态，用于检测变化 */
+    let selectedSpot = 1;          /* 支付卡快捷支付车位 */
+    let selectedReserveSpot = 0;   /* 预约选择的车位 1/2/3 */
 
     // 数据状态（纯显示，以下位机为准）
     let currentData = {
@@ -584,25 +596,15 @@
         var inputEl = document.getElementById('lastScannedUid');
         if (inputEl) inputEl.value = uid;
 
-        // 判断是否是预约卡（APP 端识别）
-        var isReserveCard = reserveCards.some(function(c) { return c.uid === uid; });
+        // 刷新预约卡下拉列表（确保新加入的卡立即可选）
+        renderReserveCardList();
 
-        if (sts === 1 || sts === 3 || isReserveCard) {
-            if (isReserveCard) {
-                // 预约卡：自动找空闲车位，下发 06 指令
-                var freeSpot = findFreeSpot();
-                if (freeSpot >= 0) {
-                    sendViaBt('06,' + (freeSpot + 1));
-                    addLog('预约卡 ' + uid + ' → 预约车位' + (freeSpot + 1));
-                } else {
-                    addLog('预约卡 ' + uid + ' → 无空闲车位');
-                }
-            }
+        if (sts === 1 || sts === 3) {
             // 入场刷卡：显示入场通知卡
             const card = document.getElementById('entryNotifCard');
             const body = document.getElementById('entryNotifBody');
             if (card && body) {
-                body.innerHTML = '<div class="entry-notif">' + uid + ' 刷卡' + (isReserveCard ? '（预约卡）' : '') + ' → 等待驶入车位</div>';
+                body.innerHTML = '<div class="entry-notif">' + uid + ' 刷卡 → 等待驶入车位</div>';
                 card.style.display = 'block';
                 setTimeout(function() { card.style.display = 'none'; }, 5000);
             }
@@ -641,19 +643,31 @@
     }
 
     function renderReserveCardList() {
+        // 渲染列表
         var list = document.getElementById('reserveCardList');
         if (!list) return;
         if (reserveCards.length === 0) {
             list.innerHTML = '<div style="text-align:center;color:#999;font-size:12px;padding:8px;">暂无预约卡，刷卡后点击"加入"</div>';
-            return;
+        } else {
+            list.innerHTML = reserveCards.map(function(c, i) {
+                return '<div class="reserve-card-item">' +
+                    '<span><span class="rc-uid">' + c.uid + '</span>' +
+                    '<span class="rc-name">' + c.name + '</span></span>' +
+                    '<button class="btn-remove-card" onclick="removeReserveCard(' + i + ')">删除</button>' +
+                '</div>';
+            }).join('');
         }
-        list.innerHTML = reserveCards.map(function(c, i) {
-            return '<div class="reserve-card-item">' +
-                '<span><span class="rc-uid">' + c.uid + '</span>' +
-                '<span class="rc-name">' + c.name + '</span></span>' +
-                '<button class="btn-remove-card" onclick="removeReserveCard(' + i + ')">删除</button>' +
-            '</div>';
-        }).join('');
+        // 同步更新下拉列表
+        var sel = document.getElementById('reserveCardSel');
+        if (sel) {
+            var currentVal = sel.value;
+            sel.innerHTML = '<option value="">-- 选择预约卡 --</option>' +
+                reserveCards.map(function(c) { return '<option value="' + c.uid + '">' + c.name + ' (' + c.uid + ')</option>'; }).join('');
+            // 保持已选项
+            if (currentVal && reserveCards.some(function(c) { return c.uid === currentVal; })) {
+                sel.value = currentVal;
+            }
+        }
     }
 
     // 找空闲车位（Sx_STS=0），返回 0-based 索引，无则 -1
@@ -662,6 +676,25 @@
             if (currentData['s' + (i + 1) + '_sts'] === 0) return i;
         }
         return -1;
+    }
+
+    // 预约车位选择
+    function selRSspot(n) {
+        selectedReserveSpot = n;
+        document.querySelectorAll('.spot-sel').forEach(el => {
+            el.classList.toggle('selected', parseInt(el.dataset.spot) === n);
+        });
+    }
+
+    // 预约：选择预约卡 + 选择车位 → 下发 06,车位号
+    function doReserve() {
+        const sel = document.getElementById('reserveCardSel');
+        if (!sel || !sel.value) { alert('请先选择预约卡'); return; }
+        if (!selectedReserveSpot) { alert('请选择车位'); return; }
+        const spotSts = currentData['s' + selectedReserveSpot + '_sts'];
+        if (spotSts !== 0) { alert('车位' + selectedReserveSpot + '当前不可预约（状态：' + spotSts + '）'); return; }
+        sendViaBt('06,' + selectedReserveSpot);
+        addLog('预约: ' + sel.value + ' → 车位' + selectedReserveSpot);
     }
 
     // ==================== 周期数据解析 ====================
@@ -821,22 +854,7 @@
         if (code === '03') checkAlarms();
     }
 
-    // 预约
-    function selSpot(n) {
-        selectedSpot = n;
-        document.querySelectorAll('.spot-sel').forEach(el => {
-            el.classList.toggle('selected', parseInt(el.dataset.spot) === n);
-        });
-    }
-
-    function doReserve() {
-        if (!selectedSpot || currentData['s' + selectedSpot + '_sts'] !== 0) {
-            alert('车位' + selectedSpot + '当前不可预约');
-            return;
-        }
-        sendViaBt('06,' + selectedSpot);
-        addLog('预约车位' + selectedSpot);
-    }
+    // 取消预约 / 查询预约 / 确认支付
     function cancelReserve() { sendViaBt('07'); }
     function queryReserve() { sendViaBt('08'); }
     function confirmPay() { sendViaBt('05'); }
@@ -860,7 +878,8 @@
     }
 
     // ==================== 启动 ====================
-    selSpot(1);
+    selRSspot(1);
+    renderReserveCardList();
 </script>
 
 </body>
