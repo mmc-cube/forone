@@ -502,9 +502,9 @@
         const spotNum = parseInt(parts[1]);  // 车位号 1~3
         const uid = parts[2];                // UID_XXXXXXXX
 
-        addLog('入场分配: ' + uid + ' → 车位' + spotNum + '（已预约）');
-        // 对应车位显示已预约
-        updateSpotUI('spot' + spotNum, '已预约', 'reserved');
+        addLog('入场分配: ' + uid + ' → 车位' + spotNum + '（已分配）');
+        // 对应车位显示已分配（蓝色）
+        updateSpotUI('spot' + spotNum, '已分配', 'allocated');
     }
 
     // ==================== 出场拒绝事件处理（车位有车无法出场） ====================
