@@ -382,6 +382,9 @@
     // 出场刷卡费用（单次显示，不维护列表）
     let currentExitFee = null;  // { uid, fee, elapsedMin }
 
+    // APP端车位状态机：RESERVE 事件设为 allocated，后续由超声波距离驱动
+    let spotAppStates = ['free', 'free', 'free'];  // free / allocated / occupied
+
     // ==================== 蓝牙控制函数 ====================
     function scanDevices() {
         if (window.BluetoothBridge) {
@@ -503,8 +506,8 @@
         const uid = parts[2];                // UID_XXXXXXXX
 
         addLog('入场分配: ' + uid + ' → 车位' + spotNum + '（已分配）');
-        // 对应车位显示已分配（蓝色）
-        updateSpotUI('spot' + spotNum, '已分配', 'allocated');
+        // APP端状态机：设为已分配，等待超声波检测车驶入
+        spotAppStates[spotNum - 1] = 'allocated';
     }
 
     // ==================== 出场拒绝事件处理（车位有车无法出场） ====================
@@ -564,7 +567,22 @@
         currentData.ent_th = parseInt(parts[14]);
         currentData.spot_th = parseInt(parts[15]);
 
-        // 检测车离开：车位状态从占用(1)→空闲(0)
+        // APP端车位状态机：由超声波距离驱动，RESERVE事件设为allocated
+        const dists = [currentData.s1_dist, currentData.s2_dist, currentData.s3_dist];
+        for (let i = 0; i < 3; i++) {
+            const d = dists[i];
+            if (d > 0 && d !== 999 && d < currentData.spot_th) {
+                // 超声波检测到车 → 已占用
+                spotAppStates[i] = 'occupied';
+            } else if (spotAppStates[i] === 'allocated') {
+                // 已分配但车未驶入 → 保持allocated（不被周期数据覆盖）
+            } else {
+                // 无车且未分配 → 空闲
+                spotAppStates[i] = 'free';
+            }
+        }
+
+        // 检测车离开：从占用→空闲
         for (let i = 0; i < 3; i++) {
             if (prevSxSts[i] === 1 && currentData['s' + (i + 1) + '_sts'] === 0) {
                 addLog('车位' + (i + 1) + '已空');
@@ -597,10 +615,10 @@
         document.getElementById('v_time').textContent =
             pad(currentData.hh) + ':' + pad(currentData.mm) + ':' + pad(currentData.ss);
 
-        const stsMap = { 0: ['空闲', 'free'], 1: ['已分配', 'allocated'], 2: ['占用', 'occupied'], 3: ['已预约', 'reserved'] };
-        updateSpotUI('spot1', stsMap[currentData.s1_sts] ? stsMap[currentData.s1_sts][0] : '?', stsMap[currentData.s1_sts] ? stsMap[currentData.s1_sts][1] : 'free');
-        updateSpotUI('spot2', stsMap[currentData.s2_sts] ? stsMap[currentData.s2_sts][0] : '?', stsMap[currentData.s2_sts] ? stsMap[currentData.s2_sts][1] : 'free');
-        updateSpotUI('spot3', stsMap[currentData.s3_sts] ? stsMap[currentData.s3_sts][0] : '?', stsMap[currentData.s3_sts] ? stsMap[currentData.s3_sts][1] : 'free');
+        // 车位状态由APP端状态机驱动
+        updateSpotUI('spot1', 'spot' + (spotAppStates[0] === 'free' ? '空闲' : spotAppStates[0] === 'allocated' ? '已分配' : '已占用'), spotAppStates[0]);
+        updateSpotUI('spot2', 'spot' + (spotAppStates[1] === 'free' ? '空闲' : spotAppStates[1] === 'allocated' ? '已分配' : '已占用'), spotAppStates[1]);
+        updateSpotUI('spot3', 'spot' + (spotAppStates[2] === 'free' ? '空闲' : spotAppStates[2] === 'allocated' ? '已分配' : '已占用'), spotAppStates[2]);
 
         document.getElementById('v_fee').textContent = '¥' + (currentData.fee / 100).toFixed(2);
         document.getElementById('v_rate_info').textContent = '费率：' + currentData.rate + ' 元/小时';
@@ -662,8 +680,8 @@
             alarms.push('入口有车，请刷卡');
         }
 
-        // 以下位机回传的 Sx_STS 判断满位
-        const fullCount = currentData.s1_sts + currentData.s2_sts + currentData.s3_sts;
+        // 满位判断：3个车位全占用
+        const fullCount = spotAppStates.filter(s => s === 'occupied').length;
         if (fullCount === 3) {
             alarms.push('满位报警！3个车位全部占用');
         }
