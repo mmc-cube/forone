@@ -402,12 +402,6 @@
     </div>
 </div>
 
-<!-- 控制卡 -->
-<div class="card">
-    <h3>快捷控制</h3>
-    <button class="ctrl-btn btn-alarm" onclick="sendCmd('01')">消警</button>
-</div>
-
 <!-- 日志卡（折叠） -->
 <div class="card">
     <div class="log-header" onclick="toggleLog()">
@@ -836,13 +830,6 @@
     }
 
     // ==================== 下行指令 ====================
-    function sendCmd(cmd) {
-        sendViaBt(cmd);
-        if (cmd === '01') {
-            renderAlarms([]);
-        }
-    }
-
     function sendThreshold(code, inputId) {
         const val = parseInt(document.getElementById(inputId).value);
         if (isNaN(val)) return;
