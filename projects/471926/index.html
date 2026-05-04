@@ -192,25 +192,6 @@
         .rfid-2 { background: #FFEBEE; color: #C62828; }
         .rfid-3 { background: #E3F2FD; color: #1565C0; }
 
-        /* 满位报警弹窗 */
-        .full-overlay {
-            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.4); z-index: 100;
-            align-items: center; justify-content: center;
-        }
-        .full-overlay.show { display: flex; }
-        .full-modal {
-            background: #fff; border-radius: 16px; padding: 24px;
-            max-width: 300px; text-align: center;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-        }
-        .full-modal h2 { color: var(--alarm); font-size: 20px; margin-bottom: 8px; }
-        .full-modal p { font-size: 14px; color: var(--sub); margin-bottom: 16px; }
-        .full-modal button {
-            height: 44px; width: 100%; border: none; border-radius: 8px;
-            background: var(--alarm); color: #fff; font-size: 15px;
-            font-weight: 600; cursor: pointer;
-        }
     </style>
 </head>
 <body>
@@ -376,15 +357,6 @@
         <span class="log-toggle" id="logToggle">&#9654; 展开</span>
     </div>
     <div class="log-body" id="logBody"></div>
-</div>
-
-<!-- 满位报警弹窗 -->
-<div class="full-overlay" id="fullOverlay">
-    <div class="full-modal">
-        <h2>&#9888; 满位报警</h2>
-        <p>3个车位全部占用，停车场已满！</p>
-        <button onclick="dismissFullAlarm()">我知道了</button>
-    </div>
 </div>
 
 <script>
@@ -761,10 +733,6 @@
         const fullCount = spotStates.filter(s => s === 'occupied').length;
         if (fullCount === 3) {
             alarms.push('满位报警！3个车位全部占用');
-            document.getElementById('fullOverlay').classList.add('show');
-            playAlarmSound();
-        } else {
-            document.getElementById('fullOverlay').classList.remove('show');
         }
 
         renderAlarms(alarms);
@@ -779,28 +747,11 @@
         }
     }
 
-    let audioCtx = null;
-    function playAlarmSound() {
-        try {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.frequency.value = 800; gain.gain.value = 0.1;
-            osc.start(); osc.stop(audioCtx.currentTime + 0.3);
-        } catch (e) {}
-    }
-
-    function dismissFullAlarm() {
-        document.getElementById('fullOverlay').classList.remove('show');
-    }
-
     // ==================== 下行指令 ====================
     function sendCmd(cmd) {
         sendViaBt(cmd);
         if (cmd === '01') {
             renderAlarms([]);
-            dismissFullAlarm();
         }
     }
 
