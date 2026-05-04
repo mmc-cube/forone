@@ -322,10 +322,6 @@
         <span class="data-label">车位占用阈值</span>
         <div><span class="data-value" id="v_spot_th" style="font-size:22px;">5</span><span class="data-unit">cm</span></div>
     </div>
-    <div class="data-row">
-        <span class="data-label">当前费率</span>
-        <div><span class="data-value" id="v_th_rate" style="font-size:22px;">5</span><span class="data-unit">元/小时</span></div>
-    </div>
 </div>
 
 <!-- 阈值设置卡 -->
@@ -372,18 +368,17 @@
 
     // 数据状态（纯显示，以下位机为准）
     let currentData = {
-        s1_dist: 0, s2_dist: 0, s3_dist: 0, ent_dist: 0,
-        rfid: 0, s1_sts: 0, s2_sts: 0, s3_sts: 0,
-        res_sts: 0, rate: 5, fee: 0,
+        s1_dist: 0, s1_uid: '', s1_sts: 0, s1_fee: 0,
+        s2_dist: 0, s2_uid: '', s2_sts: 0, s2_fee: 0,
+        s3_dist: 0, s3_uid: '', s3_sts: 0, s3_fee: 0,
+        ent_dist: 0,
+        rfid: 0,
         hh: 0, mm: 0, ss: 0,
         ent_th: 30, spot_th: 5
     };
 
     // 出场刷卡费用（单次显示，不维护列表）
     let currentExitFee = null;  // { uid, fee, elapsedMin }
-
-    // APP端车位状态机：RESERVE 事件设为 allocated，后续由超声波距离驱动
-    let spotAppStates = ['free', 'free', 'free'];  // free / allocated / occupied
 
     // ==================== 蓝牙控制函数 ====================
     function scanDevices() {
@@ -506,9 +501,6 @@
         const uid = parts[2];                // UID_XXXXXXXX
 
         addLog('入场分配: ' + uid + ' → 车位' + spotNum + '（已分配）');
-        // APP端状态机：设为已分配，立即刷新UI
-        spotAppStates[spotNum - 1] = 'allocated';
-        updateSpotUI('spot' + spotNum, '已分配', 'allocated');
     }
 
     // ==================== 出场拒绝事件处理（车位有车无法出场） ====================
@@ -547,45 +539,34 @@
     }
 
     // ==================== 周期数据解析 ====================
+    // 新格式（19字段）：S1_DIST,S1_UID,S1_STS,S1_FEE,S2_DIST,S2_UID,S2_STS,S2_FEE,S3_DIST,S3_UID,S3_STS,S3_FEE,ENT_DIST,RFID_STS,HH,MM,SS,ENT_TH,SPOT_TH
     function parseAndUpdate(msg) {
         const parts = msg.split(',');
-        if (parts.length < 16) { addLog('数据字段不足，忽略'); return; }
+        if (parts.length < 19) { addLog('数据字段不足，忽略'); return; }
 
         currentData.s1_dist = parseInt(parts[0]);
-        currentData.s2_dist = parseInt(parts[1]);
-        currentData.s3_dist = parseInt(parts[2]);
-        currentData.ent_dist = parseInt(parts[3]);
-        currentData.rfid = parseInt(parts[4]);
-        currentData.s1_sts = parseInt(parts[5]);
-        currentData.s2_sts = parseInt(parts[6]);
-        currentData.s3_sts = parseInt(parts[7]);
-        currentData.res_sts = parseInt(parts[8]);
-        currentData.rate = parseInt(parts[9]);
-        currentData.fee = parseInt(parts[10]);
-        currentData.hh = parseInt(parts[11]);
-        currentData.mm = parseInt(parts[12]);
-        currentData.ss = parseInt(parts[13]);
-        currentData.ent_th = parseInt(parts[14]);
-        currentData.spot_th = parseInt(parts[15]);
+        currentData.s1_uid  = parts[1];
+        currentData.s1_sts  = parseInt(parts[2]);
+        currentData.s1_fee  = parseInt(parts[3]);
+        currentData.s2_dist = parseInt(parts[4]);
+        currentData.s2_uid  = parts[5];
+        currentData.s2_sts  = parseInt(parts[6]);
+        currentData.s2_fee  = parseInt(parts[7]);
+        currentData.s3_dist = parseInt(parts[8]);
+        currentData.s3_uid  = parts[9];
+        currentData.s3_sts  = parseInt(parts[10]);
+        currentData.s3_fee  = parseInt(parts[11]);
+        currentData.ent_dist = parseInt(parts[12]);
+        currentData.rfid     = parseInt(parts[13]);
+        currentData.hh       = parseInt(parts[14]);
+        currentData.mm       = parseInt(parts[15]);
+        currentData.ss       = parseInt(parts[16]);
+        currentData.ent_th   = parseInt(parts[17]);
+        currentData.spot_th  = parseInt(parts[18]);
 
-        // APP端车位状态机：由超声波距离驱动，RESERVE事件设为allocated
-        const dists = [currentData.s1_dist, currentData.s2_dist, currentData.s3_dist];
+        // 检测车离开：车位状态从非空闲→空闲
         for (let i = 0; i < 3; i++) {
-            const d = dists[i];
-            if (d > 0 && d !== 999 && d < currentData.spot_th) {
-                // 超声波检测到车 → 已占用
-                spotAppStates[i] = 'occupied';
-            } else if (spotAppStates[i] === 'allocated') {
-                // 已分配但车未驶入 → 保持allocated（不被周期数据覆盖）
-            } else {
-                // 无车且未分配 → 空闲
-                spotAppStates[i] = 'free';
-            }
-        }
-
-        // 检测车离开：从占用→空闲
-        for (let i = 0; i < 3; i++) {
-            if (prevSxSts[i] === 1 && currentData['s' + (i + 1) + '_sts'] === 0) {
+            if (prevSxSts[i] > 0 && currentData['s' + (i + 1) + '_sts'] === 0) {
                 addLog('车位' + (i + 1) + '已空');
                 currentExitFee = null;
                 renderExitFee();
@@ -616,26 +597,25 @@
         document.getElementById('v_time').textContent =
             pad(currentData.hh) + ':' + pad(currentData.mm) + ':' + pad(currentData.ss);
 
-        // 车位状态由APP端状态机驱动
-        updateSpotUI('spot1', spotAppStates[0] === 'free' ? '空闲' : spotAppStates[0] === 'allocated' ? '已分配' : '已占用', spotAppStates[0]);
-        updateSpotUI('spot2', spotAppStates[1] === 'free' ? '空闲' : spotAppStates[1] === 'allocated' ? '已分配' : '已占用', spotAppStates[1]);
-        updateSpotUI('spot3', spotAppStates[2] === 'free' ? '空闲' : spotAppStates[2] === 'allocated' ? '已分配' : '已占用', spotAppStates[2]);
+        // 车位状态以下位机 Sx_STS 为准：0=空闲, 1=已分配, 2=已占用, 3=已预约
+        const stsMap = {
+            0: ['空闲', 'free'],
+            1: ['已分配', 'allocated'],
+            2: ['已占用', 'occupied'],
+            3: ['已预约', 'reserved']
+        };
+        updateSpotUI('spot1', stsMap[currentData.s1_sts][0], stsMap[currentData.s1_sts][1]);
+        updateSpotUI('spot2', stsMap[currentData.s2_sts][0], stsMap[currentData.s2_sts][1]);
+        updateSpotUI('spot3', stsMap[currentData.s3_sts][0], stsMap[currentData.s3_sts][1]);
 
-        document.getElementById('v_fee').textContent = '¥' + (currentData.fee / 100).toFixed(2);
-        document.getElementById('v_rate_info').textContent = '费率：' + currentData.rate + ' 元/小时';
-
-        if (currentData.res_sts > 0) {
-            document.getElementById('reserveInfo').textContent = '已预约，剩余 ' + currentData.res_sts + ' 分钟';
-            document.getElementById('reserveCountdown').textContent = currentData.res_sts + ' min';
-        } else {
-            document.getElementById('reserveInfo').textContent = '当前无预约';
-            document.getElementById('reserveCountdown').textContent = '';
-        }
+        // 总费用：各车位费用之和（分）
+        const totalFee = currentData.s1_fee + currentData.s2_fee + currentData.s3_fee;
+        document.getElementById('v_fee').textContent = '¥' + (totalFee / 100).toFixed(2);
+        document.getElementById('v_rate_info').textContent = '费率：' + currentData.s1_fee + '/' + currentData.s2_fee + '/' + currentData.s3_fee;
 
         // 阈值显示（来自下位机回传）
         document.getElementById('v_ent_th').textContent = currentData.ent_th;
         document.getElementById('v_spot_th').textContent = currentData.spot_th;
-        document.getElementById('v_th_rate').textContent = currentData.rate;
     }
 
     function setDist(elId, val) {
@@ -681,8 +661,8 @@
             alarms.push('入口有车，请刷卡');
         }
 
-        // 满位判断：3个车位全占用
-        const fullCount = spotAppStates.filter(s => s === 'occupied').length;
+        // 满位判断：3个车位全占用（Sx_STS=2）
+        const fullCount = [currentData.s1_sts, currentData.s2_sts, currentData.s3_sts].filter(s => s === 2).length;
         if (fullCount === 3) {
             alarms.push('满位报警！3个车位全部占用');
         }
