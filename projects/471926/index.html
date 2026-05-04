@@ -104,22 +104,20 @@
         .alarm-item:last-child { margin-bottom: 0; }
         .alarm-ok { color: var(--ok); font-size: 13px; text-align: center; padding: 8px; }
 
-        /* 在场车辆卡 */
-        .vehicle-item {
-            background: #f8f8f8; border-radius: 10px; padding: 12px; margin-bottom: 8px;
+        /* 出场费用提示 */
+        .fee-simple {
+            text-align: center; padding: 14px;
+            background: #FFF3E0; border-radius: 10px; font-size: 15px;
         }
-        .vehicle-item:last-child { margin-bottom: 0; }
-        .vehicle-uid { font-size: 14px; font-weight: 600; font-family: monospace; }
-        .vehicle-meta { font-size: 12px; color: var(--sub); margin: 4px 0 8px; }
-        .vehicle-fee { font-size: 22px; font-weight: bold; color: var(--text); }
-        .vehicle-pay-btn {
-            width: 100%; height: 44px; border: none; border-radius: 8px;
-            background: var(--ok); color: #fff; font-size: 14px; font-weight: 600;
-            cursor: pointer; margin-top: 8px;
+        .fee-simple > div:first-child { font-family: monospace; font-weight: 600; margin-bottom: 6px; }
+        .fee-simple > div:nth-child(2) { color: var(--sub); margin-bottom: 4px; }
+
+        /* 入场通知卡 */
+        .entry-notif {
+            background: #E8F5E9; border-left: 4px solid #4CAF50;
+            padding: 14px 16px; border-radius: 6px; font-size: 15px;
+            font-weight: 500; color: #2E7D32; text-align: center;
         }
-        .vehicle-pay-btn:active { opacity: 0.85; }
-        .vehicle-pay-btn.paid { background: #FF9800; }
-        .vehicle-empty { font-size: 13px; color: var(--sub); text-align: center; padding: 12px; }
 
         /* 控制按钮 */
         .ctrl-btn {
@@ -275,10 +273,16 @@
     <div id="alarmBox"><div class="alarm-ok">运行正常 &#10003;</div></div>
 </div>
 
-<!-- 在场车辆卡 -->
-<div class="card">
-    <h3>在场车辆</h3>
-    <div id="vehicleList"><div class="vehicle-empty">暂无在场车辆</div></div>
+<!-- 入场通知卡（刷卡后显示） -->
+<div class="card" id="entryNotifCard" style="display:none;">
+    <h3>入场通知</h3>
+    <div id="entryNotifBody"></div>
+</div>
+
+<!-- 出场费用提示（出场刷卡后触发显示） -->
+<div class="card" id="exitFeeCard" style="display:none;">
+    <h3>出场费用</h3>
+    <div id="exitFeeBody"></div>
 </div>
 
 <!-- 预约卡 -->
@@ -375,8 +379,8 @@
         ent_th: 30, spot_th: 5
     };
 
-    // 出场刷卡待确认列表（FEE事件触发）
-    let exitVehicles = [];  // [{ uid, fee, paid }]
+    // 出场刷卡费用（单次显示，不维护列表）
+    let currentExitFee = null;  // { uid, fee, elapsedMin }
 
     // ==================== 蓝牙控制函数 ====================
     function scanDevices() {
@@ -481,8 +485,8 @@
         const elapsedMin = parseInt(parts[3]);
 
         // 添加到出场列表
-        exitVehicles = [{ uid, fee: feeCents / 100, paid: false }];
-        renderVehicles();
+        currentExitFee = { uid, fee: feeCents / 100, elapsedMin };
+        renderExitFee();
         addLog('出场刷卡: ' + uid + ' 停车' + elapsedMin + '分钟 费用¥' + (feeCents / 100).toFixed(2));
     }
 
@@ -495,6 +499,15 @@
         const sts = parseInt(parts[3]);
 
         if (sts === 1 || sts === 3) {
+            // 入场刷卡：显示入场通知卡
+            const card = document.getElementById('entryNotifCard');
+            const body = document.getElementById('entryNotifBody');
+            if (card && body) {
+                body.innerHTML = '<div class="entry-notif">' + uid + ' 刷卡入场 → 等待驶入车位</div>';
+                card.style.display = 'block';
+                // 5秒后自动隐藏
+                setTimeout(function() { card.style.display = 'none'; }, 5000);
+            }
             addLog('入场刷卡: ' + uid + ' @' + timestamp);
         } else {
             addLog('无效卡: ' + uid);
@@ -527,9 +540,8 @@
         for (let i = 0; i < 3; i++) {
             if (prevSxSts[i] === 1 && currentData['s' + (i + 1) + '_sts'] === 0) {
                 addLog('车位' + (i + 1) + '已空');
-                // 清除出场列表
-                exitVehicles = [];
-                renderVehicles();
+                currentExitFee = null;
+                renderExitFee();
             }
         }
         prevSxSts = [currentData.s1_sts, currentData.s2_sts, currentData.s3_sts];
@@ -596,36 +608,21 @@
 
     function pad(n) { return String(n).padStart(2, '0'); }
 
-    // ==================== 出场车辆列表 ====================
-    function renderVehicles() {
-        const container = document.getElementById('vehicleList');
-        if (exitVehicles.length === 0) {
-            container.innerHTML = '<div class="vehicle-empty">暂无待支付车辆</div>';
+    // ==================== 出场费用显示 ====================
+    function renderExitFee() {
+        const card = document.getElementById('exitFeeCard');
+        const body = document.getElementById('exitFeeBody');
+        if (!currentExitFee) {
+            card.style.display = 'none';
             return;
         }
-        container.innerHTML = exitVehicles.map((car, i) => {
-            const paidClass = car.paid ? ' paid' : '';
-            const btnText = car.paid ? '已支付，等待离开' : '支付并出场';
-            return '<div class="vehicle-item">' +
-                '<div class="vehicle-uid">' + car.uid + '</div>' +
-                '<div class="vehicle-fee">¥' + car.fee.toFixed(2) + '</div>' +
-                '<button class="vehicle-pay-btn' + paidClass + '" onclick="payVehicle(' + i + ')">' + btnText + '</button>' +
+        card.style.display = 'block';
+        body.innerHTML =
+            '<div class="fee-simple">' +
+                '<div>' + currentExitFee.uid + '</div>' +
+                '<div>停车' + currentExitFee.elapsedMin + '分钟 费用¥' + currentExitFee.fee.toFixed(2) + '</div>' +
+                '<button class="ctrl-btn btn-pay" style="margin-top:10px;" onclick="confirmPay()">支付并出场</button>' +
             '</div>';
-        }).join('');
-    }
-
-    function payVehicle(index) {
-        if (index >= 0 && index < exitVehicles.length) {
-            const car = exitVehicles[index];
-            if (car.paid) {
-                addLog('车辆 ' + car.uid + ' 已支付，等待车离开');
-                return;
-            }
-            sendViaBt('05');
-            car.paid = true;
-            addLog('支付: ' + car.uid + ' → 开闸');
-            renderVehicles();
-        }
     }
 
     // ==================== 报警判断 ====================
@@ -679,7 +676,7 @@
     }
 
     function doReserve() {
-        if (spotStates[selectedSpot - 1] !== 'free') {
+        if (!selectedSpot || currentData['s' + selectedSpot + '_sts'] !== 0) {
             alert('车位' + selectedSpot + '当前不可预约');
             return;
         }
