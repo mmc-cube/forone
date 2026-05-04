@@ -316,7 +316,7 @@
     </div>
     <div class="data-row">
         <span class="data-label">车位占用阈值</span>
-        <div><span class="data-value" id="v_spot_th" style="font-size:22px;">10</span><span class="data-unit">cm</span></div>
+        <div><span class="data-value" id="v_spot_th" style="font-size:22px;">5</span><span class="data-unit">cm</span></div>
     </div>
     <div class="data-row">
         <span class="data-label">当前费率</span>
@@ -334,7 +334,7 @@
     </div>
     <div class="threshold-row">
         <span class="thr-label">车位占用阈值 (cm)</span>
-        <input class="thr-input" id="thr_spot" type="number" min="5" max="50" value="10">
+        <input class="thr-input" id="thr_spot" type="number" min="5" max="50" value="5">
         <button class="thr-send" onclick="sendThreshold('03','thr_spot')">发送</button>
     </div>
     <div class="threshold-row">
@@ -371,7 +371,7 @@
         rfid: 0, s1_sts: 0, s2_sts: 0, s3_sts: 0,
         res_sts: 0, rate: 5, fee: 0,
         hh: 0, mm: 0, ss: 0,
-        ent_th: 30, spot_th: 10
+        ent_th: 30, spot_th: 5
     };
 
     // 在场车辆列表
@@ -469,10 +469,35 @@
         const trimmed = line.trim();
         if (trimmed.startsWith('CARD,')) {
             handleCardEvent(trimmed);
+        } else if (trimmed.startsWith('FEE,')) {
+            handleFeeEvent(trimmed);
         } else {
             parseAndUpdate(trimmed);
         }
     };
+
+    // ==================== 费用事件处理（出场刷卡） ====================
+    function handleFeeEvent(msg) {
+        const parts = msg.split(',');
+        if (parts.length < 4) return;
+        const uid = parts[1];       // UID_xxxxxxxx
+        const feeCents = parseInt(parts[2]);
+        const elapsedMin = parseInt(parts[3]);
+
+        // 更新累计费用显示
+        currentData.fee = feeCents;
+        updateUI();
+
+        // 找到或创建在场车辆记录
+        let car = parkedCars.find(c => c.uid === uid);
+        if (car) {
+            car.fee = feeCents / 100;
+            addLog('出场刷卡: ' + uid + ' 停车' + elapsedMin + '分钟 费用¥' + (feeCents/100).toFixed(2));
+            renderVehicles();
+        } else {
+            addLog('出场刷卡: ' + uid + ' 费用¥' + (feeCents/100).toFixed(2) + '（停车' + elapsedMin + '分钟）');
+        }
+    }
 
     // ==================== 刷卡事件处理 ====================
     function handleCardEvent(msg) {
@@ -554,44 +579,51 @@
         currentData.rate = newData.rate;
 
         updateVehicleFees();
-        updateSpotStates();  // 4态状态机更新
+        updateSpotStates();  // 以下位机 Sx_STS 为主更新状态
         updateUI();
-        checkVehicleDeparture();
         checkAlarms();
     }
 
     // ==================== 车位4态状态机 ====================
-    function isSpotOccupied(idx) {
-        const dists = [currentData.s1_dist, currentData.s2_dist, currentData.s3_dist];
-        const d = dists[idx];
-        return d > 0 && d !== 999 && d < currentData.spot_th;
-    }
-
+    // 以下位机回传的 Sx_STS 为主，距离数据仅作辅助显示
     function updateSpotStates() {
+        const hwStates = [currentData.s1_sts, currentData.s2_sts, currentData.s3_sts];  // 0=空闲, 1=占用
+
         for (let i = 0; i < 3; i++) {
-            const occ = isSpotOccupied(i);
             const st = spotStates[i];
 
             switch (st) {
                 case 'free':
-                    if (occ) spotStates[i] = 'occupied';
-                    else if (reservedSpots.has(i + 1)) spotStates[i] = 'reserved';
+                    if (hwStates[i] === 1) {
+                        spotStates[i] = 'occupied';
+                    } else if (reservedSpots.has(i + 1)) {
+                        spotStates[i] = 'reserved';
+                    }
                     break;
                 case 'allocated':
-                    if (occ) spotStates[i] = 'occupied';
+                    if (hwStates[i] === 1) {
+                        spotStates[i] = 'occupied';
+                    } else if (hwStates[i] === 0) {
+                        // 车还未驶入（物理空闲），保持已分配
+                    }
                     break;
                 case 'occupied':
-                    if (!occ) {
-                        // 车离开：已支付 → free，未支付 → 保持 occupied
-                        if (paidSpots.has(i)) {
-                            spotStates[i] = 'free';
-                            paidSpots.delete(i);
-                            reservedSpots.delete(i + 1);
+                    if (hwStates[i] === 0) {
+                        // 下位机报告空闲 → 车已离开，无论是否支付都恢复
+                        spotStates[i] = 'free';
+                        paidSpots.delete(i);
+                        reservedSpots.delete(i + 1);
+                        // 同步清除在场车辆
+                        for (let j = parkedCars.length - 1; j >= 0; j--) {
+                            if (parkedCars[j].spotIndex === i) {
+                                addLog('车辆已离开: ' + parkedCars[j].uid);
+                                parkedCars.splice(j, 1);
+                            }
                         }
                     }
                     break;
                 case 'reserved':
-                    if (occ) {
+                    if (hwStates[i] === 1) {
                         spotStates[i] = 'occupied';
                         reservedSpots.delete(i + 1);
                     }
@@ -730,7 +762,8 @@
             alarms.push('入口有车，请刷卡');
         }
 
-        const fullCount = spotStates.filter(s => s === 'occupied').length;
+        // 以下位机回传的 Sx_STS 判断满位
+        const fullCount = currentData.s1_sts + currentData.s2_sts + currentData.s3_sts;
         if (fullCount === 3) {
             alarms.push('满位报警！3个车位全部占用');
         }
