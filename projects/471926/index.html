@@ -326,6 +326,23 @@
     <button class="ctrl-btn btn-pay" onclick="confirmPay()">确认支付并抬闸</button>
 </div>
 
+<!-- 阈值回显卡 -->
+<div class="card">
+    <h3>阈值状态</h3>
+    <div class="data-row">
+        <span class="data-label">入口检测阈值</span>
+        <div><span class="data-value" id="v_ent_th" style="font-size:22px;">30</span><span class="data-unit">cm</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">车位占用阈值</span>
+        <div><span class="data-value" id="v_spot_th" style="font-size:22px;">10</span><span class="data-unit">cm</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">当前费率</span>
+        <div><span class="data-value" id="v_th_rate" style="font-size:22px;">5</span><span class="data-unit">元/小时</span></div>
+    </div>
+</div>
+
 <!-- 阈值设置卡 -->
 <div class="card">
     <h3>阈值设置</h3>
@@ -384,9 +401,6 @@
         hh: 0, mm: 0, ss: 0,
         ent_th: 30, spot_th: 10
     };
-
-    // 阈值同步状态机
-    let waitingSync = { ent: false, spot: false, rate: false };
 
     // 在场车辆列表
     let parkedCars = [];
@@ -563,22 +577,15 @@
         currentData.mm = newData.mm;
         currentData.ss = newData.ss;
 
-        if (!waitingSync.ent) currentData.ent_th = newData.ent_th;
-        if (!waitingSync.spot) currentData.spot_th = newData.spot_th;
-        if (!waitingSync.rate) currentData.rate = newData.rate;
-
-        if (waitingSync.ent && Math.abs(newData.ent_th - currentData.ent_th) < 1) waitingSync.ent = false;
-        if (waitingSync.spot && Math.abs(newData.spot_th - currentData.spot_th) < 1) waitingSync.spot = false;
-        if (waitingSync.rate && Math.abs(newData.rate - currentData.rate) < 1) waitingSync.rate = false;
+        currentData.ent_th = newData.ent_th;
+        currentData.spot_th = newData.spot_th;
+        currentData.rate = newData.rate;
 
         updateVehicleFees();
         updateSpotStates();  // 4态状态机更新
         updateUI();
         checkVehicleDeparture();
-
-        if (!waitingSync.ent && !waitingSync.spot && !waitingSync.rate) {
-            checkAlarms();
-        }
+        checkAlarms();
     }
 
     // ==================== 车位4态状态机 ====================
@@ -660,9 +667,10 @@
             document.getElementById('reserveCountdown').textContent = '';
         }
 
-        if (!waitingSync.ent) document.getElementById('thr_ent').value = currentData.ent_th;
-        if (!waitingSync.spot) document.getElementById('thr_spot').value = currentData.spot_th;
-        if (!waitingSync.rate) document.getElementById('thr_rate').value = currentData.rate;
+        // 阈值显示（来自下位机回传）
+        document.getElementById('v_ent_th').textContent = currentData.ent_th;
+        document.getElementById('v_spot_th').textContent = currentData.spot_th;
+        document.getElementById('v_th_rate').textContent = currentData.rate;
     }
 
     function setDist(elId, val) {
@@ -800,12 +808,7 @@
         const val = parseInt(document.getElementById(inputId).value);
         if (isNaN(val)) return;
         sendViaBt(code + ',' + val);
-
-        if (code === '02') { waitingSync.ent = true; currentData.ent_th = val; }
-        else if (code === '03') { waitingSync.spot = true; currentData.spot_th = val; }
-        else if (code === '04') { waitingSync.rate = true; currentData.rate = val; }
-
-        updateUI();
+        addLog('阈值设置: ' + code + ' → ' + val);
         if (code === '03') checkAlarms();
     }
 
