@@ -761,7 +761,7 @@
         // 总费用：各车位费用之和（分）
         const totalFee = currentData.s1_fee + currentData.s2_fee + currentData.s3_fee;
         document.getElementById('v_fee').textContent = '¥' + (totalFee / 100).toFixed(2);
-        document.getElementById('v_rate_info').textContent = '费率：' + currentData.s1_fee + '/' + currentData.s2_fee + '/' + currentData.s3_fee;
+        document.getElementById('v_rate_info').textContent = currentData.s1_fee + '/' + currentData.s2_fee + '/' + currentData.s3_fee;
 
         // 阈值显示（来自下位机回传）
         document.getElementById('v_ent_th').textContent = currentData.ent_th;
