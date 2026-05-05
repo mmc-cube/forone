@@ -253,7 +253,7 @@
       z-index: 20;
       display: flex;
       gap: 8px;
-      padding: 10px 14px;
+      padding: calc(18px + env(safe-area-inset-top, 0px)) 14px 10px;
       border-bottom: 1px solid rgba(93, 104, 121, 0.16);
       background: rgba(255, 255, 255, 0.9);
       backdrop-filter: blur(14px);
@@ -292,7 +292,7 @@
     }
 
     .app-view {
-      min-height: calc(100vh - 58px);
+      min-height: calc(100vh - 76px - env(safe-area-inset-top, 0px));
       background:
         linear-gradient(180deg, rgba(255,255,255,0.68), rgba(255,255,255,0.26)),
         var(--paper);
@@ -604,7 +604,7 @@
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 8px;
-      align-items: center;
+      align-items: start;
       padding: 9px 10px;
       border-radius: 8px;
       background: #f6f8f8;
@@ -644,15 +644,112 @@
       cursor: pointer;
     }
 
-    .day-row {
+    .expense-tool {
       display: grid;
-      grid-template-columns: 72px 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #f7f9fa;
+      border: 1px solid rgba(93, 104, 121, 0.12);
+    }
+
+    .tool-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .tool-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
       gap: 8px;
       align-items: center;
     }
 
+    .parse-status {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .parse-preview {
+      display: none;
+      gap: 6px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid rgba(93, 104, 121, 0.12);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .parse-preview.show {
+      display: grid;
+    }
+
+    .day-row {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
     .day-row input {
       min-height: 38px;
+    }
+
+    .day-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .day-header strong {
+      font-size: 14px;
+    }
+
+    .day-total {
+      color: #26364d;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .expense-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .expense-grid label,
+    .day-note label {
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .day-note {
+      display: grid;
+      gap: 8px;
+    }
+
+    .ai-items {
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .ai-items span {
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid rgba(93, 104, 121, 0.1);
     }
 
     .total-line {
@@ -669,6 +766,149 @@
     .total-line strong {
       color: var(--ink);
       font-size: 17px;
+    }
+
+    .today-panel {
+      display: grid;
+      gap: 12px;
+    }
+
+    .today-card {
+      padding: 14px;
+      border: 1px solid rgba(93, 104, 121, 0.14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 8px 18px rgba(33, 43, 60, 0.06);
+    }
+
+    .today-card h3 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    .today-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .today-head h2 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+    }
+
+    .today-head small,
+    .today-note {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .today-lists {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .today-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .today-list span {
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(123, 168, 145, 0.12);
+      border: 1px solid rgba(123, 168, 145, 0.26);
+      color: #315947;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .today-day-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .today-day {
+      display: grid;
+      gap: 7px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #f6f8f8;
+      border: 1px solid rgba(93, 104, 121, 0.12);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .today-day strong {
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .empty-state {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .analysis-grid,
+    .export-actions {
+      display: grid;
+      gap: 12px;
+    }
+
+    .expense-chart {
+      width: 100%;
+      height: 280px;
+      border-radius: 8px;
+      background: #f7f9fa;
+      border: 1px solid rgba(93, 104, 121, 0.12);
+    }
+
+    .breakdown-list,
+    .city-expense-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .breakdown-row,
+    .city-expense-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border-radius: 8px;
+      background: #f6f8f8;
+      border: 1px solid rgba(93, 104, 121, 0.12);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .breakdown-row strong,
+    .city-expense-row strong {
+      color: var(--ink);
+    }
+
+    .export-actions {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .note-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
     }
 
     @media (max-width: 760px) {
@@ -704,6 +944,12 @@
         padding: 24px 18px;
       }
 
+      .modebar button {
+        padding: 10px 5px;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
       h1 {
         font-size: 21px;
       }
@@ -715,6 +961,25 @@
       .budget-fields,
       .budget-grid {
         grid-template-columns: 1fr 1fr;
+      }
+
+      .tool-row,
+      .tool-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .today-head,
+      .today-lists {
+        grid-template-columns: 1fr;
+      }
+
+      .expense-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .export-actions,
+      .note-actions {
+        grid-template-columns: 1fr;
       }
 
       .route-text {
@@ -729,7 +994,9 @@
 </head>
 <body>
   <nav class="modebar" aria-label="页面切换">
-    <button class="active" type="button" data-view="log">行程记录</button>
+    <button class="active" type="button" data-view="today">今日计划</button>
+    <button type="button" data-view="analysis">花销分析</button>
+    <button type="button" data-view="log">行程记录</button>
     <button type="button" data-view="map">地图总览</button>
   </nav>
 
@@ -782,7 +1049,171 @@
     </section>
   </main>
 
-  <section class="app-view" id="logView">
+  <section class="app-view" id="todayView">
+    <div class="app-frame">
+      <div class="today-panel">
+        <div class="app-hero">
+          <div>
+            <h2>今日计划</h2>
+            <p>按城市状态判断当前停留点：状态为已到达的城市，会显示成今天的旅行计划。</p>
+          </div>
+          <div class="app-stats">
+            <div class="app-stat">
+              <strong id="todayStatusText">未到达</strong>
+              <span>当前状态</span>
+            </div>
+            <div class="app-stat">
+              <strong id="todayCostText">¥0</strong>
+              <span>本地花费</span>
+            </div>
+            <div class="app-stat">
+              <strong id="todayOrderText">01</strong>
+              <span>路线节点</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="budget-panel">
+          <div class="budget-fields">
+            <label class="field">
+              总预算
+              <input id="todayTotalBudget" type="number" inputmode="decimal" min="0" step="100" placeholder="例如 23000" />
+            </label>
+            <label class="field">
+              预计天数
+              <input id="todayTripDays" type="number" inputmode="numeric" min="1" step="1" placeholder="例如 45" />
+            </label>
+          </div>
+          <div class="budget-grid">
+            <div class="budget-metric">
+              <strong id="todayBudgetTotal">¥0</strong>
+              <span>总预算</span>
+            </div>
+            <div class="budget-metric">
+              <strong id="todayBudgetSpent">¥0</strong>
+              <span>已花费</span>
+            </div>
+            <div class="budget-metric">
+              <strong id="todayBudgetLeft">¥0</strong>
+              <span>剩余额度</span>
+            </div>
+            <div class="budget-metric">
+              <strong id="todayBudgetDaily">¥0</strong>
+              <span>日均剩余预算</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="today-card">
+          <div class="today-head">
+            <div>
+              <h2 id="todayCityName">城市</h2>
+              <small id="todayCityMeta"></small>
+              <span class="today-note" id="todayCityNote"></span>
+            </div>
+            <button class="ghost-button" type="button" id="todayOpenDetail">编辑记录</button>
+          </div>
+        </div>
+
+        <div class="today-card">
+          <h3>今日笔记</h3>
+          <label class="field">
+            今天看到的、想到的、需要补记的
+            <textarea id="todayNoteText" placeholder="比如今天去了哪里、天气怎么样、哪个地方值得回头整理。"></textarea>
+          </label>
+          <div class="note-actions">
+            <div class="parse-status" id="todayNoteStatus">笔记按当前城市和今天日期保存，可在花销分析页导出。</div>
+            <button class="primary-button" type="button" id="saveTodayNote">保存笔记</button>
+          </div>
+        </div>
+
+        <div class="today-lists">
+          <div class="today-card">
+            <h3>今日可去</h3>
+            <div class="today-list" id="todayPlaces"></div>
+          </div>
+          <div class="today-card">
+            <h3>今日可吃</h3>
+            <div class="today-list" id="todayFoods"></div>
+          </div>
+        </div>
+
+        <div class="today-card">
+          <h3>AI 记账对话</h3>
+          <div class="expense-tool">
+            <label class="field">
+              今天的账单
+              <textarea id="todayExpenseText" placeholder="比如：早餐 12，公交 2，门票 80。也可以上传支付截图。"></textarea>
+            </label>
+            <div class="tool-row">
+              <label class="field">
+                账单截图
+                <input id="todayReceiptImage" type="file" accept="image/*" />
+              </label>
+              <button class="primary-button" type="button" id="todayParseExpense">AI解析并写入今天</button>
+            </div>
+            <div class="parse-status" id="todayParseStatus">会自动写入当前已到达城市的今天花费。</div>
+            <div class="parse-preview" id="todayParsePreview"></div>
+          </div>
+        </div>
+
+        <div class="today-card">
+          <h3>今天本地花费记录</h3>
+          <div class="today-day-list" id="todayDays"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="app-view hidden" id="analysisView">
+    <div class="app-frame">
+      <div class="analysis-grid">
+        <div class="app-hero">
+          <div>
+            <h2>花销分析</h2>
+            <p>按目前已记录的每天花费统计分类、城市累计和可导出的旅行数据。</p>
+          </div>
+          <div class="app-stats">
+            <div class="app-stat">
+              <strong id="analysisSpent">¥0</strong>
+              <span>已花费</span>
+            </div>
+            <div class="app-stat">
+              <strong id="analysisLeft">¥0</strong>
+              <span>剩余额度</span>
+            </div>
+            <div class="app-stat">
+              <strong id="analysisNotes">0</strong>
+              <span>笔记</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="today-card">
+          <h3>分类占比</h3>
+          <div class="expense-chart" id="expensePie"></div>
+          <div class="breakdown-list" id="expenseBreakdown"></div>
+        </div>
+
+        <div class="today-card">
+          <h3>城市累计</h3>
+          <div class="city-expense-list" id="cityExpenseList"></div>
+        </div>
+
+        <div class="today-card">
+          <h3>导出</h3>
+          <div class="export-actions">
+            <button class="primary-button" type="button" id="exportAll">导出全部 JSON</button>
+            <button class="ghost-button" type="button" id="exportNotes">导出笔记 TXT</button>
+            <button class="ghost-button" type="button" id="exportExpenses">导出花费 CSV</button>
+          </div>
+          <div class="parse-status" id="exportStatus">导出内容不包含 AI Key。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="app-view hidden" id="logView">
     <div class="app-frame">
       <div class="app-hero">
         <div>
@@ -892,6 +1323,37 @@
 
         <div class="detail-card">
           <h3>每天花费</h3>
+          <div class="expense-tool">
+            <div class="tool-row">
+              <label class="field">
+                写入哪一天
+                <select id="expenseTargetDay"></select>
+              </label>
+              <label class="field">
+                账单截图
+                <input id="receiptImage" type="file" accept="image/*" />
+              </label>
+            </div>
+            <div class="tool-row">
+              <label class="field">
+                AI Key
+                <input id="aiApiKey" type="password" autocomplete="off" placeholder="DashScope API Key" />
+              </label>
+              <label class="field">
+                模型
+                <input id="aiModel" type="text" placeholder="qwen3.5-flash" />
+              </label>
+            </div>
+            <label class="field">
+              账单文案
+              <textarea id="expenseText" placeholder="比如：午饭 22，地铁 6，青旅 128，门票 80。也可以只传截图让 AI 识别。"></textarea>
+            </label>
+            <div class="tool-actions">
+              <div class="parse-status" id="parseStatus">粘贴账单文字或上传截图，AI 会按住宿/吃饭/交通/门票/其他写入。</div>
+              <button class="primary-button" type="button" id="parseExpense">AI解析并写入</button>
+            </div>
+            <div class="parse-preview" id="parsePreview"></div>
+          </div>
           <button class="ghost-button" type="button" id="addDay">加一天</button>
           <div class="day-list" id="dayList"></div>
           <div class="total-line">
@@ -1095,6 +1557,8 @@
     const steps = document.getElementById("steps");
     const chips = document.getElementById("chips");
     const mapView = document.getElementById("mapView");
+    const todayView = document.getElementById("todayView");
+    const analysisView = document.getElementById("analysisView");
     const logView = document.getElementById("logView");
     const routeLog = document.getElementById("routeLog");
     const cityDetail = document.getElementById("cityDetail");
@@ -1107,6 +1571,30 @@
     const budgetSpent = document.getElementById("budgetSpent");
     const budgetLeft = document.getElementById("budgetLeft");
     const budgetDaily = document.getElementById("budgetDaily");
+    const todayStatusText = document.getElementById("todayStatusText");
+    const todayCostText = document.getElementById("todayCostText");
+    const todayOrderText = document.getElementById("todayOrderText");
+    const todayTotalBudget = document.getElementById("todayTotalBudget");
+    const todayTripDays = document.getElementById("todayTripDays");
+    const todayBudgetTotal = document.getElementById("todayBudgetTotal");
+    const todayBudgetSpent = document.getElementById("todayBudgetSpent");
+    const todayBudgetLeft = document.getElementById("todayBudgetLeft");
+    const todayBudgetDaily = document.getElementById("todayBudgetDaily");
+    const todayCityName = document.getElementById("todayCityName");
+    const todayCityMeta = document.getElementById("todayCityMeta");
+    const todayCityNote = document.getElementById("todayCityNote");
+    const todayPlaces = document.getElementById("todayPlaces");
+    const todayFoods = document.getElementById("todayFoods");
+    const todayDays = document.getElementById("todayDays");
+    const todayOpenDetail = document.getElementById("todayOpenDetail");
+    const todayNoteText = document.getElementById("todayNoteText");
+    const todayNoteStatus = document.getElementById("todayNoteStatus");
+    const saveTodayNote = document.getElementById("saveTodayNote");
+    const todayExpenseText = document.getElementById("todayExpenseText");
+    const todayReceiptImage = document.getElementById("todayReceiptImage");
+    const todayParseExpense = document.getElementById("todayParseExpense");
+    const todayParseStatus = document.getElementById("todayParseStatus");
+    const todayParsePreview = document.getElementById("todayParsePreview");
     const detailName = document.getElementById("detailName");
     const detailMeta = document.getElementById("detailMeta");
     const cityStatus = document.getElementById("cityStatus");
@@ -1120,7 +1608,23 @@
     const foodList = document.getElementById("foodList");
     const dayList = document.getElementById("dayList");
     const cityTotal = document.getElementById("cityTotal");
+    const expenseTargetDay = document.getElementById("expenseTargetDay");
+    const receiptImage = document.getElementById("receiptImage");
+    const expenseText = document.getElementById("expenseText");
+    const aiApiKey = document.getElementById("aiApiKey");
+    const aiModel = document.getElementById("aiModel");
+    const parseExpense = document.getElementById("parseExpense");
+    const parseStatus = document.getElementById("parseStatus");
+    const parsePreview = document.getElementById("parsePreview");
+    const analysisSpent = document.getElementById("analysisSpent");
+    const analysisLeft = document.getElementById("analysisLeft");
+    const analysisNotes = document.getElementById("analysisNotes");
+    const expenseBreakdown = document.getElementById("expenseBreakdown");
+    const cityExpenseList = document.getElementById("cityExpenseList");
+    const exportStatus = document.getElementById("exportStatus");
     const STORAGE_KEY = "china-loop-trip-log-v1";
+    const AI_ENDPOINT = "https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1/responses";
+    const DEFAULT_AI_API_KEY = "sk-65bfc3c2d5cf4465b0febd3c52c38bc2";
 
     const routeEntries = stops.slice(0, -1).map((stop, index) => ({
       ...stop,
@@ -1129,8 +1633,15 @@
     }));
 
     let tripLog = loadTripLog();
-    let tripSettings = tripLog.__settings || { budget: "15000", days: "45" };
+    let tripSettings = {
+      budget: "15000",
+      days: "45",
+      aiKey: DEFAULT_AI_API_KEY,
+      aiModel: "qwen3.5-flash",
+      ...(tripLog.__settings || {})
+    };
     let activeCityId = null;
+    let expensePieChart = null;
 
     const statusText = {
       planned: "未到达",
@@ -1138,6 +1649,14 @@
       left: "已离开",
       skipped: "跳过"
     };
+
+    const expenseCategories = [
+      { key: "lodging", label: "住宿", keywords: ["住宿", "酒店", "宾馆", "青旅", "民宿", "房费", "客栈", "旅舍"] },
+      { key: "food", label: "吃饭", keywords: ["饭", "餐", "吃", "面", "粉", "茶", "咖啡", "奶茶", "小吃", "早餐", "午餐", "晚餐", "夜宵", "外卖"] },
+      { key: "transport", label: "交通", keywords: ["车", "火车", "高铁", "地铁", "公交", "打车", "滴滴", "出租", "机票", "船", "票价", "交通"] },
+      { key: "tickets", label: "门票", keywords: ["门票", "景区", "预约", "演出", "博物馆", "观光", "索道", "缆车", "剧场"] },
+      { key: "other", label: "其他", keywords: ["药", "洗衣", "寄存", "装备", "超市", "日用", "其他"] }
+    ];
 
     function loadTripLog() {
       try {
@@ -1153,6 +1672,8 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tripLog));
       renderStats();
       renderRouteLog();
+      renderTodayPlan();
+      renderExpenseAnalysis();
     }
 
     function getCityLog(id) {
@@ -1163,7 +1684,40 @@
       if (!Array.isArray(tripLog[id].places)) tripLog[id].places = [];
       if (!Array.isArray(tripLog[id].foods)) tripLog[id].foods = [];
       if (!Array.isArray(tripLog[id].days)) tripLog[id].days = [];
+      tripLog[id].days = tripLog[id].days.map(normalizeDay);
       return tripLog[id];
+    }
+
+    function localDateString(date = new Date()) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function createDay(date = "") {
+      return { date, cost: "", lodging: "", food: "", transport: "", tickets: "", other: "", note: "", aiItems: [] };
+    }
+
+    function normalizeDay(day) {
+      const next = { ...createDay(), ...(day && typeof day === "object" ? day : {}) };
+      next.date = String(next.date || "");
+      if (!Array.isArray(next.aiItems)) next.aiItems = [];
+      const categorySum = expenseCategories.reduce((sum, category) => sum + (Number(next[category.key]) || 0), 0);
+      if (!categorySum && next.cost) {
+        next.other = next.cost;
+      }
+      next.cost = String(dayTotal(next) || "");
+      return next;
+    }
+
+    function categorySum(day) {
+      return expenseCategories.reduce((sum, category) => sum + (Number(day[category.key]) || 0), 0);
+    }
+
+    function dayTotal(day) {
+      const sum = categorySum(day);
+      return sum > 0 ? sum : (Number(day.cost) || 0);
     }
 
     function money(value) {
@@ -1171,7 +1725,69 @@
     }
 
     function cityCost(log) {
-      return (log.days || []).reduce((sum, day) => sum + (Number(day.cost) || 0), 0);
+      return (log.days || []).reduce((sum, day) => sum + dayTotal(normalizeDay(day)), 0);
+    }
+
+    function ensureNotes() {
+      if (!tripLog.__notes || typeof tripLog.__notes !== "object" || Array.isArray(tripLog.__notes)) {
+        tripLog.__notes = {};
+      }
+      return tripLog.__notes;
+    }
+
+    function noteKey(cityId, date = localDateString()) {
+      return `${cityId}|${date}`;
+    }
+
+    function getTodayNote(entry) {
+      return ensureNotes()[noteKey(entry.id)] || { cityId: entry.id, cityName: entry.name, date: localDateString(), text: "", updatedAt: "" };
+    }
+
+    function countNotes() {
+      return Object.values(ensureNotes()).filter((note) => String(note.text || "").trim()).length;
+    }
+
+    function saveCurrentTodayNote() {
+      const { entry } = getTodayEntry();
+      if (!entry) return;
+      const notes = ensureNotes();
+      const key = noteKey(entry.id);
+      notes[key] = {
+        cityId: entry.id,
+        cityName: entry.name,
+        date: localDateString(),
+        text: todayNoteText.value.trim(),
+        updatedAt: new Date().toISOString()
+      };
+      saveTripLog();
+      todayNoteStatus.textContent = todayNoteText.value.trim() ? "今日笔记已保存。" : "今日笔记已清空。";
+    }
+
+    function categoryTotalsForLog(log) {
+      const totals = { lodging: 0, food: 0, transport: 0, tickets: 0, other: 0 };
+      (log.days || []).forEach((day) => {
+        day = normalizeDay(day);
+        expenseCategories.forEach((category) => {
+          totals[category.key] += Number(day[category.key]) || 0;
+        });
+      });
+      return totals;
+    }
+
+    function buildExpenseSummary() {
+      const totals = { lodging: 0, food: 0, transport: 0, tickets: 0, other: 0 };
+      const cityRows = [];
+      routeEntries.forEach((entry) => {
+        const log = getCityLog(entry.id);
+        const cityTotals = categoryTotalsForLog(log);
+        const total = expenseCategories.reduce((sum, category) => {
+          totals[category.key] += cityTotals[category.key];
+          return sum + cityTotals[category.key];
+        }, 0);
+        if (total > 0) cityRows.push({ entry, total, totals: cityTotals });
+      });
+      const total = expenseCategories.reduce((sum, category) => sum + totals[category.key], 0);
+      return { totals, total, cityRows };
     }
 
     function renderStats() {
@@ -1188,6 +1804,17 @@
       budgetSpent.textContent = money(total);
       budgetLeft.textContent = money(left);
       budgetDaily.textContent = money(left / days);
+      todayBudgetTotal.textContent = money(budget);
+      todayBudgetSpent.textContent = money(total);
+      todayBudgetLeft.textContent = money(left);
+      todayBudgetDaily.textContent = money(left / days);
+    }
+
+    function syncBudgetInputs() {
+      totalBudget.value = tripSettings.budget || "";
+      tripDays.value = tripSettings.days || "45";
+      todayTotalBudget.value = tripSettings.budget || "";
+      todayTripDays.value = tripSettings.days || "45";
     }
 
     function renderRouteLog() {
@@ -1243,6 +1870,143 @@
       cityDetail.classList.add("hidden");
       routeLog.classList.remove("hidden");
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function getTodayEntry() {
+      const arrived = routeEntries.find((entry) => getCityLog(entry.id).status === "arrived");
+      if (arrived) return { entry: arrived, mode: "today" };
+      const next = routeEntries.find((entry) => {
+        const status = getCityLog(entry.id).status;
+        return status !== "left" && status !== "skipped";
+      });
+      if (next) return { entry: next, mode: "next" };
+      const lastLeft = [...routeEntries].reverse().find((entry) => getCityLog(entry.id).status === "left");
+      return { entry: lastLeft || routeEntries[0], mode: "done" };
+    }
+
+    function renderTodayChips(container, items, emptyText) {
+      container.innerHTML = "";
+      if (!items.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = emptyText;
+        container.appendChild(empty);
+        return;
+      }
+      items.forEach((item) => {
+        const chip = document.createElement("span");
+        chip.textContent = item;
+        container.appendChild(chip);
+      });
+    }
+
+    function getTodayDayIndex(log, date = localDateString()) {
+      return log.days.findIndex((day) => normalizeDay(day).date === date);
+    }
+
+    function renderTodayDays(log) {
+      todayDays.innerHTML = "";
+      const index = getTodayDayIndex(log);
+      if (index < 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = `今天（${localDateString()}）还没有记账。可以直接在上面的 AI 记账对话里写入。`;
+        todayDays.appendChild(empty);
+        return;
+      }
+      const day = normalizeDay(log.days[index]);
+      const row = document.createElement("div");
+      row.className = "today-day";
+      const detail = expenseCategories
+        .map((category) => `${category.label} ${money(day[category.key])}`)
+        .join(" · ");
+      row.innerHTML = `
+        <strong>第${index + 1}天 · ${day.date || localDateString()} · ${money(dayTotal(day))}</strong>
+        <span>${detail}</span>
+        ${day.note ? `<span>${escapeHtml(day.note)}</span>` : ""}
+      `;
+      todayDays.appendChild(row);
+    }
+
+    function renderTodayPlan() {
+      const { entry, mode } = getTodayEntry();
+      if (!entry) return;
+      const log = getCityLog(entry.id);
+      const suggestions = citySuggestions[entry.name] || { places: [], foods: [] };
+      const places = log.places.length ? log.places : suggestions.places;
+      const foods = log.foods.length ? log.foods : suggestions.foods;
+      todayStatusText.textContent = mode === "today" ? "已到达" : (mode === "next" ? "下一站" : "已完成");
+      todayCostText.textContent = money(cityCost(log));
+      todayOrderText.textContent = String(entry.order).padStart(2, "0");
+      todayCityName.textContent = entry.name;
+      todayCityMeta.textContent = `${String(entry.order).padStart(2, "0")} · ${entry.province} · ${statusText[log.status] || "未到达"}${log.arrivalDate ? ` · ${log.arrivalDate}` : ""}`;
+      todayCityNote.textContent = log.note || entry.note;
+      todayNoteText.value = getTodayNote(entry).text || "";
+      todayNoteStatus.textContent = `今日笔记按 ${entry.name} · ${localDateString()} 保存。`;
+      todayOpenDetail.onclick = () => {
+        switchView("log");
+        openCity(entry.id);
+      };
+      renderTodayChips(todayPlaces, places, "还没有想去的地方，编辑记录里可以补。");
+      renderTodayChips(todayFoods, foods, "还没有当地美食，编辑记录里可以补。");
+      renderTodayDays(log);
+    }
+
+    function renderExpenseAnalysis() {
+      const summary = buildExpenseSummary();
+      const budget = Number(tripSettings.budget) || 0;
+      analysisSpent.textContent = money(summary.total);
+      analysisLeft.textContent = money(budget - summary.total);
+      analysisNotes.textContent = String(countNotes());
+      expenseBreakdown.innerHTML = "";
+      expenseCategories.forEach((category) => {
+        const value = summary.totals[category.key];
+        const row = document.createElement("div");
+        row.className = "breakdown-row";
+        row.innerHTML = `<span>${category.label}</span><strong>${money(value)}</strong>`;
+        expenseBreakdown.appendChild(row);
+      });
+      cityExpenseList.innerHTML = "";
+      if (!summary.cityRows.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = "还没有花费记录。";
+        cityExpenseList.appendChild(empty);
+      } else {
+        summary.cityRows
+          .sort((a, b) => b.total - a.total)
+          .forEach(({ entry, total }) => {
+            const row = document.createElement("div");
+            row.className = "city-expense-row";
+            row.innerHTML = `<span>${entry.name}</span><strong>${money(total)}</strong>`;
+            cityExpenseList.appendChild(row);
+          });
+      }
+      renderExpensePie(summary);
+    }
+
+    function renderExpensePie(summary) {
+      const el = document.getElementById("expensePie");
+      if (!el || analysisView.classList.contains("hidden")) return;
+      if (!expensePieChart) expensePieChart = echarts.init(el);
+      const data = expenseCategories.map((category) => ({
+        name: category.label,
+        value: Math.round(summary.totals[category.key] || 0)
+      })).filter((item) => item.value > 0);
+      expensePieChart.setOption({
+        tooltip: { trigger: "item", formatter: "{b}: ¥{c} ({d}%)" },
+        legend: { bottom: 0, left: "center" },
+        series: [{
+          name: "花销分类",
+          type: "pie",
+          radius: ["42%", "68%"],
+          center: ["50%", "42%"],
+          avoidLabelOverlap: true,
+          label: { formatter: "{b}\n¥{c}" },
+          data: data.length ? data : [{ name: "暂无记录", value: 1 }]
+        }]
+      });
+      setTimeout(() => expensePieChart.resize(), 40);
     }
 
     function renderPlaces() {
@@ -1309,20 +2073,58 @@
     function renderDays() {
       const log = getCityLog(activeCityId);
       dayList.innerHTML = "";
+      renderExpenseTargetOptions(log);
       log.days.forEach((day, index) => {
+        day = normalizeDay(day);
+        log.days[index] = day;
         const item = document.createElement("div");
         item.className = "day-item";
         item.innerHTML = `
           <div class="day-row">
-            <strong>第${index + 1}天</strong>
-            <input type="number" inputmode="decimal" min="0" step="1" value="${day.cost || ""}" placeholder="当天花费" />
+            <div class="day-header">
+              <strong>第${index + 1}天</strong>
+              <span class="day-total">${money(dayTotal(day))}</span>
+            </div>
+            <label class="field">
+              日期
+              <input data-day-date type="date" value="${day.date || ""}" />
+            </label>
+            <div class="expense-grid">
+              ${expenseCategories.map((category) => `
+                <label>
+                  ${category.label}
+                  <input data-expense-key="${category.key}" type="number" inputmode="decimal" min="0" step="1" value="${day[category.key] || ""}" placeholder="0" />
+                </label>
+              `).join("")}
+            </div>
+            <div class="day-note">
+              <label>
+                备注
+                <input data-day-note type="text" value="${escapeHtml(day.note || "")}" placeholder="比如住哪、吃了啥、票从哪买" />
+              </label>
+            </div>
+            ${renderAiItems(day)}
           </div>
           <button type="button" aria-label="删除这一天">×</button>
         `;
-        item.querySelector("input").addEventListener("input", (event) => {
-          day.cost = event.target.value;
+        item.querySelectorAll("[data-expense-key]").forEach((input) => {
+          input.addEventListener("input", (event) => {
+            day[event.target.dataset.expenseKey] = event.target.value;
+            day.cost = String(dayTotal(day) || "");
+            saveTripLog();
+            renderDayTotals(item, day);
+            cityTotal.textContent = money(cityCost(log));
+            renderExpenseTargetOptions(log);
+          });
+        });
+        item.querySelector("[data-day-note]").addEventListener("input", (event) => {
+          day.note = event.target.value;
           saveTripLog();
-          cityTotal.textContent = money(cityCost(log));
+        });
+        item.querySelector("[data-day-date]").addEventListener("input", (event) => {
+          day.date = event.target.value;
+          saveTripLog();
+          renderExpenseTargetOptions(log);
         });
         item.querySelector("button").addEventListener("click", () => {
           log.days.splice(index, 1);
@@ -1334,20 +2136,411 @@
       cityTotal.textContent = money(cityCost(log));
     }
 
+    function renderDayTotals(item, day) {
+      const total = item.querySelector(".day-total");
+      if (total) total.textContent = money(dayTotal(day));
+    }
+
+    function renderAiItems(day) {
+      if (!day.aiItems || !day.aiItems.length) return "";
+      return `
+        <div class="ai-items">
+          ${day.aiItems.slice(-6).map((item) => `<span>${escapeHtml(item.text || "")} · ${money(item.amount)}</span>`).join("")}
+        </div>
+      `;
+    }
+
+    function renderExpenseTargetOptions(log) {
+      const currentValue = expenseTargetDay.value;
+      expenseTargetDay.innerHTML = "";
+      const addOption = document.createElement("option");
+      addOption.value = "new";
+      addOption.textContent = "新增一天";
+      expenseTargetDay.appendChild(addOption);
+      log.days.forEach((day, index) => {
+        const option = document.createElement("option");
+        option.value = String(index);
+        const date = normalizeDay(day).date || "未填日期";
+        option.textContent = `第${index + 1}天 · ${date} · ${money(dayTotal(day))}`;
+        expenseTargetDay.appendChild(option);
+      });
+      if ([...expenseTargetDay.options].some((option) => option.value === currentValue)) {
+        expenseTargetDay.value = currentValue;
+      } else if (log.days.length) {
+        expenseTargetDay.value = String(log.days.length - 1);
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function classifyExpense(text) {
+      const lower = String(text || "").toLowerCase();
+      const matched = expenseCategories.find((category) =>
+        category.keywords.some((keyword) => lower.includes(keyword.toLowerCase()))
+      );
+      return matched ? matched.key : "other";
+    }
+
+    function parseTextExpenses(text) {
+      const chunks = String(text || "")
+        .split(/[\n,，;；]/)
+        .map((chunk) => chunk.trim())
+        .filter(Boolean);
+      const items = [];
+      chunks.forEach((chunk) => {
+        const amounts = [...chunk.matchAll(/(?:¥|￥)?\s*(-?\d+(?:\.\d{1,2})?)/g)]
+          .map((match) => Number(match[1]))
+          .filter((value) => Number.isFinite(value) && value > 0 && value < 10000);
+        if (!amounts.length) return;
+        const amount = amounts[amounts.length - 1];
+        items.push({
+          category: classifyExpense(chunk),
+          amount,
+          text: chunk
+        });
+      });
+      const result = { lodging: 0, food: 0, transport: 0, tickets: 0, other: 0, items, note: "" };
+      items.forEach((item) => {
+        result[item.category] += item.amount;
+      });
+      return result;
+    }
+
+    function normalizeParsedExpense(parsed) {
+      const result = { lodging: 0, food: 0, transport: 0, tickets: 0, other: 0, items: [], note: "" };
+      if (!parsed || typeof parsed !== "object") return result;
+      expenseCategories.forEach((category) => {
+        result[category.key] = Number(parsed[category.key]) || 0;
+      });
+      result.items = Array.isArray(parsed.items)
+        ? parsed.items.map((item) => ({
+            category: expenseCategories.some((category) => category.key === item.category) ? item.category : "other",
+            amount: Number(item.amount) || 0,
+            text: String(item.text || "")
+          })).filter((item) => item.amount > 0)
+        : [];
+      result.note = String(parsed.note || "");
+      return result;
+    }
+
+    function extractJsonObject(text) {
+      const raw = String(text || "").trim();
+      if (!raw) throw new Error("AI 没返回文本");
+      try {
+        return JSON.parse(raw);
+      } catch (error) {
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (!match) throw error;
+        return JSON.parse(match[0]);
+      }
+    }
+
+    function getResponseText(data) {
+      if (data.output_text) return data.output_text;
+      const chunks = [];
+      (data.output || []).forEach((item) => {
+        if (item.type === "message") {
+          (item.content || []).forEach((content) => {
+            if (content.text) chunks.push(content.text);
+          });
+        }
+      });
+      return chunks.join("\n");
+    }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error("图片读取失败"));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function callDashScopeExpenseAI({ text, imageFile }) {
+      const key = (aiApiKey.value || "").trim();
+      if (!key) throw new Error("还没有填写 AI Key");
+      const content = [
+        {
+          type: "input_text",
+          text: [
+            "你是旅行记账助手。请从用户给的账单文字或截图中提取消费项目。",
+            "只统计真实支出，忽略收入、退款、转账余额、银行卡尾号、时间和订单号。",
+            "分类只能是 lodging, food, transport, tickets, other。",
+            "返回严格 JSON，不要 Markdown，不要解释。",
+            "JSON 格式：",
+            "{\"lodging\":0,\"food\":0,\"transport\":0,\"tickets\":0,\"other\":0,\"items\":[{\"category\":\"food\",\"amount\":22,\"text\":\"午饭 22\"}],\"note\":\"\"}",
+            text ? `用户文字：${text}` : "用户未提供文字，请从图片中识别。"
+          ].join("\n")
+        }
+      ];
+      if (imageFile) {
+        content.push({ type: "input_image", image_url: await fileToDataUrl(imageFile) });
+      }
+      const response = await fetch(AI_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${key}`
+        },
+        body: JSON.stringify({
+          model: (aiModel.value || "qwen3.5-flash").trim(),
+          input: [{ role: "user", content }],
+          enable_thinking: true
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = data.error?.message || data.message || `AI 请求失败：${response.status}`;
+        throw new Error(message);
+      }
+      return normalizeParsedExpense(extractJsonObject(getResponseText(data)));
+    }
+
+    function applyParsedExpense(parsed, targetValue = expenseTargetDay.value, cityId = activeCityId) {
+      if (!cityId || !parsed) return false;
+      parsed = normalizeParsedExpense(parsed);
+      const log = getCityLog(cityId);
+      let index = targetValue === "new" ? -1 : Number(targetValue);
+      if (String(targetValue).startsWith("date:")) {
+        const targetDate = String(targetValue).slice(5);
+        index = log.days.findIndex((day) => normalizeDay(day).date === targetDate);
+        if (index < 0) {
+          log.days.push(createDay(targetDate));
+          index = log.days.length - 1;
+        }
+      }
+      if (!Number.isInteger(index) || index < 0 || !log.days[index]) {
+        log.days.push(createDay(localDateString()));
+        index = log.days.length - 1;
+      }
+      const day = normalizeDay(log.days[index]);
+      expenseCategories.forEach((category) => {
+        const addition = Number(parsed[category.key]) || 0;
+        if (addition > 0) {
+          day[category.key] = String((Number(day[category.key]) || 0) + addition);
+        }
+      });
+      const items = Array.isArray(parsed.items) ? parsed.items : [];
+      day.aiItems = [
+        ...(day.aiItems || []),
+        ...items.map((item) => ({
+          category: item.category || "other",
+          amount: Number(item.amount) || 0,
+          text: item.text || expenseCategories.find((category) => category.key === item.category)?.label || "账单"
+        }))
+      ].slice(-20);
+      if (parsed.note) {
+        day.note = day.note ? `${day.note}；${parsed.note}` : parsed.note;
+      }
+      day.cost = String(dayTotal(day) || "");
+      log.days[index] = day;
+      saveTripLog();
+      if (cityId === activeCityId) {
+        renderDays();
+        expenseTargetDay.value = String(index);
+        cityTotal.textContent = money(cityCost(log));
+      }
+      return true;
+    }
+
+    function renderParsedPreview(parsed, previewEl = parsePreview) {
+      const total = expenseCategories.reduce((sum, category) => sum + (Number(parsed[category.key]) || 0), 0);
+      previewEl.classList.add("show");
+      previewEl.innerHTML = `
+        <strong>识别合计：${money(total)}</strong>
+        <span>${expenseCategories.map((category) => `${category.label} ${money(parsed[category.key])}`).join(" · ")}</span>
+        <span>${parsed.items.map((item) => escapeHtml(item.text)).join(" / ") || "没有可写入项目"}</span>
+      `;
+    }
+
+    async function parseExpenseToCity({ cityId, targetValue, textEl, imageEl, statusEl, previewEl, buttonEl, doneText }) {
+      const text = textEl.value.trim();
+      const imageFile = imageEl.files && imageEl.files[0] ? imageEl.files[0] : null;
+      const imageName = imageFile ? imageFile.name : "";
+      if (!text && !imageFile) {
+        previewEl.classList.remove("show");
+        statusEl.textContent = "先粘贴一段账单文字，或上传一张支付/账单截图。";
+        return;
+      }
+      buttonEl.disabled = true;
+      const originalText = buttonEl.textContent;
+      buttonEl.textContent = "解析中...";
+      statusEl.textContent = imageName ? `正在用 AI 识别 ${imageName}...` : "正在用 AI 解析文字账单...";
+      let parsed;
+      try {
+        parsed = await callDashScopeExpenseAI({ text, imageFile });
+      } catch (error) {
+        if (!text) {
+          previewEl.classList.remove("show");
+          statusEl.textContent = `AI 解析失败：${error.message}`;
+          buttonEl.disabled = false;
+          buttonEl.textContent = originalText;
+          return;
+        }
+        parsed = parseTextExpenses(text);
+        statusEl.textContent = `AI 解析失败，已用本地规则先写入文字账单：${error.message}`;
+      } finally {
+        buttonEl.disabled = false;
+        buttonEl.textContent = originalText;
+      }
+      parsed = normalizeParsedExpense(parsed);
+      if (!parsed.items.length) {
+        previewEl.classList.remove("show");
+        statusEl.textContent = "没有识别到可写入的消费项目，换一张截图或把账单文字写得更明确一点。";
+        return;
+      }
+      applyParsedExpense(parsed, targetValue, cityId);
+      renderParsedPreview(parsed, previewEl);
+      if (!statusEl.textContent.includes("AI 解析失败")) {
+        statusEl.textContent = doneText || "已解析并写入。";
+      }
+      textEl.value = "";
+      imageEl.value = "";
+    }
+
+    async function handleParseExpense() {
+      await parseExpenseToCity({
+        cityId: activeCityId,
+        targetValue: expenseTargetDay.value,
+        textEl: expenseText,
+        imageEl: receiptImage,
+        statusEl: parseStatus,
+        previewEl: parsePreview,
+        buttonEl: parseExpense,
+        doneText: "已解析并写入选中的一天。"
+      });
+    }
+
+    async function handleTodayParseExpense() {
+      const { entry } = getTodayEntry();
+      if (!entry) return;
+      await parseExpenseToCity({
+        cityId: entry.id,
+        targetValue: `date:${localDateString()}`,
+        textEl: todayExpenseText,
+        imageEl: todayReceiptImage,
+        statusEl: todayParseStatus,
+        previewEl: todayParsePreview,
+        buttonEl: todayParseExpense,
+        doneText: "已写入今天的本地花费记录。"
+      });
+    }
+
+    window.TravelExpenseHooks = {
+      parseTextExpenses,
+      applyParsedExpense
+    };
+
+    function buildExportData() {
+      const settings = { ...tripSettings };
+      delete settings.aiKey;
+      return {
+        generatedAt: new Date().toISOString(),
+        route: routeEntries.map((entry) => ({
+          order: entry.order,
+          name: entry.name,
+          province: entry.province,
+          note: entry.note
+        })),
+        settings,
+        logs: routeEntries.map((entry) => ({
+          city: entry.name,
+          province: entry.province,
+          order: entry.order,
+          ...getCityLog(entry.id)
+        })),
+        notes: Object.values(ensureNotes()).filter((note) => String(note.text || "").trim()),
+        expenseSummary: buildExpenseSummary()
+      };
+    }
+
+    function downloadText(filename, mime, text) {
+      const blob = new Blob([text], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 500);
+    }
+
+    function csvCell(value) {
+      return `"${String(value ?? "").replace(/"/g, '""')}"`;
+    }
+
+    function exportAllData() {
+      downloadText(`旅行记录-${localDateString()}.json`, "application/json;charset=utf-8", JSON.stringify(buildExportData(), null, 2));
+      exportStatus.textContent = "已导出全部 JSON。";
+    }
+
+    function exportNotesData() {
+      const notes = Object.values(ensureNotes())
+        .filter((note) => String(note.text || "").trim())
+        .sort((a, b) => `${a.date}${a.cityName}`.localeCompare(`${b.date}${b.cityName}`));
+      const text = notes.length
+        ? notes.map((note) => `# ${note.date} · ${note.cityName}\n${note.text}`).join("\n\n")
+        : "暂无笔记";
+      downloadText(`旅行笔记-${localDateString()}.txt`, "text/plain;charset=utf-8", text);
+      exportStatus.textContent = "已导出笔记 TXT。";
+    }
+
+    function exportExpenseCsv() {
+      const rows = [["城市", "日期", "住宿", "吃饭", "交通", "门票", "其他", "合计", "备注"]];
+      routeEntries.forEach((entry) => {
+        getCityLog(entry.id).days.forEach((day) => {
+          day = normalizeDay(day);
+          rows.push([
+            entry.name,
+            day.date || "",
+            day.lodging || 0,
+            day.food || 0,
+            day.transport || 0,
+            day.tickets || 0,
+            day.other || 0,
+            dayTotal(day),
+            day.note || ""
+          ]);
+        });
+      });
+      const csv = rows.map((row) => row.map(csvCell).join(",")).join("\n");
+      downloadText(`旅行花费-${localDateString()}.csv`, "text/csv;charset=utf-8", `\ufeff${csv}`);
+      exportStatus.textContent = "已导出花费 CSV。";
+    }
+
     function switchView(view) {
       const showMap = view === "map";
+      const showToday = view === "today";
+      const showAnalysis = view === "analysis";
+      const showLog = view === "log";
       mapView.classList.toggle("hidden", !showMap);
-      logView.classList.toggle("hidden", showMap);
+      todayView.classList.toggle("hidden", !showToday);
+      analysisView.classList.toggle("hidden", !showAnalysis);
+      logView.classList.toggle("hidden", !showLog);
       document.querySelectorAll(".modebar button").forEach((button) => {
         button.classList.toggle("active", button.dataset.view === view);
       });
       if (showMap) {
         setTimeout(() => chart.resize(), 60);
       }
+      if (showAnalysis) {
+        renderExpenseAnalysis();
+        setTimeout(() => expensePieChart && expensePieChart.resize(), 80);
+      }
     }
 
-    totalBudget.value = tripSettings.budget || "";
-    tripDays.value = tripSettings.days || "45";
+    syncBudgetInputs();
+    aiApiKey.value = tripSettings.aiKey || DEFAULT_AI_API_KEY;
+    aiModel.value = tripSettings.aiModel || "qwen3.5-flash";
 
     stops.slice(0, -1).forEach((stop, index) => {
       const item = document.createElement("div");
@@ -1374,16 +2567,45 @@
     });
 
     document.getElementById("backToList").addEventListener("click", closeCity);
+    saveTodayNote.addEventListener("click", saveCurrentTodayNote);
 
     totalBudget.addEventListener("input", () => {
       tripSettings.budget = totalBudget.value;
+      syncBudgetInputs();
       saveTripLog();
     });
 
     tripDays.addEventListener("input", () => {
       tripSettings.days = tripDays.value;
+      syncBudgetInputs();
       saveTripLog();
     });
+
+    todayTotalBudget.addEventListener("input", () => {
+      tripSettings.budget = todayTotalBudget.value;
+      syncBudgetInputs();
+      saveTripLog();
+    });
+
+    todayTripDays.addEventListener("input", () => {
+      tripSettings.days = todayTripDays.value;
+      syncBudgetInputs();
+      saveTripLog();
+    });
+
+    aiApiKey.addEventListener("input", () => {
+      tripSettings.aiKey = aiApiKey.value.trim();
+      saveTripLog();
+    });
+
+    aiModel.addEventListener("input", () => {
+      tripSettings.aiModel = aiModel.value.trim() || "qwen3.5-flash";
+      saveTripLog();
+    });
+
+    document.getElementById("exportAll").addEventListener("click", exportAllData);
+    document.getElementById("exportNotes").addEventListener("click", exportNotesData);
+    document.getElementById("exportExpenses").addEventListener("click", exportExpenseCsv);
 
     cityStatus.addEventListener("input", () => {
       if (!activeCityId) return;
@@ -1440,13 +2662,32 @@
 
     document.getElementById("addDay").addEventListener("click", () => {
       if (!activeCityId) return;
-      getCityLog(activeCityId).days.push({ cost: "" });
+      getCityLog(activeCityId).days.push(createDay(localDateString()));
       saveTripLog();
       renderDays();
     });
 
+    parseExpense.addEventListener("click", handleParseExpense);
+    todayParseExpense.addEventListener("click", handleTodayParseExpense);
+
+    receiptImage.addEventListener("change", () => {
+      const file = receiptImage.files && receiptImage.files[0];
+      parseStatus.textContent = file
+        ? `已选择截图：${file.name}，可以直接点 AI解析并写入。`
+        : "粘贴账单文字或上传截图，AI 会按住宿/吃饭/交通/门票/其他写入。";
+    });
+
+    todayReceiptImage.addEventListener("change", () => {
+      const file = todayReceiptImage.files && todayReceiptImage.files[0];
+      todayParseStatus.textContent = file
+        ? `已选择截图：${file.name}，可以直接点 AI解析并写入今天。`
+        : "会自动写入当前已到达城市的今天花费。";
+    });
+
     renderStats();
     renderRouteLog();
+    renderTodayPlan();
+    renderExpenseAnalysis();
 
     const chart = echarts.init(document.getElementById("map"));
 
