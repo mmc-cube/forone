@@ -595,7 +595,7 @@
             const card = document.getElementById('entryNotifCard');
             const body = document.getElementById('entryNotifBody');
             if (card && body) {
-                body.innerHTML = '<div class="entry-notif">' + uid + ' 刷卡 → 等待驶入车位</div>';
+                body.innerHTML = '<div class="entry-notif">' + uid + ' 刷卡</div>';
                 card.style.display = 'block';
                 setTimeout(function() { card.style.display = 'none'; }, 5000);
             }
