@@ -438,17 +438,6 @@
     </div>
 
 <script>
-// ==================== 页面加载检测 ====================
-window.onload = function() {
-    // 检测 mqtt.min.js 是否加载
-    if (typeof mqtt === 'undefined') {
-        alert('mqtt.min.js 未加载！');
-        return;
-    }
-    // 开始连接 MQTT
-    initMQTT();
-};
-
 // ==================== MQTT配置 ====================
 const UPLOAD_TOPIC = '753284/401657/caiyehuangyuejiankong/upload';
 const CMD_TOPIC = '753284/401657/caiyehuangyuejiankong/cmd';
@@ -504,56 +493,35 @@ function toggleLog() {
     content.classList.toggle('open');
 }
 
-let client = null;
+// ===== MQTT =====
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+  clientId: 'webview_' + Math.random().toString(36).substr(2, 8),
+  reconnectPeriod: 3000
+});
 
-// ==================== MQTT连接 ====================
-function initMQTT() {
-    const clientId = 'webview_' + Math.random().toString(36).substr(2, 8);
+client.on('connect', () => {
+  document.getElementById('statusDot').classList.add('connected');
+  document.getElementById('statusText').textContent = '已连接';
+  addLog('MQTT 已连接', 'ok');
+  client.subscribe(UPLOAD_TOPIC);
+  addLog('已订阅: ' + UPLOAD_TOPIC, 'info');
+});
 
-    try {
-        client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-            clientId: clientId,
-            reconnectPeriod: 3000
-        });
+client.on('close', () => {
+  document.getElementById('statusDot').classList.remove('connected');
+  document.getElementById('statusText').textContent = '未连接';
+  addLog('MQTT 连接关闭', 'err');
+});
 
-        // 连接成功
-        client.on('connect', () => {
-            document.getElementById('statusDot').classList.add('connected');
-            document.getElementById('statusText').textContent = '已连接';
-            addLog('MQTT 已连接', 'ok');
+client.on('error', (err) => {
+  addLog('MQTT 错误: ' + err.message, 'err');
+});
 
-            client.subscribe(UPLOAD_TOPIC, function(err) {
-                if (err) {
-                    addLog('订阅失败: ' + err.message, 'err');
-                } else {
-                    addLog('已订阅: ' + UPLOAD_TOPIC, 'info');
-                }
-            });
-        });
-
-        // 断开连接
-        client.on('close', () => {
-            document.getElementById('statusDot').classList.remove('connected');
-            document.getElementById('statusText').textContent = '未连接';
-            addLog('MQTT 连接关闭', 'err');
-        });
-
-        // 错误
-        client.on('error', (err) => {
-            addLog('MQTT 错误: ' + err.message, 'err');
-        });
-
-        // 收到消息
-        client.on('message', (topic, payload) => {
-            const message = payload.toString();
-            addLog('← ' + message, 'info');
-            parseMessage(message);
-        });
-
-    } catch (e) {
-        console.error('创建连接失败:', e.message);
-    }
-}
+client.on('message', (topic, payload) => {
+  const msg = payload.toString();
+  addLog('← ' + msg, 'info');
+  parseMessage(msg);
+});
 
 // ==================== 解析消息 ====================
 function parseMessage(message) {
