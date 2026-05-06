@@ -738,7 +738,7 @@ function checkAlarms() {
 
     // 水位（ADC 值 > 5 且水位状态=0 时报警）
     if (currentData.water_level_adc !== null && currentData.water_level !== null) {
-        if (currentData.water_level_adc > 5 && currentData.water_level === 0) {
+        if (currentData.water_level_adc > 10 && currentData.water_level === 0) {
             alarms.push('水位过低');
             document.getElementById('water_level_adc').classList.add('alarm');
             document.getElementById('water_alarm').textContent = '!';
