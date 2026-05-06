@@ -219,6 +219,51 @@
         }
         .mode-indicator.auto { background: #c8e6c9; color: #2e7d32; }
         .mode-indicator.manual { background: #ffecb3; color: #f57c00; }
+
+        /* 日志卡 */
+        .log-toggle {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .log-toggle::after {
+            content: '▶';
+            font-size: 12px;
+            transition: transform 0.2s;
+            color: var(--sub);
+        }
+        .log-toggle.open::after {
+            transform: rotate(90deg);
+        }
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .log-content.open {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            font-size: 12px;
+            padding: 4px 0;
+            border-bottom: 1px solid #f5f5f5;
+            font-family: monospace;
+            color: var(--sub);
+        }
+        .log-entry.ok { color: var(--ok); }
+        .log-entry.err { color: var(--alarm); }
+        .log-entry.info { color: var(--primary); }
+        .log-entry:last-child { border-bottom: none; }
+        .log-count {
+            font-size: 11px;
+            color: var(--sub);
+            background: #eee;
+            border-radius: 10px;
+            padding: 1px 8px;
+        }
     </style>
 </head>
 <body>
@@ -381,6 +426,17 @@
         </div>
     </div>
 
+    <!-- 数据日志卡（默认折叠） -->
+    <div class="card">
+        <div class="card-title log-toggle" id="log_toggle" onclick="toggleLog()">
+            📋 数据日志
+            <span class="log-count" id="logCount">0</span>
+        </div>
+        <div class="log-content" id="log_content">
+            <div id="log_list"></div>
+        </div>
+    </div>
+
 <script>
 // ==================== 页面加载检测 ====================
 window.onload = function() {
@@ -423,6 +479,31 @@ let lastUserSetTime = {};
 const DEBOUNCE_MS = 500;
 const SYNC_TIMEOUT_MS = 5000;
 
+// ==================== 日志变量 ====================
+let logEntries = [];
+const MAX_LOG = 50;
+
+function addLog(text, type) {
+    const now = new Date().toLocaleTimeString();
+    logEntries.unshift({ time: now, text: text, type: type || '' });
+    if (logEntries.length > MAX_LOG) logEntries.pop();
+    renderLog();
+}
+
+function renderLog() {
+    document.getElementById('log_list').innerHTML = logEntries.map(e =>
+        '<div class="log-entry ' + e.type + '">[' + e.time + '] ' + e.text + '</div>'
+    ).join('');
+    document.getElementById('logCount').textContent = logEntries.length;
+}
+
+function toggleLog() {
+    const toggle = document.getElementById('log_toggle');
+    const content = document.getElementById('log_content');
+    toggle.classList.toggle('open');
+    content.classList.toggle('open');
+}
+
 let client = null;
 
 // ==================== MQTT连接 ====================
@@ -440,11 +521,14 @@ function initMQTT() {
         client.on('connect', () => {
             document.getElementById('statusDot').classList.add('connected');
             document.getElementById('statusText').textContent = '已连接';
+            addLog('MQTT 已连接', 'ok');
 
             // 订阅上行Topic
             client.subscribe(UPLOAD_TOPIC, function(err) {
                 if (err) {
-                    console.error('订阅失败:', err.message);
+                    addLog('订阅失败: ' + err.message, 'err');
+                } else {
+                    addLog('已订阅: ' + UPLOAD_TOPIC, 'info');
                 }
             });
         });
@@ -453,16 +537,18 @@ function initMQTT() {
         client.on('disconnect', () => {
             document.getElementById('statusDot').classList.remove('connected');
             document.getElementById('statusText').textContent = '未连接';
+            addLog('MQTT 已断开', 'err');
         });
 
         // 错误
         client.on('error', (err) => {
-            console.error('MQTT错误:', err.message);
+            addLog('MQTT 错误: ' + err.message, 'err');
         });
 
         // 收到消息
         client.on('message', (topic, payload) => {
             const message = payload.toString();
+            addLog('← ' + message, 'info');
             parseMessage(message);
         });
 
@@ -477,6 +563,7 @@ function parseMessage(message) {
 
     // 兼容 24 或 25 字段
     if (parts.length < 24) {
+        addLog('✗ 解析失败: 字段数 ' + parts.length + ' < 24', 'err');
         return;
     }
 
@@ -496,13 +583,14 @@ function parseMessage(message) {
     const thresholdKeys = ['temp_l', 'temp_h', 'light_l', 'light_h', 'water_l', 'water_h', 'ph_l', 'ph_h', 'do_l', 'tu_h'];
     const thresholdIndex = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
 
+    let protectedList = [];
     for (let i = 0; i < thresholdKeys.length; i++) {
         const key = thresholdKeys[i];
         const value = parseFloat(parts[thresholdIndex[i]]);
 
         // 检查是否在保护期内
         if (now - lastUserAction[key] < PROTECT_MS) {
-            // 保护期内，跳过更新（保持用户设置的值）
+            protectedList.push(key);
             continue;
         }
         currentData[key] = value;
@@ -511,21 +599,25 @@ function parseMessage(message) {
     // 设备状态（延时保护：用户操作后5秒内不更新）
     const deviceKeys = ['fan', 'heater', 'pump', 'curtain', 'light_state'];
     const deviceIndex = [18, 19, 20, 21, 22];
-
+    let deviceProtectList = [];
     for (let i = 0; i < deviceKeys.length; i++) {
         const key = deviceKeys[i];
         const value = parseInt(parts[deviceIndex[i]]);
 
         // 检查是否在保护期内
         if (now - lastUserAction[key] < PROTECT_MS) {
+            deviceProtectList.push(key);
             continue;
         }
         currentData[key] = value;
     }
 
     // 系统模式（延时保护）
+    let modeProtected = false;
     if (now - lastUserAction.mode >= PROTECT_MS) {
         currentData.mode = parseInt(parts[23]);
+    } else {
+        modeProtected = true;
     }
 
     // 第 25 个字段 water_level（如果有）
@@ -534,6 +626,17 @@ function parseMessage(message) {
     } else {
         currentData.water_level = currentData.water_level_adc > 100 ? 1 : 0;
     }
+
+    // 记录解析成功日志
+    let logMsg = '✓ 解析成功 [' + parts.length + '字段] 温度:' + currentData.temp + ' 湿度:' + currentData.humidity;
+    if (protectedList.length > 0 || deviceProtectList.length > 0 || modeProtected) {
+        let skipItems = [];
+        if (protectedList.length > 0) skipItems.push('阈值(' + protectedList.join(',') + ')');
+        if (deviceProtectList.length > 0) skipItems.push('设备(' + deviceProtectList.join(',') + ')');
+        if (modeProtected) skipItems.push('模式');
+        logMsg += ' [跳过: ' + skipItems.join(', ') + ']';
+    }
+    addLog(logMsg, 'ok');
 
     updateUI();
     checkAlarms();
@@ -690,15 +793,18 @@ function checkAlarms() {
 // ==================== 发送指令 ====================
 function sendCmd(cmd) {
     if (!client) {
+        addLog('✗ 发送失败: MQTT未初始化 → ' + cmd, 'err');
         alert('MQTT未初始化');
         return false;
     }
     if (!client.connected) {
+        addLog('✗ 发送失败: MQTT未连接 → ' + cmd, 'err');
         alert('MQTT未连接');
         return false;
     }
 
     client.publish(CMD_TOPIC, cmd);
+    addLog('→ ' + cmd, 'info');
     return true;
 }
 
