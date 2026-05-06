@@ -631,10 +631,18 @@ function updateUI() {
         document.getElementById('light_state').textContent = currentData.light_state ? 'ON' : 'OFF';
     }
 
-    // 水位状态
-    if (currentData.water_level !== null) {
-        document.getElementById('water_level_dot').className = 'device-dot ' + (currentData.water_level ? 'on' : 'off');
-        document.getElementById('water_level_state').textContent = currentData.water_level ? '正常' : '低';
+    // 水位状态（综合判断过低/正常/过高）
+    if (currentData.water_level_adc !== null) {
+        if (currentData.water_level_adc > 10 && currentData.water_level === 0) {
+            document.getElementById('water_level_dot').className = 'device-dot off';
+            document.getElementById('water_level_state').textContent = '过低';
+        } else if (currentData.water_h !== null && currentData.water_level_adc > currentData.water_h) {
+            document.getElementById('water_level_dot').className = 'device-dot on';
+            document.getElementById('water_level_state').textContent = '过高';
+        } else {
+            document.getElementById('water_level_dot').className = 'device-dot on';
+            document.getElementById('water_level_state').textContent = '正常';
+        }
     }
 
     // 模式
