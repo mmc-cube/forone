@@ -730,10 +730,10 @@ function checkAlarms() {
     if (currentData.turbidity > currentData.tu_h) {
         alarms.push('浊度超标');
         document.getElementById('turbidity').classList.add('alarm');
-        document.getElementById('turbidity_alarm').textContent = '!';
+        document.getElementById('turb_alarm').textContent = '!';
     } else {
         document.getElementById('turbidity').classList.remove('alarm');
-        document.getElementById('turbidity_alarm').textContent = '';
+        document.getElementById('turb_alarm').textContent = '';
     }
 
     // 水位（ADC 值 > 5 且水位状态=0 时报警）
