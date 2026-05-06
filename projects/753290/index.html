@@ -514,7 +514,9 @@ function initMQTT() {
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
             clientId: clientId,
             reconnectPeriod: 3000,
-            connectTimeout: 10000
+            connectTimeout: 10000,
+            keepalive: 60,
+            clean: true
         });
 
         // 连接成功
@@ -523,7 +525,7 @@ function initMQTT() {
             document.getElementById('statusText').textContent = '已连接';
             addLog('MQTT 已连接', 'ok');
 
-            // 订阅上行Topic
+            // 订阅上行Topic（重连后也会触发此事件，确保订阅）
             client.subscribe(UPLOAD_TOPIC, function(err) {
                 if (err) {
                     addLog('订阅失败: ' + err.message, 'err');
@@ -538,6 +540,24 @@ function initMQTT() {
             document.getElementById('statusDot').classList.remove('connected');
             document.getElementById('statusText').textContent = '未连接';
             addLog('MQTT 已断开', 'err');
+        });
+
+        // 离线
+        client.on('offline', () => {
+            document.getElementById('statusDot').classList.remove('connected');
+            document.getElementById('statusText').textContent = '离线中';
+            addLog('MQTT 进入离线状态', 'err');
+        });
+
+        // 重连中
+        client.on('reconnect', () => {
+            document.getElementById('statusText').textContent = '重连中...';
+            addLog('MQTT 尝试重连...', 'info');
+        });
+
+        // 重连成功
+        client.on('reconnecting', () => {
+            addLog('MQTT 正在重新连接', 'info');
         });
 
         // 错误
