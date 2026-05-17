@@ -2,868 +2,119 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>智能停车场系统</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无法访问此页 - Microsoft Edge</title>
     <style>
-        :root {
-            --bg: #F5F5F5;
-            --card: #FFFFFF;
-            --primary: #2196F3;
-            --alarm: #F44336;
-            --ok: #4CAF50;
-            --text: #212121;
-            --sub: #757575;
-            --shadow: 0 2px 8px rgba(0,0,0,0.08);
-            --radius: 12px;
-        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            background: #f7f7f7;
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            color: #1b1b1b;
+            font-size: 15px;
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            padding: 0 12px 24px;
-            max-width: 420px;
-            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
         }
-        h3 { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
-
-        /* 状态栏 */
-        .status-bar {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 12px 0; position: sticky; top: 0; z-index: 10;
-            background: var(--bg);
+        .wrap {
+            max-width: 560px;
+            width: 100%;
         }
-        .status-left { display: flex; align-items: center; gap: 8px; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--alarm); }
-        .status-dot.connected { background: var(--ok); }
-        .status-text { font-size: 13px; color: var(--sub); }
-        .sys-name { font-size: 14px; font-weight: 600; }
-
-        /* 通用卡片 */
-        .card {
-            background: var(--card);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            padding: 16px;
+        .icon {
+            margin-bottom: 32px;
+        }
+        .icon svg {
+            width: 64px;
+            height: 64px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
             margin-bottom: 12px;
+            color: #1b1b1b;
         }
-
-        /* 蓝牙连接卡 */
-        .connect-card { border-left: 4px solid #FF9800; }
-        .bt-status-row { margin: 12px 0; font-size: 14px; }
-        .status-text-bt { font-weight: bold; }
-        .status-connected { color: var(--ok); }
-        .status-disconnected { color: var(--alarm); }
-        .device-select {
-            width: 100%; padding: 10px; margin: 8px 0;
-            border-radius: 6px; border: 1px solid #ddd; font-size: 14px;
+        .info {
+            color: #6b6b6b;
+            font-size: 14px;
+            line-height: 1.7;
+            margin-bottom: 24px;
         }
-        .bt-btn {
-            width: 100%; height: 44px; margin-top: 8px; border-radius: 8px;
-            border: none; color: white; font-size: 14px; font-weight: bold;
+        .fix {
+            margin-bottom: 16px;
+        }
+        .fix a {
+            color: #0078d4;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .fix a:hover {
+            text-decoration: underline;
+        }
+        .fix ul {
+            padding-left: 20px;
+        }
+        .fix li {
+            margin-bottom: 4px;
+            color: #6b6b6b;
+            font-size: 14px;
+        }
+        .err {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #999;
+        }
+        .btn {
+            margin-top: 20px;
+            display: inline-block;
+            padding: 8px 24px;
+            background: #0078d4;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
             cursor: pointer;
         }
-        .bt-btn:active { opacity: 0.85; }
-        .bt-btn-primary { background: var(--primary); }
-        .bt-btn-danger { background: #FF5722; }
-
-        /* 实时数据 */
-        .data-row {
-            display: flex; align-items: baseline; justify-content: space-between;
-            padding: 8px 0; border-bottom: 1px solid #f0f0f0;
-        }
-        .data-row:last-child { border-bottom: none; }
-        .data-label { font-size: 13px; color: var(--sub); }
-        .data-value { font-size: 28px; font-weight: bold; }
-        .data-value.alarm { color: var(--alarm); }
-        .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
-
-        /* 车位状态 — 4态 */
-        .spots-grid { display: flex; gap: 12px; }
-        .spot-item {
-            flex: 1; text-align: center; padding: 16px 8px;
-            border-radius: 10px; background: #f8f8f8; transition: all 0.3s;
-        }
-        .spot-item.free      { background: #E8F5E9; border: 2px solid var(--ok); }
-        .spot-item.allocated { background: #E3F2FD; border: 2px solid #2196F3; }
-        .spot-item.occupied  { background: #FFEBEE; border: 2px solid var(--alarm); }
-        .spot-item.reserved  { background: #F3E5F5; border: 2px solid #9C27B0; }
-        .spot-icon { font-size: 32px; margin-bottom: 6px; }
-        .spot-name { font-size: 13px; font-weight: 600; }
-        .spot-status { font-size: 11px; margin-top: 2px; }
-        .spot-item.free .spot-status      { color: var(--ok); }
-        .spot-item.allocated .spot-status { color: #2196F3; }
-        .spot-item.occupied .spot-status  { color: var(--alarm); }
-        .spot-item.reserved .spot-status  { color: #9C27B0; }
-
-        /* 报警状态 */
-        .alarm-item {
-            background: #FFEBEE; color: var(--alarm); padding: 10px 12px;
-            border-radius: 8px; margin-bottom: 6px; font-size: 13px; font-weight: 500;
-        }
-        .alarm-item:last-child { margin-bottom: 0; }
-        .alarm-ok { color: var(--ok); font-size: 13px; text-align: center; padding: 8px; }
-
-        /* 出场费用提示 */
-        .fee-simple {
-            text-align: center; padding: 14px;
-            background: #FFF3E0; border-radius: 10px; font-size: 15px;
-        }
-        .fee-simple > div:first-child { font-family: monospace; font-weight: 600; margin-bottom: 6px; }
-        .fee-simple > div:nth-child(2) { color: var(--sub); margin-bottom: 4px; }
-
-        /* 入场通知卡 */
-        .entry-notif {
-            background: #E8F5E9; border-left: 4px solid #4CAF50;
-            padding: 14px 16px; border-radius: 6px; font-size: 15px;
-            font-weight: 500; color: #2E7D32; text-align: center;
-        }
-
-        /* 控制按钮 */
-        .ctrl-btn {
-            width: 100%; height: 50px; border: none; border-radius: 8px;
-            font-size: 15px; font-weight: 600; cursor: pointer;
-            margin-bottom: 8px; transition: all 0.15s;
-        }
-        .ctrl-btn:active { transform: scale(0.97); opacity: 0.85; }
-        .ctrl-btn:last-child { margin-bottom: 0; }
-        .btn-alarm { background: #FFCDD2; color: #C62828; }
-        .btn-pay { background: #E8F5E9; color: #2E7D32; }
-        .btn-reserve { background: #E3F2FD; color: #1565C0; }
-        .btn-cancel { background: #FFF3E0; color: #E65100; }
-        .btn-query { background: #F3E5F5; color: #7B1FA2; }
-
-        /* 预约 */
-        .reserve-row {
-            display: flex; gap: 8px; margin-bottom: 8px; align-items: center;
-        }
-        .spot-sel {
-            flex: 1; height: 48px; border: 2px solid #e0e0e0; border-radius: 8px;
-            background: #fafafa; font-size: 15px; font-weight: 600;
-            cursor: pointer; transition: all 0.15s;
-        }
-        .spot-sel.selected { border-color: var(--primary); background: #E3F2FD; color: var(--primary); }
-        .reserve-info { font-size: 13px; color: var(--sub); margin: 8px 0; }
-        .countdown { font-size: 22px; font-weight: bold; color: var(--primary); text-align: center; margin: 8px 0; }
-
-        /* 支付卡 */
-        .fee-display { text-align: center; margin-bottom: 12px; }
-        .fee-amount { font-size: 36px; font-weight: bold; color: var(--text); }
-        .fee-label { font-size: 13px; color: var(--sub); }
-        .fee-rate { font-size: 12px; color: var(--sub); margin-top: 4px; }
-
-        /* 阈值设置 */
-        .threshold-row {
-            display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
-        }
-        .threshold-row:last-child { margin-bottom: 0; }
-        .thr-label { font-size: 13px; flex: 1; }
-        .thr-input {
-            width: 80px; height: 40px; border: 1px solid #e0e0e0; border-radius: 8px;
-            text-align: center; font-size: 14px; outline: none;
-        }
-        .thr-input:focus { border-color: var(--primary); }
-        .thr-send {
-            height: 40px; min-width: 60px; border: none; border-radius: 8px;
-            background: var(--primary); color: #fff; font-size: 13px;
-            font-weight: 600; cursor: pointer;
-        }
-        .thr-send:active { opacity: 0.8; }
-
-        /* 日志（折叠） */
-        .log-header {
-            display: flex; justify-content: space-between; align-items: center;
-            cursor: pointer; user-select: none;
-        }
-        .log-toggle { font-size: 12px; color: var(--sub); }
-        .log-body { display: none; max-height: 200px; overflow-y: auto; margin-top: 10px; }
-        .log-body.show { display: block; }
-        .log-line { font-size: 11px; color: var(--sub); padding: 3px 0; border-bottom: 1px solid #f5f5f5; font-family: monospace; }
-
-        /* RFID状态 */
-        .rfid-badge {
-            display: inline-block; padding: 2px 8px; border-radius: 6px;
-            font-size: 12px; font-weight: 600;
-        }
-        .rfid-0 { background: #f0f0f0; color: #999; }
-        .rfid-1 { background: #E8F5E9; color: #2E7D32; }
-        .rfid-2 { background: #FFEBEE; color: #C62828; }
-        .rfid-3 { background: #E3F2FD; color: #1565C0; }
-
-        /* 预约卡管理 */
-        .reserve-mgmt-header {
-            display: flex; justify-content: space-between; align-items: center;
-            cursor: pointer; user-select: none;
-        }
-        .reserve-mgmt-toggle { font-size: 12px; color: var(--sub); }
-        .reserve-mgmt-body { display: none; margin-top: 10px; }
-        .reserve-mgmt-body.show { display: block; }
-        .last-scanned {
-            display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
-        }
-        .last-scanned input {
-            flex: 1; height: 40px; border: 1px solid #e0e0e0; border-radius: 8px;
-            padding: 0 10px; font-size: 13px; font-family: monospace; outline: none;
-        }
-        .last-scanned input:focus { border-color: var(--primary); }
-        .btn-add-card {
-            height: 40px; min-width: 70px; border: none; border-radius: 8px;
-            background: var(--ok); color: #fff; font-size: 13px;
-            font-weight: 600; cursor: pointer; white-space: nowrap;
-        }
-        .btn-add-card:active { opacity: 0.8; }
-        .reserve-card-list { max-height: 150px; overflow-y: auto; }
-        .reserve-card-item {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 8px 10px; border-radius: 8px; background: #f8f8f8;
-            margin-bottom: 4px; font-size: 13px;
-        }
-        .reserve-card-item:last-child { margin-bottom: 0; }
-        .reserve-card-item .rc-uid { font-family: monospace; font-weight: 600; }
-        .reserve-card-item .rc-name { color: var(--sub); margin-left: 8px; }
-        .btn-remove-card {
-            border: none; background: #FFCDD2; color: #C62828; border-radius: 6px;
-            padding: 4px 10px; font-size: 12px; cursor: pointer;
-        }
-        .btn-remove-card:active { opacity: 0.7; }
-
-        /* 预约卡选择下拉 */
-        .reserve-card-sel {
-            width: 100%; height: 40px; border: 1px solid #e0e0e0; border-radius: 8px;
-            background: #fafafa; font-size: 14px; margin-bottom: 10px; padding: 0 8px;
-        }
-
+        .btn:hover { background: #106ebe; }
+        .btn:active { background: #005a9e; }
     </style>
 </head>
 <body>
 
-<!-- 状态栏 -->
-<div class="status-bar">
-    <div class="status-left">
-        <div class="status-dot" id="statusDot"></div>
-        <span class="status-text" id="statusText">未连接</span>
+<div class="wrap">
+
+    <div class="icon">
+        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="32" cy="32" r="28" fill="none" stroke="#6b6b6b" stroke-width="2"/>
+            <ellipse cx="32" cy="32" rx="16" ry="28" fill="none" stroke="#6b6b6b" stroke-width="1.5"/>
+            <line x1="4" y1="32" x2="60" y2="32" stroke="#6b6b6b" stroke-width="1.5"/>
+            <circle cx="32" cy="20" r="6" fill="#e81123"/>
+            <text x="32" y="24" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">!</text>
+        </svg>
     </div>
-    <span class="sys-name">智能停车场</span>
+
+    <h1>无法访问此页</h1>
+
+    <div class="info">
+        <p>连接已重置。请尝试以下操作：</p>
+    </div>
+
+    <div class="fix">
+        <ul>
+            <li>确保你已连接到互联网</li>
+            <li>运行"网络和 Internet 疑难解答"</li>
+            <li>检查是否有代理服务器设置</li>
+            <li>联系网站管理员</li>
+        </ul>
+    </div>
+
+    <button class="btn" onclick="location.reload()">刷新</button>
+
+    <div class="err">ERR_CONNECTION_RESET</div>
+
 </div>
-
-<!-- 蓝牙连接卡 -->
-<div class="card connect-card" id="connectCard">
-    <h3>蓝牙连接</h3>
-    <div class="bt-status-row">
-        <span class="status-label">状态：</span>
-        <span id="btStatus" class="status-text-bt status-disconnected">未连接</span>
-    </div>
-    <button class="bt-btn bt-btn-primary" id="btnScan" onclick="scanDevices()">扫描设备</button>
-    <select id="deviceList" class="device-select"></select>
-    <button class="bt-btn bt-btn-primary" id="btnConnect" onclick="connectSelected()">连接</button>
-    <button class="bt-btn bt-btn-danger" id="btnDisconnect" onclick="disconnectBt()" style="display:none">断开</button>
-</div>
-
-<!-- 实时数据卡 -->
-<div class="card">
-    <h3>实时数据</h3>
-    <div class="data-row">
-        <span class="data-label">入口距离</span>
-        <div><span class="data-value" id="v_ent_dist">--</span><span class="data-unit">cm</span></div>
-    </div>
-    <div class="data-row">
-        <span class="data-label">车位1 距离</span>
-        <div><span class="data-value" id="v_s1_dist">--</span><span class="data-unit">cm</span></div>
-    </div>
-    <div class="data-row">
-        <span class="data-label">车位2 距离</span>
-        <div><span class="data-value" id="v_s2_dist">--</span><span class="data-unit">cm</span></div>
-    </div>
-    <div class="data-row">
-        <span class="data-label">车位3 距离</span>
-        <div><span class="data-value" id="v_s3_dist">--</span><span class="data-unit">cm</span></div>
-    </div>
-    <div class="data-row">
-        <span class="data-label">RFID 状态</span>
-        <span class="rfid-badge rfid-0" id="v_rfid">无卡</span>
-    </div>
-    <div class="data-row">
-        <span class="data-label">时间</span>
-        <div><span class="data-value" id="v_time" style="font-size:22px;">--:--:--</span></div>
-    </div>
-</div>
-
-<!-- 车位状态卡（4态） -->
-<div class="card">
-    <h3>车位状态</h3>
-    <div class="spots-grid">
-        <div class="spot-item free" id="spot1">
-            <div class="spot-icon">&#128663;</div>
-            <div class="spot-name">车位1</div>
-            <div class="spot-status">空闲</div>
-        </div>
-        <div class="spot-item free" id="spot2">
-            <div class="spot-icon">&#128663;</div>
-            <div class="spot-name">车位2</div>
-            <div class="spot-status">空闲</div>
-        </div>
-        <div class="spot-item free" id="spot3">
-            <div class="spot-icon">&#128663;</div>
-            <div class="spot-name">车位3</div>
-            <div class="spot-status">空闲</div>
-        </div>
-    </div>
-</div>
-
-<!-- 报警状态卡 -->
-<div class="card">
-    <h3>报警状态</h3>
-    <div id="alarmBox"><div class="alarm-ok">运行正常 &#10003;</div></div>
-</div>
-
-<!-- 入场通知卡（刷卡后显示） -->
-<div class="card" id="entryNotifCard" style="display:none;">
-    <h3>入场通知</h3>
-    <div id="entryNotifBody"></div>
-</div>
-
-<!-- 出场费用提示（出场刷卡后触发显示） -->
-<div class="card" id="exitFeeCard" style="display:none;">
-    <h3>出场费用</h3>
-    <div id="exitFeeBody"></div>
-</div>
-
-<!-- 预约卡 -->
-<div class="card">
-    <h3>车位预约</h3>
-    <div id="reserveMain">
-        <!-- 选择预约卡 -->
-        <select class="reserve-card-sel" id="reserveCardSel">
-            <option value="">-- 选择预约卡 --</option>
-        </select>
-        <!-- 选择车位 -->
-        <div class="reserve-row">
-            <div class="spot-sel" id="rs1" data-spot="1" onclick="selRSspot(1)">车位1</div>
-            <div class="spot-sel" id="rs2" data-spot="2" onclick="selRSspot(2)">车位2</div>
-            <div class="spot-sel" id="rs3" data-spot="3" onclick="selRSspot(3)">车位3</div>
-        </div>
-        <button class="ctrl-btn btn-reserve" onclick="doReserve()">预约</button>
-        <button class="ctrl-btn btn-cancel" onclick="cancelReserve()">取消预约</button>
-    </div>
-    <!-- 折叠：预约卡管理 -->
-    <div class="reserve-mgmt-header" onclick="toggleReserveMgmt()">
-        <h3 style="margin-bottom:0; font-size:14px;">预约卡管理</h3>
-        <span class="reserve-mgmt-toggle" id="reserveMgmtToggle">&#9654; 展开</span>
-    </div>
-    <div class="reserve-mgmt-body" id="reserveMgmtBody">
-        <div class="last-scanned">
-            <input id="lastScannedUid" type="text" placeholder="刷卡后自动填入UID" readonly>
-            <button class="btn-add-card" onclick="addReserveCard()">加入</button>
-        </div>
-        <div class="reserve-card-list" id="reserveCardList"></div>
-    </div>
-</div>
-
-<!-- 支付卡 -->
-<div class="card">
-    <h3>停车费用</h3>
-    <div class="fee-display">
-        <div class="fee-label">累计费用</div>
-        <div class="fee-amount" id="v_fee">&#165;0.00</div>
-        <div class="fee-rate" id="v_rate_info">费率：-- 元/小时</div>
-    </div>
-</div>
-
-<!-- 阈值回显卡 -->
-<div class="card">
-    <h3>阈值状态</h3>
-    <div class="data-row">
-        <span class="data-label">入口检测阈值</span>
-        <div><span class="data-value" id="v_ent_th" style="font-size:22px;">30</span><span class="data-unit">cm</span></div>
-    </div>
-    <div class="data-row">
-        <span class="data-label">车位占用阈值</span>
-        <div><span class="data-value" id="v_spot_th" style="font-size:22px;">5</span><span class="data-unit">cm</span></div>
-    </div>
-</div>
-
-<!-- 阈值设置卡 -->
-<div class="card">
-    <h3>阈值设置</h3>
-    <div class="threshold-row">
-        <span class="thr-label">入口检测阈值 (cm)</span>
-        <input class="thr-input" id="thr_ent" type="number" min="10" max="80" value="30">
-        <button class="thr-send" onclick="sendThreshold('02','thr_ent')">发送</button>
-    </div>
-    <div class="threshold-row">
-        <span class="thr-label">车位占用阈值 (cm)</span>
-        <input class="thr-input" id="thr_spot" type="number" min="5" max="50" value="5">
-        <button class="thr-send" onclick="sendThreshold('03','thr_spot')">发送</button>
-    </div>
-    <div class="threshold-row">
-        <span class="thr-label">费率 (元/小时)</span>
-        <input class="thr-input" id="thr_rate" type="number" min="1" max="20" value="5">
-        <button class="thr-send" onclick="sendThreshold('04','thr_rate')">发送</button>
-    </div>
-</div>
-
-<!-- 日志卡（折叠） -->
-<div class="card">
-    <div class="log-header" onclick="toggleLog()">
-        <h3 style="margin-bottom:0;">通信日志</h3>
-        <span class="log-toggle" id="logToggle">&#9654; 展开</span>
-    </div>
-    <div class="log-body" id="logBody"></div>
-</div>
-
-<script>
-    // ==================== 状态 ====================
-    let isBtConnected = false;
-    let logExpanded = false;
-    let reserveMgmtExpanded = false;
-    let prevSxSts = [0, 0, 0];  /* 上轮车位状态，用于检测变化 */
-    let selectedSpot = 1;          /* 支付卡快捷支付车位 */
-    let selectedReserveSpot = 0;   /* 预约选择的车位 1/2/3 */
-
-    // 数据状态（纯显示，以下位机为准）
-    let currentData = {
-        s1_dist: 0, s1_uid: '', s1_sts: 0, s1_fee: 0,
-        s2_dist: 0, s2_uid: '', s2_sts: 0, s2_fee: 0,
-        s3_dist: 0, s3_uid: '', s3_sts: 0, s3_fee: 0,
-        ent_dist: 0,
-        rfid: 0,
-        hh: 0, mm: 0, ss: 0,
-        ent_th: 30, spot_th: 5
-    };
-
-    // 出场刷卡费用（单次显示，不维护列表）
-    let currentExitFee = null;  // { uid, fee, elapsedMin }
-
-    // 预约卡列表：[{ uid, name }]，存 localStorage
-    let reserveCards = JSON.parse(localStorage.getItem('park_reserve_cards') || '[]');
-
-    // 最近一次刷卡 UID（用于录入预约卡）
-    let lastCardUid = '';
-
-    // ==================== 蓝牙控制函数 ====================
-    function scanDevices() {
-        if (window.BluetoothBridge) {
-            window.BluetoothBridge.getPairedDevices();
-            addLog('BT: 扫描已配对设备');
-        } else {
-            alert('请在 Android WebView 环境中运行');
-        }
-    }
-
-    function connectSelected() {
-        const addr = document.getElementById('deviceList').value;
-        if (!addr) { alert('请先选择设备'); return; }
-        if (window.BluetoothBridge) {
-            window.BluetoothBridge.connect(addr);
-            addLog('BT: 连接 ' + addr);
-        }
-    }
-
-    function disconnectBt() {
-        if (window.BluetoothBridge) {
-            window.BluetoothBridge.disconnect();
-            addLog('BT: 断开连接');
-        }
-    }
-
-    function sendViaBt(cmd) {
-        if (!isBtConnected) {
-            alert('蓝牙未连接，请先连接设备');
-            return;
-        }
-        if (window.BluetoothBridge) {
-            window.BluetoothBridge.send(cmd + '\n');
-            addLog('TX: ' + cmd);
-        }
-    }
-
-    // ==================== 回调函数（Android 调用） ====================
-    window.onBtDeviceList = function(deviceArray) {
-        const select = document.getElementById('deviceList');
-        select.innerHTML = '';
-        deviceArray.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d.address;
-            opt.textContent = d.name + ' (' + d.address + ')';
-            select.appendChild(opt);
-        });
-        addLog('BT: 发现 ' + deviceArray.length + ' 个设备');
-    };
-
-    window.onBtConnected = function(address) {
-        isBtConnected = true;
-        document.getElementById('btStatus').textContent = '已连接：' + address;
-        document.getElementById('btStatus').className = 'status-text-bt status-connected';
-        document.getElementById('statusDot').classList.add('connected');
-        document.getElementById('statusText').textContent = '蓝牙已连接';
-        document.getElementById('btnScan').style.display = 'none';
-        document.getElementById('deviceList').disabled = true;
-        document.getElementById('btnConnect').style.display = 'none';
-        document.getElementById('btnDisconnect').style.display = 'block';
-        addLog('BT: 已连接 ' + address);
-    };
-
-    window.onBtDisconnected = function() {
-        isBtConnected = false;
-        document.getElementById('btStatus').textContent = '未连接';
-        document.getElementById('btStatus').className = 'status-text-bt status-disconnected';
-        document.getElementById('statusDot').classList.remove('connected');
-        document.getElementById('statusText').textContent = '未连接';
-        document.getElementById('btnScan').style.display = 'block';
-        document.getElementById('deviceList').disabled = false;
-        document.getElementById('btnConnect').style.display = 'block';
-        document.getElementById('btnDisconnect').style.display = 'none';
-        addLog('BT: 已断开');
-    };
-
-    window.onBtError = function(errMsg) {
-        alert('蓝牙错误：' + errMsg);
-        isBtConnected = false;
-        window.onBtDisconnected();
-    };
-
-    window.onBtData = function(line) {
-        addLog('RX: ' + line);
-        const trimmed = line.trim();
-        if (trimmed.startsWith('CARD,')) {
-            handleCardEvent(trimmed);
-        } else if (trimmed.startsWith('FEE,')) {
-            handleFeeEvent(trimmed);
-        } else if (trimmed.startsWith('RESERVE,')) {
-            handleReserveEvent(trimmed);
-        } else if (trimmed.startsWith('EXIT_REJECT,')) {
-            handleExitRejectEvent(trimmed);
-        } else {
-            parseAndUpdate(trimmed);
-        }
-    };
-
-    // ==================== 费用事件处理（出场刷卡） ====================
-    function handleFeeEvent(msg) {
-        const parts = msg.split(',');
-        if (parts.length < 5) return;
-        const uid = parts[1];
-        const feeCents = parseInt(parts[2]);
-        const elapsedMin = parseInt(parts[3]);
-        const spotNum = parseInt(parts[4]);  // 车位号 1~3
-
-        // 添加到出场列表
-        currentExitFee = { uid, fee: feeCents / 100, elapsedMin, spotNum };
-        renderExitFee();
-        addLog('出场刷卡: ' + uid + ' 车位' + spotNum + ' 停车' + elapsedMin + '分钟 费用¥' + (feeCents / 100).toFixed(2));
-    }
-
-    // ==================== 预约事件处理（入场刷卡分配车位） ====================
-    function handleReserveEvent(msg) {
-        const parts = msg.split(',');
-        if (parts.length < 3) return;
-        const spotNum = parseInt(parts[1]);  // 车位号 1~3
-        const uid = parts[2];                // UID_XXXXXXXX
-
-        addLog('入场分配: ' + uid + ' → 车位' + spotNum + '（已分配）');
-    }
-
-    // ==================== 出场拒绝事件处理（车位有车无法出场） ====================
-    function handleExitRejectEvent(msg) {
-        const parts = msg.split(',');
-        if (parts.length < 3) return;
-        const spotNum = parseInt(parts[1]);
-        const reason = parts[2];  // 车位还有车
-
-        alert('出场失败！车位' + spotNum + '：' + reason);
-        addLog('出场被拒: 车位' + spotNum + ' ' + reason);
-    }
-
-    // ==================== 刷卡事件处理（入场） ====================
-    function handleCardEvent(msg) {
-        const parts = msg.split(',');
-        if (parts.length < 4) return;
-        const uid = parts[1];
-        const timestamp = parts[2];
-        const sts = parseInt(parts[3]);
-
-        // 记录最近一次刷卡 UID，用于预约卡录入
-        lastCardUid = uid;
-        var inputEl = document.getElementById('lastScannedUid');
-        if (inputEl) inputEl.value = uid;
-
-        // 刷新预约卡下拉列表（确保新加入的卡立即可选）
-        renderReserveCardList();
-
-        if (sts === 1 || sts === 3) {
-            // 入场刷卡：显示入场通知卡
-            const card = document.getElementById('entryNotifCard');
-            const body = document.getElementById('entryNotifBody');
-            if (card && body) {
-                body.innerHTML = '<div class="entry-notif">' + uid + ' 刷卡</div>';
-                card.style.display = 'block';
-                setTimeout(function() { card.style.display = 'none'; }, 5000);
-            }
-            addLog('入场刷卡: ' + uid + ' @' + timestamp);
-        } else {
-            addLog('无效卡: ' + uid);
-        }
-    }
-
-    // ==================== 预约卡管理 ====================
-    function toggleReserveMgmt() {
-        reserveMgmtExpanded = !reserveMgmtExpanded;
-        document.getElementById('reserveMgmtBody').classList.toggle('show', reserveMgmtExpanded);
-        document.getElementById('reserveMgmtToggle').textContent = reserveMgmtExpanded ? '▼ 收起' : '▶ 展开';
-    }
-
-    function addReserveCard() {
-        if (!lastCardUid) { alert('请先刷卡获取 UID'); return; }
-        if (reserveCards.some(function(c) { return c.uid === lastCardUid; })) {
-            alert('该卡已在预约卡列表中');
-            return;
-        }
-        const name = prompt('为该卡命名（如：卡1-张三）：', '卡' + (reserveCards.length + 1));
-        if (!name) return;
-        reserveCards.push({ uid: lastCardUid, name: name });
-        localStorage.setItem('park_reserve_cards', JSON.stringify(reserveCards));
-        renderReserveCardList();
-        addLog('添加预约卡: ' + name + ' (' + lastCardUid + ')');
-    }
-
-    function removeReserveCard(index) {
-        const removed = reserveCards.splice(index, 1);
-        localStorage.setItem('park_reserve_cards', JSON.stringify(reserveCards));
-        renderReserveCardList();
-        addLog('移除预约卡: ' + removed[0].name);
-    }
-
-    function renderReserveCardList() {
-        // 渲染列表
-        var list = document.getElementById('reserveCardList');
-        if (!list) return;
-        if (reserveCards.length === 0) {
-            list.innerHTML = '<div style="text-align:center;color:#999;font-size:12px;padding:8px;">暂无预约卡，刷卡后点击"加入"</div>';
-        } else {
-            list.innerHTML = reserveCards.map(function(c, i) {
-                return '<div class="reserve-card-item">' +
-                    '<span><span class="rc-uid">' + c.uid + '</span>' +
-                    '<span class="rc-name">' + c.name + '</span></span>' +
-                    '<button class="btn-remove-card" onclick="removeReserveCard(' + i + ')">删除</button>' +
-                '</div>';
-            }).join('');
-        }
-        // 同步更新下拉列表
-        var sel = document.getElementById('reserveCardSel');
-        if (sel) {
-            var currentVal = sel.value;
-            sel.innerHTML = '<option value="">-- 选择预约卡 --</option>' +
-                reserveCards.map(function(c) { return '<option value="' + c.uid + '">' + c.name + ' (' + c.uid + ')</option>'; }).join('');
-            // 保持已选项
-            if (currentVal && reserveCards.some(function(c) { return c.uid === currentVal; })) {
-                sel.value = currentVal;
-            }
-        }
-    }
-
-    // 找空闲车位（Sx_STS=0），返回 0-based 索引，无则 -1
-    function findFreeSpot() {
-        for (var i = 0; i < 3; i++) {
-            if (currentData['s' + (i + 1) + '_sts'] === 0) return i;
-        }
-        return -1;
-    }
-
-    // 预约车位选择
-    function selRSspot(n) {
-        selectedReserveSpot = n;
-        document.querySelectorAll('.spot-sel').forEach(el => {
-            el.classList.toggle('selected', parseInt(el.dataset.spot) === n);
-        });
-    }
-
-    // 预约：选择预约卡 + 选择车位 → 下发 06,车位号,UID_xxxxxxxx
-    function doReserve() {
-        const sel = document.getElementById('reserveCardSel');
-        if (!sel || !sel.value) { alert('请先选择预约卡'); return; }
-        if (!selectedReserveSpot) { alert('请选择车位'); return; }
-        const spotSts = currentData['s' + selectedReserveSpot + '_sts'];
-        if (spotSts !== 0) { alert('车位' + selectedReserveSpot + '当前不可预约（状态：' + spotSts + '）'); return; }
-        sendViaBt('06,' + selectedReserveSpot + ',' + sel.value);
-        addLog('预约: ' + sel.value + ' → 车位' + selectedReserveSpot);
-    }
-
-    // ==================== 周期数据解析 ====================
-    // 新格式（19字段）：S1_DIST,S1_UID,S1_STS,S1_FEE,S2_DIST,S2_UID,S2_STS,S2_FEE,S3_DIST,S3_UID,S3_STS,S3_FEE,ENT_DIST,RFID_STS,HH,MM,SS,ENT_TH,SPOT_TH
-    function parseAndUpdate(msg) {
-        const parts = msg.split(',');
-        if (parts.length < 19) { addLog('数据字段不足，忽略'); return; }
-
-        currentData.s1_dist = parseInt(parts[0]);
-        currentData.s1_uid  = parts[1];
-        currentData.s1_sts  = parseInt(parts[2]);
-        currentData.s1_fee  = parseInt(parts[3]);
-        currentData.s2_dist = parseInt(parts[4]);
-        currentData.s2_uid  = parts[5];
-        currentData.s2_sts  = parseInt(parts[6]);
-        currentData.s2_fee  = parseInt(parts[7]);
-        currentData.s3_dist = parseInt(parts[8]);
-        currentData.s3_uid  = parts[9];
-        currentData.s3_sts  = parseInt(parts[10]);
-        currentData.s3_fee  = parseInt(parts[11]);
-        currentData.ent_dist = parseInt(parts[12]);
-        currentData.rfid     = parseInt(parts[13]);
-        currentData.hh       = parseInt(parts[14]);
-        currentData.mm       = parseInt(parts[15]);
-        currentData.ss       = parseInt(parts[16]);
-        currentData.ent_th   = parseInt(parts[17]);
-        currentData.spot_th  = parseInt(parts[18]);
-
-        // 检测车离开：车位状态从非空闲→空闲
-        for (let i = 0; i < 3; i++) {
-            if (prevSxSts[i] > 0 && currentData['s' + (i + 1) + '_sts'] === 0) {
-                addLog('车位' + (i + 1) + '已空');
-                currentExitFee = null;
-                renderExitFee();
-            }
-        }
-        prevSxSts = [currentData.s1_sts, currentData.s2_sts, currentData.s3_sts];
-
-        updateUI();
-        checkAlarms();
-    }
-
-    // ==================== UI 更新 ====================
-    function updateUI() {
-        setDist('v_ent_dist', currentData.ent_dist);
-        setDist('v_s1_dist', currentData.s1_dist);
-        setDist('v_s2_dist', currentData.s2_dist);
-        setDist('v_s3_dist', currentData.s3_dist);
-
-        const entEl = document.getElementById('v_ent_dist');
-        entEl.classList.toggle('alarm', currentData.ent_dist > 0 && currentData.ent_dist !== 999 && currentData.ent_dist < currentData.ent_th);
-
-        const rfidEl = document.getElementById('v_rfid');
-        const rfidMap = { 0: ['无卡', 'rfid-0'], 1: ['有效卡', 'rfid-1'], 2: ['无效卡', 'rfid-2'], 3: ['预约卡', 'rfid-3'] };
-        const [rfidTxt, rfidCls] = rfidMap[currentData.rfid] || ['未知', 'rfid-0'];
-        rfidEl.textContent = rfidTxt;
-        rfidEl.className = 'rfid-badge ' + rfidCls;
-
-        document.getElementById('v_time').textContent =
-            pad(currentData.hh) + ':' + pad(currentData.mm) + ':' + pad(currentData.ss);
-
-        // 车位状态以下位机 Sx_STS 为准：0=空闲, 1=已分配, 2=已占用, 3=已预约
-        const stsMap = {
-            0: ['空闲', 'free'],
-            1: ['已分配', 'allocated'],
-            2: ['已占用', 'occupied'],
-            3: ['已预约', 'reserved']
-        };
-        updateSpotUI('spot1', stsMap[currentData.s1_sts][0], stsMap[currentData.s1_sts][1]);
-        updateSpotUI('spot2', stsMap[currentData.s2_sts][0], stsMap[currentData.s2_sts][1]);
-        updateSpotUI('spot3', stsMap[currentData.s3_sts][0], stsMap[currentData.s3_sts][1]);
-
-        // 总费用：各车位费用之和（分）
-        const totalFee = currentData.s1_fee + currentData.s2_fee + currentData.s3_fee;
-        document.getElementById('v_fee').textContent = '¥' + (totalFee / 100).toFixed(2);
-        document.getElementById('v_rate_info').textContent = currentData.s1_fee + '/' + currentData.s2_fee + '/' + currentData.s3_fee;
-
-        // 阈值显示（来自下位机回传）
-        document.getElementById('v_ent_th').textContent = currentData.ent_th;
-        document.getElementById('v_spot_th').textContent = currentData.spot_th;
-    }
-
-    function setDist(elId, val) {
-        const el = document.getElementById(elId);
-        el.textContent = (val === 0 || val === 999) ? '--' : val;
-    }
-
-    function updateSpotUI(elId, label, cls) {
-        const el = document.getElementById(elId);
-        el.classList.remove('free', 'allocated', 'occupied', 'reserved');
-        el.classList.add(cls);
-
-        const icons = { free: '\u{1F697}', allocated: '\u{1F535}', occupied: '\u{1F534}', reserved: '\u{1F7E3}' };
-        const labels = { free: '空闲', allocated: '已分配', occupied: '已占用', reserved: '已预约' };
-        el.querySelector('.spot-icon').innerHTML = icons[cls] || '\u{1F697}';
-        el.querySelector('.spot-status').textContent = label || labels[cls] || '未知';
-    }
-
-    function pad(n) { return String(n).padStart(2, '0'); }
-
-    // ==================== 出场费用显示 ====================
-    function renderExitFee() {
-        const card = document.getElementById('exitFeeCard');
-        const body = document.getElementById('exitFeeBody');
-        if (!currentExitFee) {
-            card.style.display = 'none';
-            return;
-        }
-        card.style.display = 'block';
-        body.innerHTML =
-            '<div class="fee-simple">' +
-                '<div>' + currentExitFee.uid + '</div>' +
-                '<div>车位' + currentExitFee.spotNum + ' 停车' + currentExitFee.elapsedMin + '分钟 费用¥' + currentExitFee.fee.toFixed(2) + '</div>' +
-                '<button class="ctrl-btn btn-pay" style="margin-top:10px;" onclick="confirmPay()">支付并出场</button>' +
-            '</div>';
-    }
-
-    // ==================== 报警判断 ====================
-    function checkAlarms() {
-        const alarms = [];
-
-        if (currentData.ent_dist > 0 && currentData.ent_dist !== 999 && currentData.ent_dist < currentData.ent_th) {
-            alarms.push('入口有车，请刷卡');
-        }
-
-        // 满位判断：3个车位全占用（Sx_STS=2）
-        const fullCount = [currentData.s1_sts, currentData.s2_sts, currentData.s3_sts].filter(s => s === 2).length;
-        if (fullCount === 3) {
-            alarms.push('满位报警！3个车位全部占用');
-        }
-
-        renderAlarms(alarms);
-    }
-
-    function renderAlarms(alarms) {
-        const box = document.getElementById('alarmBox');
-        if (alarms.length === 0) {
-            box.innerHTML = '<div class="alarm-ok">运行正常 &#10003;</div>';
-        } else {
-            box.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
-        }
-    }
-
-    // ==================== 下行指令 ====================
-    function sendThreshold(code, inputId) {
-        const val = parseInt(document.getElementById(inputId).value);
-        if (isNaN(val)) return;
-        sendViaBt(code + ',' + val);
-        addLog('阈值设置: ' + code + ' → ' + val);
-        if (code === '03') checkAlarms();
-    }
-
-    // 取消预约 / 确认支付
-    function cancelReserve() { sendViaBt('07'); }
-    function confirmPay() { sendViaBt('05'); }
-
-    // ==================== 日志 ====================
-    function addLog(msg) {
-        const body = document.getElementById('logBody');
-        const now = new Date();
-        const ts = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
-        const line = document.createElement('div');
-        line.className = 'log-line';
-        line.textContent = '[' + ts + '] ' + msg;
-        body.insertBefore(line, body.firstChild);
-        while (body.children.length > 20) body.removeChild(body.lastChild);
-    }
-
-    function toggleLog() {
-        logExpanded = !logExpanded;
-        document.getElementById('logBody').classList.toggle('show', logExpanded);
-        document.getElementById('logToggle').textContent = logExpanded ? '▼ 收起' : '▶ 展开';
-    }
-
-    // ==================== 启动 ====================
-    selRSspot(1);
-    renderReserveCardList();
-</script>
 
 </body>
 </html>
