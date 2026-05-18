@@ -269,19 +269,19 @@
   <div class="card-body">
     <div class="stats-grid">
       <div class="stat-cell">
-        <div class="stat-label">Mode1 平均功率</div>
+        <div class="stat-label">模式一平均功率</div>
         <div class="stat-value mode1" id="statP1">-- mW</div>
         <div class="stat-label" style="margin-top:4px;" id="statI1">-- mA</div>
         <div class="stat-label" style="margin-top:2px;" id="statN1">0 次</div>
       </div>
       <div class="stat-cell">
-        <div class="stat-label">Mode2 平均功率</div>
+        <div class="stat-label">模式二平均功率</div>
         <div class="stat-value mode2" id="statP2">-- mW</div>
         <div class="stat-label" style="margin-top:4px;" id="statI2">-- mA</div>
         <div class="stat-label" style="margin-top:2px;" id="statN2">0 次</div>
       </div>
       <div class="stat-cell">
-        <div class="stat-label">Mode3 平均功率</div>
+        <div class="stat-label">模式三平均功率</div>
         <div class="stat-value mode3" id="statP3">-- mW</div>
         <div class="stat-label" style="margin-top:4px;" id="statI3">-- mA</div>
         <div class="stat-label" style="margin-top:2px;" id="statN3">0 次</div>
@@ -289,11 +289,11 @@
     </div>
     <div class="diff-row">
       <div class="diff-item">
-        <div class="diff-label">功率差 (Mode1-Mode2)</div>
+        <div class="diff-label">功率差（模式一-模式二）</div>
         <div class="diff-value neu" id="diffP">-- mW</div>
       </div>
       <div class="diff-item">
-        <div class="diff-label">电流差 (Mode1-Mode2)</div>
+        <div class="diff-label">电流差（模式一-模式二）</div>
         <div class="diff-value neu" id="diffI">-- mA</div>
       </div>
     </div>
@@ -308,9 +308,9 @@
       <canvas class="chart-canvas" id="chartCanvas"></canvas>
     </div>
     <div class="chart-legend">
-      <div class="legend-item"><div class="legend-dot mode1"></div> Mode1</div>
-      <div class="legend-item"><div class="legend-dot mode2"></div> Mode2</div>
-      <div class="legend-item"><div class="legend-dot mode3"></div> Mode3</div>
+      <div class="legend-item"><div class="legend-dot mode1"></div> 模式一</div>
+      <div class="legend-item"><div class="legend-dot mode2"></div> 模式二</div>
+      <div class="legend-item"><div class="legend-dot mode3"></div> 模式三</div>
     </div>
   </div>
 </div>
@@ -321,13 +321,13 @@
   <div class="card-body">
     <div class="action-row">
       <button class="btn btn-mode1" id="btnMode1" onclick="sendMode(1)" disabled>
-        Mode1 (HiRes)
+        模式一（高精度）
       </button>
       <button class="btn btn-mode2" id="btnMode2" onclick="sendMode(2)" disabled>
-        Mode2 (LoRes)
+        模式二（低精度）
       </button>
       <button class="btn btn-mode3" id="btnMode3" onclick="sendMode(3)" disabled>
-        Mode3 (Interval)
+        模式三（间隔采样）
       </button>
     </div>
     <div style="text-align:center;font-size:12px;color:var(--sub);margin-top:8px;" id="sendHint"></div>
@@ -373,9 +373,9 @@ const curveData = {
 
 // ===================== 模式标签 =====================
 const MODE_LABEL = {
-  1: 'Mode1 (HiRes)',
-  2: 'Mode2 (LoRes)',
-  3: 'Mode3 (Interval)'
+  1: '模式一（高精度）',
+  2: '模式二（低精度）',
+  3: '模式三（间隔采样）'
 };
 
 // ===================== MQTT 连接 =====================
@@ -440,8 +440,8 @@ function updateUI(d) {
   // 模式
   if (d.mode !== undefined) {
     const modeEl = document.getElementById('valMode');
-    const modeLabels = { 1: 'Mode1 (HiRes)', 2: 'Mode2 (LoRes)', 3: 'Mode3 (Interval)' };
-    modeEl.textContent = modeLabels[d.mode] || 'Mode' + d.mode;
+    const modeLabels = { 1: '模式一（高精度）', 2: '模式二（低精度）', 3: '模式三（间隔采样）' };
+    modeEl.textContent = modeLabels[d.mode] || '模式' + d.mode;
     modeEl.className = 'mode-badge mode' + d.mode;
   }
 }
@@ -626,7 +626,7 @@ function sendMode(mode) {
 
   // 按钮反馈
   const hint = document.getElementById('sendHint');
-  hint.textContent = '✓ 已发送切换到 Mode' + mode + ' 的指令';
+  hint.textContent = '✓ 已发送切换到模式' + mode + '的指令';
   setTimeout(() => { hint.textContent = ''; }, 2000);
 }
 
