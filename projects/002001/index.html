@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>STM32 功耗监测平台</title>
+<script src="mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --alarm: #F44336;
+    --alarm-bg: #FFEBEE;
+    --ok: #4CAF50;
+    --ok-bg: #E8F5E9;
+    --warn: #FF9800;
+    --text: #212121;
+    --sub: #757575;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+    color: var(--text);
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 12px;
+    padding-bottom: 24px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 12px 16px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--sub);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #F0F0F0;
+  }
+  .card-body { padding: 12px 16px; }
+
+  /* 状态栏 */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+  }
+  .status-title { font-size: 17px; font-weight: 700; }
+  .conn-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--sub);
+  }
+  .conn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ccc;
+    transition: background 0.3s;
+  }
+  .conn-dot.connected { background: var(--ok); }
+  .conn-dot.connecting { background: var(--warn); animation: blink 1s infinite; }
+
+  /* 数据行 */
+  .data-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #F5F5F5;
+  }
+  .data-row:last-child { border-bottom: none; }
+  .data-label { font-size: 13px; color: var(--sub); }
+  .data-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .data-value.alarm { color: var(--alarm); }
+  .data-unit { font-size: 13px; font-weight: 400; color: var(--sub); }
+
+  /* 模式徽章 */
+  .mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .mode-badge.mode1 { background: #E3F2FD; color: #2196F3; }
+  .mode-badge.mode2 { background: #FBE9E7; color: #FF5722; }
+  .mode-badge.mode3 { background: #F3E5F5; color: #9C27B0; }
+
+  /* 统计卡 */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .stat-cell {
+    background: #F8F9FA;
+    border-radius: 8px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .stat-label { font-size: 11px; color: var(--sub); margin-bottom: 4px; }
+  .stat-value { font-size: 15px; font-weight: 700; color: var(--text); }
+  .stat-value.mode1 { color: #2196F3; }
+  .stat-value.mode2 { color: #FF5722; }
+  .stat-value.mode3 { color: #9C27B0; }
+
+  /* 功率差 */
+  .diff-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    font-size: 13px;
+  }
+  .diff-item { flex: 1; }
+  .diff-label { color: var(--sub); font-size: 12px; }
+  .diff-value { font-weight: 700; font-size: 16px; }
+  .diff-value.pos { color: #E74C3C; }
+  .diff-value.neg { color: #27AE60; }
+  .diff-value.neu { color: #9B59B6; }
+
+  /* 按钮 */
+  .btn {
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn:active { opacity: 0.8; transform: scale(0.98); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-mode1 { background: #2196F3; color: #fff; }
+  .btn-mode2 { background: #FF5722; color: #fff; }
+  .btn-mode3 { background: #9C27B0; color: #fff; }
+
+  /* 曲线容器 */
+  .chart-container {
+    width: 100%;
+    height: 200px;
+    background: #FAFAFA;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .chart-canvas {
+    width: 100%;
+    height: 100%;
+  }
+  .chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    padding: 8px 0;
+    font-size: 12px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .legend-dot.mode1 { background: #2196F3; }
+  .legend-dot.mode2 { background: #FF5722; }
+  .legend-dot.mode3 { background: #9C27B0; }
+
+  /* 日志卡 */
+  .log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .log-toggle { font-size: 12px; color: var(--primary); }
+  .log-body { display: none; padding: 0 16px 12px; }
+  .log-body.open { display: block; }
+  .log-list {
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--sub);
+    line-height: 1.6;
+  }
+  .log-item { border-bottom: 1px solid #F5F5F5; padding: 3px 0; word-break: break-all; }
+
+  /* 操作按钮区 */
+  .action-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .action-row .btn { flex: 1; }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ① 状态栏卡 -->
+<div class="card">
+  <div class="status-bar">
+    <div class="status-title">STM32 功耗监测</div>
+    <div class="conn-badge">
+      <div class="conn-dot connecting" id="connDot"></div>
+      <span id="connText">连接中...</span>
+    </div>
+  </div>
+</div>
+
+<!-- ② 实时数据卡 -->
+<div class="card">
+  <div class="card-header">实时数据</div>
+  <div class="card-body">
+    <div class="data-row">
+      <span class="data-label">光照强度</span>
+      <div class="data-value" id="valLux">--<span class="data-unit">lx</span></div>
+    </div>
+    <div class="data-row">
+      <span class="data-label">电压</span>
+      <div class="data-value" id="valVolt">--<span class="data-unit">V</span></div>
+    </div>
+    <div class="data-row">
+      <span class="data-label">电流</span>
+      <div class="data-value" id="valCurr">--<span class="data-unit">A</span></div>
+    </div>
+    <div class="data-row">
+      <span class="data-label">功率</span>
+      <div class="data-value" id="valPower">--<span class="data-unit">W</span></div>
+    </div>
+    <div class="data-row">
+      <span class="data-label">工作模式</span>
+      <span class="mode-badge mode1" id="valMode">--</span>
+    </div>
+  </div>
+</div>
+
+<!-- ③ 三模式对比统计卡 -->
+<div class="card">
+  <div class="card-header">三模式功耗对比</div>
+  <div class="card-body">
+    <div class="stats-grid">
+      <div class="stat-cell">
+        <div class="stat-label">Mode1 平均功率</div>
+        <div class="stat-value mode1" id="statP1">-- mW</div>
+        <div class="stat-label" style="margin-top:4px;" id="statI1">-- mA</div>
+        <div class="stat-label" style="margin-top:2px;" id="statN1">0 次</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">Mode2 平均功率</div>
+        <div class="stat-value mode2" id="statP2">-- mW</div>
+        <div class="stat-label" style="margin-top:4px;" id="statI2">-- mA</div>
+        <div class="stat-label" style="margin-top:2px;" id="statN2">0 次</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">Mode3 平均功率</div>
+        <div class="stat-value mode3" id="statP3">-- mW</div>
+        <div class="stat-label" style="margin-top:4px;" id="statI3">-- mA</div>
+        <div class="stat-label" style="margin-top:2px;" id="statN3">0 次</div>
+      </div>
+    </div>
+    <div class="diff-row">
+      <div class="diff-item">
+        <div class="diff-label">功率差 (Mode1-Mode2)</div>
+        <div class="diff-value neu" id="diffP">-- mW</div>
+      </div>
+      <div class="diff-item">
+        <div class="diff-label">电流差 (Mode1-Mode2)</div>
+        <div class="diff-value neu" id="diffI">-- mA</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ④ 功率曲线卡 -->
+<div class="card">
+  <div class="card-header">功率曲线</div>
+  <div class="card-body">
+    <div class="chart-container">
+      <canvas class="chart-canvas" id="chartCanvas"></canvas>
+    </div>
+    <div class="chart-legend">
+      <div class="legend-item"><div class="legend-dot mode1"></div> Mode1</div>
+      <div class="legend-item"><div class="legend-dot mode2"></div> Mode2</div>
+      <div class="legend-item"><div class="legend-dot mode3"></div> Mode3</div>
+    </div>
+  </div>
+</div>
+
+<!-- ⑤ 模式切换控制卡 -->
+<div class="card">
+  <div class="card-header">模式切换</div>
+  <div class="card-body">
+    <div class="action-row">
+      <button class="btn btn-mode1" id="btnMode1" onclick="sendMode(1)" disabled>
+        Mode1 (HiRes)
+      </button>
+      <button class="btn btn-mode2" id="btnMode2" onclick="sendMode(2)" disabled>
+        Mode2 (LoRes)
+      </button>
+      <button class="btn btn-mode3" id="btnMode3" onclick="sendMode(3)" disabled>
+        Mode3 (Interval)
+      </button>
+    </div>
+    <div style="text-align:center;font-size:12px;color:var(--sub);margin-top:8px;" id="sendHint"></div>
+  </div>
+</div>
+
+<!-- ⑥ 日志卡（默认折叠） -->
+<div class="card">
+  <div class="log-header" onclick="toggleLog()">
+    <div class="card-header" style="border:none;padding:0;font-size:13px;">原始数据日志</div>
+    <span class="log-toggle" id="logToggleBtn">展开 ▼</span>
+  </div>
+  <div class="log-body" id="logBody">
+    <div class="log-list" id="logList">
+      <div class="log-item" style="color:#bbb;">暂无数据</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== MQTT 配置 =====================
+const UPLOAD_TOPIC = '001/001/dulaojiankang/upload';
+const CMD_TOPIC    = '001/001/dulaojiankang/cmd';
+
+let logOpen = false;
+let logData = [];
+let lastData = {};
+
+// ===================== 模式统计 =====================
+const modeStats = {
+  1: { sumP: 0, sumI: 0, count: 0 },
+  2: { sumP: 0, sumI: 0, count: 0 },
+  3: { sumP: 0, sumI: 0, count: 0 }
+};
+
+// ===================== 曲线数据 =====================
+const MAX_POINTS = 120;
+const curveData = {
+  1: [],
+  2: [],
+  3: []
+};
+
+// ===================== 模式标签 =====================
+const MODE_LABEL = {
+  1: 'Mode1 (HiRes)',
+  2: 'Mode2 (LoRes)',
+  3: 'Mode3 (Interval)'
+};
+
+// ===================== MQTT 连接 =====================
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+  clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+  reconnectPeriod: 3000,
+  connectTimeout: 10000
+});
+
+client.on('connect', () => {
+  setConnState('connected');
+  client.subscribe(UPLOAD_TOPIC);
+  client.subscribe(CMD_TOPIC);
+});
+
+client.on('reconnect', () => setConnState('connecting'));
+client.on('offline', () => setConnState('disconnected'));
+client.on('error', () => setConnState('disconnected'));
+
+client.on('message', (topic, payload) => {
+  const raw = payload.toString().trim();
+  if (topic === CMD_TOPIC) {
+    addLog('✓ 指令回显：' + raw);
+    return;
+  }
+  addLog(raw);
+
+  try {
+    const data = JSON.parse(raw);
+    lastData = data;
+    updateUI(data);
+    updateStats(data);
+    updateCurve(data);
+    drawChart();
+  } catch(e) {
+    addLog('解析失败：' + raw);
+  }
+});
+
+// ===================== UI 更新 =====================
+function updateUI(d) {
+  // 光照
+  if (d.lux !== undefined) {
+    document.getElementById('valLux').innerHTML = d.lux.toFixed(1) + '<span class="data-unit">lx</span>';
+  }
+
+  // 电压
+  if (d.volt !== undefined) {
+    document.getElementById('valVolt').innerHTML = d.volt.toFixed(3) + '<span class="data-unit">V</span>';
+  }
+
+  // 电流
+  if (d.curr !== undefined) {
+    document.getElementById('valCurr').innerHTML = d.curr.toFixed(3) + '<span class="data-unit">A</span>';
+  }
+
+  // 功率
+  if (d.power !== undefined) {
+    document.getElementById('valPower').innerHTML = d.power.toFixed(2) + '<span class="data-unit">W</span>';
+  }
+
+  // 模式
+  if (d.mode !== undefined) {
+    const modeEl = document.getElementById('valMode');
+    const modeLabels = { 1: 'Mode1 (HiRes)', 2: 'Mode2 (LoRes)', 3: 'Mode3 (Interval)' };
+    modeEl.textContent = modeLabels[d.mode] || 'Mode' + d.mode;
+    modeEl.className = 'mode-badge mode' + d.mode;
+  }
+}
+
+// ===================== 统计更新 =====================
+function updateStats(d) {
+  const mode = d.mode;
+  if (mode < 1 || mode > 3) return;
+
+  const powerMw = (d.power || 0) * 1000;  // W -> mW
+  const currMa = (d.curr || 0) * 1000;    // A -> mA
+
+  const stats = modeStats[mode];
+  stats.sumP += powerMw;
+  stats.sumI += currMa;
+  stats.count++;
+
+  const avgP = stats.sumP / stats.count;
+  const avgI = stats.sumI / stats.count;
+
+  document.getElementById('statP' + mode).textContent = avgP.toFixed(2) + ' mW';
+  document.getElementById('statI' + mode).textContent = avgI.toFixed(2) + ' mA';
+  document.getElementById('statN' + mode).textContent = stats.count + ' 次';
+
+  // 更新功率差
+  if (modeStats[1].count > 0 && modeStats[2].count > 0) {
+    const avgP1 = modeStats[1].sumP / modeStats[1].count;
+    const avgP2 = modeStats[2].sumP / modeStats[2].count;
+    const avgI1 = modeStats[1].sumI / modeStats[1].count;
+    const avgI2 = modeStats[2].sumI / modeStats[2].count;
+
+    const diffP = avgP1 - avgP2;
+    const diffI = avgI1 - avgI2;
+
+    const diffPEl = document.getElementById('diffP');
+    const diffIEl = document.getElementById('diffI');
+
+    diffPEl.textContent = (diffP >= 0 ? '+' : '') + diffP.toFixed(2) + ' mW';
+    diffIEl.textContent = (diffI >= 0 ? '+' : '') + diffI.toFixed(2) + ' mA';
+
+    diffPEl.className = 'diff-value ' + (diffP > 0.05 ? 'pos' : diffP < -0.05 ? 'neg' : 'neu');
+    diffIEl.className = 'diff-value ' + (Math.abs(diffI) > 0.01 ? (diffI > 0 ? 'pos' : 'neg') : 'neu');
+  }
+}
+
+// ===================== 曲线更新 =====================
+function updateCurve(d) {
+  const mode = d.mode;
+  if (mode < 1 || mode > 3) return;
+
+  const powerMw = (d.power || 0) * 1000;
+  curveData[mode].push(powerMw);
+
+  if (curveData[mode].length > MAX_POINTS) {
+    curveData[mode].shift();
+  }
+}
+
+// ===================== 绘制曲线 =====================
+function drawChart() {
+  const canvas = document.getElementById('chartCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // 设置 canvas 尺寸
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * window.devicePixelRatio;
+  canvas.height = rect.height * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  const width = rect.width;
+  const height = rect.height;
+  const padding = { top: 15, right: 10, bottom: 20, left: 45 };
+
+  // 清空画布
+  ctx.clearRect(0, 0, width, height);
+
+  // 计算 Y 轴范围
+  let allVals = [];
+  for (let m = 1; m <= 3; m++) {
+    allVals = allVals.concat(curveData[m]);
+  }
+
+  let minVal = 0;
+  let maxVal = 1;
+  if (allVals.length > 0) {
+    minVal = Math.min(...allVals);
+    maxVal = Math.max(...allVals);
+    const range = maxVal - minVal || 1;
+    minVal = Math.max(0, minVal - range * 0.1);
+    maxVal = maxVal + range * 0.1;
+  }
+
+  // 绘制网格
+  ctx.strokeStyle = '#E0E0E0';
+  ctx.lineWidth = 0.5;
+  ctx.setLineDash([3, 3]);
+
+  for (let i = 0; i <= 4; i++) {
+    const y = padding.top + (height - padding.top - padding.bottom) * i / 4;
+    const val = maxVal - (maxVal - minVal) * i / 4;
+
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+
+    // Y 轴标签
+    ctx.fillStyle = '#757575';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(val.toFixed(1), padding.left - 4, y + 3);
+  }
+
+  ctx.setLineDash([]);
+
+  // 绘制三条曲线
+  const colors = { 1: '#2196F3', 2: '#FF5722', 3: '#9C27B0' };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  for (let m = 1; m <= 3; m++) {
+    const data = curveData[m];
+    if (data.length < 2) continue;
+
+    ctx.strokeStyle = colors[m];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    for (let i = 0; i < data.length; i++) {
+      const x = padding.left + (i / (MAX_POINTS - 1)) * chartWidth;
+      const y = padding.top + ((maxVal - data[i]) / (maxVal - minVal)) * chartHeight;
+
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+
+    ctx.stroke();
+  }
+
+  // X 轴标签
+  ctx.fillStyle = '#757575';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('0', padding.left, height - 4);
+  ctx.fillText((MAX_POINTS / 2).toString(), width / 2, height - 4);
+  ctx.fillText(MAX_POINTS.toString(), width - padding.right, height - 4);
+}
+
+// ===================== 连接状态 =====================
+function setConnState(state) {
+  const dot = document.getElementById('connDot');
+  const txt = document.getElementById('connText');
+  const btns = [document.getElementById('btnMode1'), document.getElementById('btnMode2'), document.getElementById('btnMode3')];
+
+  dot.className = 'conn-dot ' + state;
+
+  if (state === 'connected') {
+    txt.textContent = '已连接';
+    btns.forEach(btn => btn.disabled = false);
+  } else if (state === 'connecting') {
+    txt.textContent = '连接中...';
+    btns.forEach(btn => btn.disabled = true);
+  } else {
+    txt.textContent = '未连接';
+    btns.forEach(btn => btn.disabled = true);
+  }
+}
+
+// ===================== 指令发送 =====================
+function sendMode(mode) {
+  if (!client.connected) {
+    alert('MQTT 未连接，请稍候重试');
+    return;
+  }
+
+  const cmd = JSON.stringify({ cmd: 'MODE' + mode });
+  client.publish(CMD_TOPIC, cmd);
+  addLog('↑ 发送指令：' + cmd);
+
+  // 按钮反馈
+  const hint = document.getElementById('sendHint');
+  hint.textContent = '✓ 已发送切换到 Mode' + mode + ' 的指令';
+  setTimeout(() => { hint.textContent = ''; }, 2000);
+}
+
+// ===================== 日志 =====================
+function addLog(msg) {
+  const now = new Date();
+  const t = now.toTimeString().substr(0, 8);
+  logData.unshift('[' + t + '] ' + msg);
+  if (logData.length > 20) logData.pop();
+  if (logOpen) renderLog();
+}
+
+function renderLog() {
+  const list = document.getElementById('logList');
+  list.innerHTML = logData.map(l => '<div class="log-item">' + l + '</div>').join('');
+}
+
+function toggleLog() {
+  logOpen = !logOpen;
+  document.getElementById('logBody').className = 'log-body' + (logOpen ? ' open' : '');
+  document.getElementById('logToggleBtn').textContent = logOpen ? '收起 ▲' : '展开 ▼';
+  if (logOpen) renderLog();
+}
+
+// ===================== 初始化图表 =====================
+window.addEventListener('resize', drawChart);
+setTimeout(drawChart, 500);
+</script>
+</body>
+</html>
