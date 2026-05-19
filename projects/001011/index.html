@@ -70,7 +70,18 @@
         }
         .data-value.alarm { color: var(--alarm); }
         .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
-        .alarm-card {
+        .alarm-badge {
+            display: inline-block;
+            background: var(--alarm);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            margin: 4px 0;
+            width: 100%;
+            text-align: center;
+        }
+        .alarm-ok {
             background: var(--ok);
             color: white;
             padding: 12px 16px;
@@ -78,9 +89,6 @@
             text-align: center;
             font-size: 16px;
             font-weight: 500;
-        }
-        .alarm-card.active {
-            background: var(--alarm);
         }
         .btn {
             background: var(--primary);
@@ -130,12 +138,17 @@
             min-height: 40px;
         }
         .threshold-btn:hover { background: #1976D2; }
-        .threshold-display {
-            font-size: 20px;
-            font-weight: bold;
-            color: var(--primary);
-            padding: 8px 0;
+        .threshold-display-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
         }
+        .threshold-display-row:last-child { border-bottom: none; }
+        .thr-label { font-size: 13px; color: var(--sub); }
+        .thr-value { font-size: 18px; font-weight: bold; color: var(--primary); }
+        .thr-unit { font-size: 12px; color: var(--sub); margin-left: 4px; }
         .log-card { cursor: pointer; }
         .log-content {
             display: none;
@@ -158,6 +171,10 @@
             font-size: 13px;
             color: var(--sub);
             padding: 4px 0;
+        }
+        .alarm-exclamation {
+            color: var(--alarm);
+            font-weight: bold;
         }
     </style>
 </head>
@@ -182,7 +199,7 @@
         <div class="data-row">
             <span class="data-label">作业速度</span>
             <div>
-                <span class="data-value" id="speed">--</span>
+                <span class="data-value" id="speed">--</span><span id="speedExcl"></span>
                 <span class="data-unit">km/h</span>
             </div>
         </div>
@@ -202,23 +219,74 @@
         </div>
     </div>
 
+    <!-- 传感器数据卡 -->
+    <div class="card">
+        <div class="card-title">传感器数据</div>
+        <div class="data-row">
+            <span class="data-label">温度</span>
+            <div>
+                <span class="data-value" id="temp">--</span><span id="tempExcl"></span>
+                <span class="data-unit">℃</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">湿度</span>
+            <div>
+                <span class="data-value" id="humi">--</span><span id="humiExcl"></span>
+                <span class="data-unit">%</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">土壤湿度</span>
+            <div>
+                <span class="data-value" id="soil">--</span><span id="soilExcl"></span>
+                <span class="data-unit">%</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">PH 值</span>
+            <div>
+                <span class="data-value" id="ph">--</span><span id="phExcl"></span>
+            </div>
+        </div>
+    </div>
+
     <!-- 报警状态卡 -->
     <div class="card">
         <div class="card-title">报警状态</div>
-        <div class="alarm-card" id="alarmCard">运行正常 ✓</div>
+        <div id="alarmContainer">
+            <div class="alarm-ok" id="alarmOk">运行正常 ✓</div>
+        </div>
     </div>
 
     <!-- 控制卡 -->
     <div class="card">
         <div class="card-title">远程控制</div>
-        <button class="btn btn-mute" id="muteBtn" onclick="sendMute()">消警</button>
+        <button class="btn btn-mute" onclick="sendMute()">消 警</button>
     </div>
 
-    <!-- 阈值显示卡 -->
+    <!-- 当前阈值显示卡 -->
     <div class="card">
         <div class="card-title">当前阈值（下位机上报）</div>
-        <div class="threshold-display">
-            <span id="thresholdDisplay">--</span> km/h
+        <div class="threshold-display-row">
+            <span class="thr-label">速度阈值</span>
+            <div><span class="thr-value" id="thrDispSpeed">--</span><span class="thr-unit">km/h</span></div>
+        </div>
+        <div class="threshold-display-row">
+            <span class="thr-label">温度阈值</span>
+            <div><span class="thr-value" id="thrDispTemp">--</span><span class="thr-unit">℃</span></div>
+        </div>
+        <div class="threshold-display-row">
+            <span class="thr-label">湿度阈值</span>
+            <div><span class="thr-value" id="thrDispHumi">--</span><span class="thr-unit">%</span></div>
+        </div>
+        <div class="threshold-display-row">
+            <span class="thr-label">土壤阈值</span>
+            <div><span class="thr-value" id="thrDispSoil">--</span><span class="thr-unit">%</span></div>
+        </div>
+        <div class="threshold-display-row">
+            <span class="thr-label">PH 阈值</span>
+            <div><span class="thr-value" id="thrDispPh">--</span></div>
         </div>
     </div>
 
@@ -226,9 +294,29 @@
     <div class="card">
         <div class="card-title">阈值设置</div>
         <div class="threshold-row">
-            <span class="threshold-label">速度阈值 (1~30)</span>
-            <input type="number" class="threshold-input" id="thresholdInput" min="1" max="30" value="10">
-            <button class="threshold-btn" onclick="setThreshold()">发送</button>
+            <span class="threshold-label">速度 (1~30)</span>
+            <input type="number" class="threshold-input" id="thrInputSpeed" min="1" max="30" value="10">
+            <button class="threshold-btn" onclick="setThreshold('speed')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">温度 (0~50)</span>
+            <input type="number" class="threshold-input" id="thrInputTemp" min="0" max="50" value="35">
+            <button class="threshold-btn" onclick="setThreshold('temp')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">湿度 (0~100)</span>
+            <input type="number" class="threshold-input" id="thrInputHumi" min="0" max="100" value="80">
+            <button class="threshold-btn" onclick="setThreshold('humi')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">土壤 (0~100)</span>
+            <input type="number" class="threshold-input" id="thrInputSoil" min="0" max="100" value="20">
+            <button class="threshold-btn" onclick="setThreshold('soil')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">PH (0.0~14.0)</span>
+            <input type="number" class="threshold-input" id="thrInputPh" min="0" max="140" value="80" step="1">
+            <button class="threshold-btn" onclick="setThreshold('ph')">发送</button>
         </div>
     </div>
 
@@ -243,24 +331,22 @@
 
     <script src="mqtt.min.js"></script>
     <script>
-        // ==================== MQTT Topic（来自下位机代码） ====================
+        // ==================== MQTT Topic ====================
         const UPLOAD_TOPIC = '583924/471605/jinggaijiance/upload';
         const CMD_TOPIC = '583924/471605/jinggaijiance/cmd';
 
         // ==================== 数据状态 ====================
         let currentData = {
-            speed: null,
-            area: null,
-            lat: null,
-            lon: null,
-            threshold: null
+            speed: null, area: null, lat: null, lon: null,
+            temp: null, humi: null, soil: null, ph: null,
+            speed_thr: null, temp_thr: null, humi_thr: null, soil_thr: null, ph_thr: null
         };
 
-        // ==================== 同步保护状态 ====================
-        let waitingSync = { threshold: false };
-        let pendingValue = { threshold: null };
-        let syncTimeoutTimer = { threshold: null };
-        let lastUserSetTime = { threshold: 0 };
+        // ==================== 同步保护状态（5 个独立阈值） ====================
+        let waitingSync = { speed: false, temp: false, humi: false, soil: false, ph: false };
+        let pendingValue = { speed: null, temp: null, humi: null, soil: null, ph: null };
+        let syncTimeoutTimer = { speed: null, temp: null, humi: null, soil: null, ph: null };
+        let lastUserSetTime = { speed: 0, temp: 0, humi: 0, soil: 0, ph: 0 };
 
         const DEBOUNCE_MS = 500;
         const SYNC_TIMEOUT_MS = 5000;
@@ -325,12 +411,21 @@
             const parts = msg.split(',');
             if (parts.length < 5) return;
 
+            // 完整 13 字段解析
             const newData = {
                 speed: parseFloat(parts[0]),
                 area: parseFloat(parts[1]),
                 lat: parseFloat(parts[2]),
                 lon: parseFloat(parts[3]),
-                threshold: parseInt(parts[4])
+                temp: parts.length > 4 && parts[4] !== '' ? parseInt(parts[4]) / 10.0 : null,
+                humi: parts.length > 5 && parts[5] !== '' ? parseInt(parts[5]) : null,
+                soil: parts.length > 6 && parts[6] !== '' ? parseInt(parts[6]) : null,
+                ph: parts.length > 7 && parts[7] !== '' ? parseInt(parts[7]) / 10.0 : null,
+                speed_thr: parts.length > 8 && parts[8] !== '' ? parseInt(parts[8]) : null,
+                temp_thr: parts.length > 9 && parts[9] !== '' ? parseInt(parts[9]) : null,
+                humi_thr: parts.length > 10 && parts[10] !== '' ? parseInt(parts[10]) : null,
+                soil_thr: parts.length > 11 && parts[11] !== '' ? parseInt(parts[11]) : null,
+                ph_thr: parts.length > 12 && parts[12] !== '' ? parseInt(parts[12]) / 10.0 : null
             };
 
             // 传感器值始终更新
@@ -338,70 +433,71 @@
             currentData.area = newData.area;
             currentData.lat = newData.lat;
             currentData.lon = newData.lon;
+            currentData.temp = newData.temp;
+            currentData.humi = newData.humi;
+            currentData.soil = newData.soil;
+            currentData.ph = newData.ph;
 
-            // 检查是否有正在等待同步的阈值
-            let hasPendingSync = false;
-            if (waitingSync.threshold) {
-                hasPendingSync = true;
-                const expectedValue = pendingValue.threshold;
-                const receivedValue = newData.threshold;
-
-                // 检查下位机是否确认了新值（允许小范围误差）
-                if (expectedValue !== null && Math.abs(receivedValue - expectedValue) < 0.5) {
-                    console.log(`Sync confirmed for threshold: ${receivedValue}`);
-
-                    // 同步成功，清除定时器
-                    if (syncTimeoutTimer.threshold) {
-                        clearTimeout(syncTimeoutTimer.threshold);
-                        syncTimeoutTimer.threshold = null;
-                    }
-
-                    // 释放保护状态
-                    waitingSync.threshold = false;
-                    pendingValue.threshold = null;
-                    lastUserSetTime.threshold = 0;
-                }
-            }
-
-            // 阈值更新逻辑（三重保护）
+            // 阈值同步逻辑
+            const thresholds = ['speed', 'temp', 'humi', 'soil', 'ph'];
+            const rawThrValues = [newData.speed_thr, newData.temp_thr, newData.humi_thr, newData.soil_thr, newData.ph_thr];
             const now = Date.now();
-            if (!lastUserSetTime.threshold || (now - lastUserSetTime.threshold) >= DEBOUNCE_MS) {
-                if (!waitingSync.threshold) {
-                    currentData.threshold = newData.threshold;
+
+            for (let i = 0; i < thresholds.length; i++) {
+                const key = thresholds[i];
+                let hasPendingSync = waitingSync[key];
+
+                // 检查同步确认
+                if (hasPendingSync && pendingValue[key] !== null) {
+                    const expected = pendingValue[key];
+                    const received = rawThrValues[i];
+                    const tolerance = (key === 'ph') ? 0.2 : 0.5;
+                    if (Math.abs(received - expected) < tolerance) {
+                        if (syncTimeoutTimer[key]) {
+                            clearTimeout(syncTimeoutTimer[key]);
+                            syncTimeoutTimer[key] = null;
+                        }
+                        waitingSync[key] = false;
+                        pendingValue[key] = null;
+                        lastUserSetTime[key] = 0;
+                        console.log(`Sync confirmed for ${key}: ${received}`);
+                    }
+                }
+
+                // 阈值更新（等待期间冻结）
+                if (!lastUserSetTime[key] || (now - lastUserSetTime[key]) >= DEBOUNCE_MS) {
+                    if (!waitingSync[key]) {
+                        // 写入 currentData
+                        if (key === 'speed') currentData.speed_thr = rawThrValues[i];
+                        else if (key === 'temp') currentData.temp_thr = rawThrValues[i];
+                        else if (key === 'humi') currentData.humi_thr = rawThrValues[i];
+                        else if (key === 'soil') currentData.soil_thr = rawThrValues[i];
+                        else if (key === 'ph') currentData.ph_thr = rawThrValues[i];
+                    }
                 }
             }
 
             updateUI();
             updateTime();
-
-            // 报警判断
-            if (hasPendingSync) {
-                checkAlarmsWithPending();
-            } else {
-                checkAlarms();
-            }
+            checkAlarms();
         }
 
         // ==================== UI 更新 ====================
+        function getThr(key) {
+            return waitingSync[key] ? pendingValue[key] : currentData[key + '_thr'];
+        }
+
         function updateUI() {
             // 速度
             if (currentData.speed !== null) {
-                const el = document.getElementById('speed');
-                el.textContent = currentData.speed.toFixed(1);
-                // 报警时标红
-                const thresh = waitingSync.threshold ? pendingValue.threshold : currentData.threshold;
-                if (thresh !== null && currentData.speed >= thresh) {
-                    el.classList.add('alarm');
-                } else {
-                    el.classList.remove('alarm');
-                }
+                document.getElementById('speed').textContent = currentData.speed.toFixed(1);
+                const thr = getThr('speed');
+                document.getElementById('speedExcl').innerHTML = (thr !== null && currentData.speed >= thr) ? '<span class="alarm-exclamation">!</span>' : '';
             }
-
             // 面积
             if (currentData.area !== null) {
                 document.getElementById('area').textContent = currentData.area.toFixed(2);
             }
-
             // GPS
             if (currentData.lat !== null && currentData.lon !== null) {
                 if (currentData.lat === 0.0 && currentData.lon === 0.0) {
@@ -412,14 +508,45 @@
                     document.getElementById('lat').textContent = currentData.lat.toFixed(4);
                     document.getElementById('lon').textContent = currentData.lon.toFixed(4);
                     document.getElementById('gpsCoords').style.display = 'block';
+                    reverseGeo(currentData.lat, currentData.lon);
                 }
             }
-
-            // 阈值显示（关键：等待期间显示预测值）
-            if (currentData.threshold !== null) {
-                const displayValue = waitingSync.threshold ? pendingValue.threshold : currentData.threshold;
-                document.getElementById('thresholdDisplay').textContent = displayValue;
+            // 温度
+            if (currentData.temp !== null) {
+                document.getElementById('temp').textContent = currentData.temp.toFixed(1);
+                const thr = getThr('temp');
+                document.getElementById('tempExcl').innerHTML = (thr !== null && currentData.temp > thr) ? '<span class="alarm-exclamation">!</span>' : '';
             }
+            // 湿度
+            if (currentData.humi !== null) {
+                document.getElementById('humi').textContent = currentData.humi;
+                const thr = getThr('humi');
+                document.getElementById('humiExcl').innerHTML = (thr !== null && currentData.humi > thr) ? '<span class="alarm-exclamation">!</span>' : '';
+            }
+            // 土壤湿度
+            if (currentData.soil !== null) {
+                document.getElementById('soil').textContent = currentData.soil;
+                const thr = getThr('soil');
+                // soil=0 视为未放入土壤，不报警
+                document.getElementById('soilExcl').innerHTML = (thr !== null && currentData.soil > 0 && currentData.soil < thr) ? '<span class="alarm-exclamation">!</span>' : '';
+            }
+            // PH 值
+            if (currentData.ph !== null) {
+                document.getElementById('ph').textContent = currentData.ph.toFixed(1);
+                const thr = getThr('ph');
+                document.getElementById('phExcl').innerHTML = (thr !== null && currentData.ph > thr) ? '<span class="alarm-exclamation">!</span>' : '';
+            }
+            // 阈值显示
+            const speedThrVal = getThr('speed');
+            if (speedThrVal !== null) document.getElementById('thrDispSpeed').textContent = speedThrVal;
+            const tempThrVal = getThr('temp');
+            if (tempThrVal !== null) document.getElementById('thrDispTemp').textContent = tempThrVal;
+            const humiThrVal = getThr('humi');
+            if (humiThrVal !== null) document.getElementById('thrDispHumi').textContent = humiThrVal;
+            const soilThrVal = getThr('soil');
+            if (soilThrVal !== null) document.getElementById('thrDispSoil').textContent = soilThrVal;
+            const phThrVal = getThr('ph');
+            if (phThrVal !== null) document.getElementById('thrDispPh').textContent = phThrVal.toFixed(1);
         }
 
         function updateTime() {
@@ -427,40 +554,32 @@
             document.getElementById('updateTime').textContent = now.toLocaleTimeString();
         }
 
+        // ==================== GPS 逆地理编码 ====================
+        function reverseGeo(lat, lon) {
+            if (lat === 0 || lon === 0) return;
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=zh-CN&zoom=10`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.address) {
+                        const parts = [];
+                        if (data.address.city || data.address.town) parts.push(data.address.city || data.address.town);
+                        if (data.address.county) parts.push(data.address.county);
+                        if (data.address.state) parts.push(data.address.state);
+                        if (parts.length > 0) {
+                            document.getElementById('gpsText').textContent = parts.join(' · ');
+                        }
+                    }
+                })
+                .catch(() => {});
+        }
+
         // ==================== 报警判断 ====================
         function checkAlarms() {
-            const card = document.getElementById('alarmCard');
-            if (currentData.speed !== null && currentData.threshold !== null) {
-                if (currentData.speed >= currentData.threshold) {
-                    card.textContent = '超速报警！';
-                    card.classList.add('active');
-                    sendAlarmToNative({ type: 'overspeed', speed: currentData.speed, threshold: currentData.threshold });
-                } else {
-                    card.textContent = '运行正常 ✓';
-                    card.classList.remove('active');
-                }
-            }
-        }
-
-        function checkAlarmsWithPending() {
-            const card = document.getElementById('alarmCard');
-            const thresh = waitingSync.threshold ? pendingValue.threshold : currentData.threshold;
-            if (currentData.speed !== null && thresh !== null) {
-                if (currentData.speed >= thresh) {
-                    card.textContent = '超速报警！';
-                    card.classList.add('active');
-                    sendAlarmToNative({ type: 'overspeed', speed: currentData.speed, threshold: thresh });
-                } else {
-                    card.textContent = '运行正常 ✓';
-                    card.classList.remove('active');
-                }
-            }
-        }
-
-        // ==================== JS Bridge（Android WebView） ====================
-        function sendAlarmToNative(data) {
-            if (window.Android && window.Android.onAlarm) {
-                window.Android.onAlarm(JSON.stringify(data));
+            const thrSpeed = getThr('speed');
+            if (currentData.speed !== null && thrSpeed !== null && currentData.speed >= thrSpeed) {
+                document.getElementById('alarmContainer').innerHTML = '<div class="alarm-badge">超速报警</div>';
+            } else {
+                document.getElementById('alarmContainer').innerHTML = '<div class="alarm-ok">运行正常 ✓</div>';
             }
         }
 
@@ -470,51 +589,67 @@
             addLog('发送消警指令: 01');
         }
 
-        function setThreshold() {
-            const input = document.getElementById('thresholdInput');
-            const value = parseInt(input.value);
+        function setThreshold(key) {
+            const cmdMap = { speed: '02', temp: '03', humi: '04', soil: '05', ph: '06' };
+            const inputMap = { speed: 'thrInputSpeed', temp: 'thrInputTemp', humi: 'thrInputHumi', soil: 'thrInputSoil', ph: 'thrInputPh' };
+            const thrKeyMap = { speed: 'speed_thr', temp: 'temp_thr', humi: 'humi_thr', soil: 'soil_thr', ph: 'ph_thr' };
 
-            if (!value || isNaN(value)) {
-                alert('请输入有效阈值');
+            const input = document.getElementById(inputMap[key]);
+            let value = parseFloat(input.value);
+            if (isNaN(value)) {
+                alert('请输入有效数值');
                 return;
             }
 
-            if (value < 1 || value > 30) {
-                alert('阈值范围: 1~30 km/h');
+            const cmd = cmdMap[key];
+
+            // PH 阈值需要 ×10 发送
+            let sendValue = value;
+            let displayValue = value;
+            if (key === 'ph') {
+                sendValue = Math.round(value * 10);
+            } else {
+                sendValue = Math.round(value);
+            }
+
+            // 范围检查
+            const rangeMap = {
+                speed: [1, 30], temp: [0, 50], humi: [0, 100], soil: [0, 100], ph: [0, 140]
+            };
+            const [min, max] = rangeMap[key];
+            if (sendValue < min || sendValue > max) {
+                alert(`阈值范围: ${min}~${max}`);
                 return;
             }
 
             // 检查是否正在等待同步
-            if (waitingSync.threshold) {
-                console.log('Already waiting sync for threshold');
+            if (waitingSync[key]) {
                 return;
             }
 
-            // 1. 设置等待同步状态
-            waitingSync.threshold = true;
-            pendingValue.threshold = value;
+            // 设置等待同步状态
+            waitingSync[key] = true;
+            pendingValue[key] = (key === 'ph') ? sendValue / 10.0 : sendValue;
 
-            // 2. 发送指令
-            client.publish(CMD_TOPIC, `02,${value}`);
-            addLog(`发送阈值指令: 02,${value}`);
+            // 发送指令
+            client.publish(CMD_TOPIC, `${cmd},${sendValue}`);
+            addLog(`发送阈值指令: ${cmd},${sendValue}`);
 
-            // 3. 记录用户操作时间（防抖）
-            lastUserSetTime.threshold = Date.now();
+            // 记录用户操作时间
+            lastUserSetTime[key] = Date.now();
 
-            // 4. 立即更新显示（预测状态）
-            currentData.threshold = value;
+            // 立即更新显示（预测状态）
+            currentData[thrKeyMap[key]] = pendingValue[key];
             updateUI();
+            checkAlarms();
 
-            // 5. 立即检查报警（即时反馈）
-            checkAlarmsWithPending();
-
-            // 6. 设置超时保护
-            syncTimeoutTimer.threshold = setTimeout(() => {
-                if (waitingSync.threshold) {
-                    console.warn('Sync timeout for threshold, releasing protection');
-                    waitingSync.threshold = false;
-                    pendingValue.threshold = null;
-                    syncTimeoutTimer.threshold = null;
+            // 超时保护
+            syncTimeoutTimer[key] = setTimeout(() => {
+                if (waitingSync[key]) {
+                    console.warn(`Sync timeout for ${key}, releasing protection`);
+                    waitingSync[key] = false;
+                    pendingValue[key] = null;
+                    syncTimeoutTimer[key] = null;
                 }
             }, SYNC_TIMEOUT_MS);
 
