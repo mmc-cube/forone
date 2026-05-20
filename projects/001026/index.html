@@ -158,6 +158,7 @@
             color: var(--sub);
         }
         .control-btn:active { transform: scale(0.98); }
+        .hidden-feature { display: none !important; }
         .mode-btn {
             width: 100%;
             height: 48px;
@@ -278,7 +279,7 @@
                 <span class="data-label">湿度</span>
                 <span class="data-value" id="humi">--<span class="data-unit">%</span></span>
             </div>
-            <div class="data-item">
+            <div class="data-item hidden-feature">
                 <span class="data-label">水分</span>
                 <span class="data-value" id="mois">--<span class="data-unit">%</span></span>
             </div>
@@ -290,7 +291,7 @@
         <div class="status-row">
             <span class="device-status" id="dryStatus">烘干: --</span>
             <span class="device-status" id="ventStatus">通风: --</span>
-            <span class="device-status" id="pumpStatus">水泵: --</span>
+            <span class="device-status hidden-feature" id="pumpStatus">水泵: --</span>
             <span class="device-status" id="heatStatus">加热: --</span>
         </div>
         <div class="status-row" id="dryLevelRow" style="display:none;">
@@ -322,7 +323,7 @@
         </div>
         <div class="control-grid">
             <button class="control-btn off" id="ventBtn" onclick="toggleDevice('vent', '12', '13')">通风 OFF</button>
-            <button class="control-btn off" id="pumpBtn" onclick="toggleDevice('pump', '14', '15')">水泵 OFF</button>
+            <button class="control-btn off hidden-feature" id="pumpBtn" onclick="toggleDevice('pump', '14', '15')">水泵 OFF</button>
             <button class="control-btn off" id="heatBtn" onclick="toggleDevice('heat', '16', '17')">加热 OFF</button>
         </div>
         <button class="mode-btn" onclick="toggleMode()">切换为 AUTO 模式</button>
@@ -345,7 +346,7 @@
                 <span>湿度阈值</span>
                 <span class="threshold-value" id="thrHumiDisplay">-- %</span>
             </div>
-            <div class="threshold-item">
+            <div class="threshold-item hidden-feature">
                 <span>水分阈值</span>
                 <span class="threshold-value" id="thrMoisDisplay">-- %</span>
             </div>
@@ -370,7 +371,7 @@
                 <input type="number" id="thrHumiInput" placeholder="70">
                 <button onclick="setThreshold('humi', '03')">发送</button>
             </div>
-            <div class="threshold-row">
+            <div class="threshold-row hidden-feature">
                 <label>水分阈值</label>
                 <input type="number" id="thrMoisInput" placeholder="40">
                 <button onclick="setThreshold('mois', '04')">发送</button>
@@ -453,6 +454,7 @@
         let client;
 
         function initMQTT() {
+            hideRemovedFeatures();
             client = mqtt.connect(BROKER, {
                 clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
                 reconnectPeriod: 3000
@@ -608,6 +610,7 @@
 
         // ==================== UI 更新 ====================
         function updateUI() {
+            hideRemovedFeatures();
             // 传感器值（超限标红）
             const thrTemp = waitingSync.temp ? pendingValue.temp : currentData.thr_temp;
             const thrHumi = waitingSync.humi ? pendingValue.humi : currentData.thr_humi;
@@ -718,6 +721,13 @@
             el.className = 'control-btn ' + (state ? 'on' : 'off');
         }
 
+        function hideRemovedFeatures() {
+            for (const id of ['pumpStatus', 'pumpBtn', 'thrMoisDisplay', 'thrMoisInput']) {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            }
+        }
+
         // ==================== 烘干强度显示 ====================
         const dryLevelNames = { OFF: '停止', LOW: '弱', MED: '中', HIGH: '强' };
 
@@ -791,9 +801,6 @@
             if (currentData.temp !== null && currentData.thr_temp !== null && currentData.temp > currentData.thr_temp) {
                 alarms.push('温度超限 (' + currentData.temp.toFixed(1) + '°C > ' + currentData.thr_temp + '°C)');
             }
-            if (currentData.mois !== null && currentData.thr_mois !== null && currentData.mois > currentData.thr_mois) {
-                alarms.push('水分超限 (' + currentData.mois + '% > ' + currentData.thr_mois + '%)');
-            }
             if (currentData.smoke !== null && currentData.thr_smoke !== null && currentData.smoke > currentData.thr_smoke) {
                 alarms.push('烟雾超限 (' + currentData.smoke + '% > ' + currentData.thr_smoke + '%)');
             }
@@ -809,9 +816,6 @@
 
             if (currentData.temp !== null && thrTemp !== null && currentData.temp > thrTemp) {
                 alarms.push('温度超限 (' + currentData.temp.toFixed(1) + '°C > ' + thrTemp + '°C)');
-            }
-            if (currentData.mois !== null && thrMois !== null && currentData.mois > thrMois) {
-                alarms.push('水分超限 (' + currentData.mois + '% > ' + thrMois + '%)');
             }
             if (currentData.smoke !== null && thrSmoke !== null && currentData.smoke > thrSmoke) {
                 alarms.push('烟雾超限 (' + currentData.smoke + '% > ' + thrSmoke + '%)');
