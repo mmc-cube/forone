@@ -254,7 +254,7 @@
     </div>
     <div class="alarm-card full hidden" id="alarmFull">
       <span class="icon">&#9888;&#65039;</span>
-      <span>垃圾已满，请及时清理</span>
+      <span>已经使用五次，请即使清理</span>
     </div>
     <div class="btn-row" style="margin-top:10px">
       <button class="btn btn-alarm" onclick="sendCmd('01')">&#128276; 消警</button>
@@ -419,7 +419,7 @@ function updateUI(data) {
 
   // 溢满
   const fullEl = document.getElementById('valFull');
-  fullEl.textContent = data.full === 1 ? '已满' : '正常';
+  fullEl.textContent = data.full === 1 ? '检测是否溢满' : '正常';
   fullEl.className = 'data-value' + (data.full === 1 ? ' warn' : '');
 
   // 桶盖状态
