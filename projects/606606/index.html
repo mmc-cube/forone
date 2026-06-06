@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>今日训练计划</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --blue: #2563eb;
+      --blue2: #1d4ed8;
+      --blue-soft: #dbeafe;
+      --green: #16a34a;
+      --green-soft: #dcfce7;
+      --gray-soft: #f1f5f9;
+      --orange-soft: #fff7ed;
+      --orange: #c2410c;
+      --shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: max(14px, env(safe-area-inset-top)) 14px 12px;
+      background: linear-gradient(135deg, var(--blue2), #3b82f6);
+      color: white;
+      box-shadow: 0 8px 26px rgba(37, 99, 235, 0.25);
+      border-bottom-left-radius: 22px;
+      border-bottom-right-radius: 22px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: -0.3px;
+    }
+
+    .title-block p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .today-pill {
+      flex: 0 0 auto;
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .page {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 14px 12px 34px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      margin: 12px 0;
+      overflow: hidden;
+    }
+
+    .card-pad {
+      padding: 16px;
+    }
+
+    .today-card {
+      border: 2px solid rgba(37, 99, 235, 0.28);
+    }
+
+    .today-card.done {
+      border-color: rgba(22, 163, 74, 0.42);
+      background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 10px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: -0.2px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--blue);
+      background: var(--blue-soft);
+      white-space: nowrap;
+    }
+
+    .badge.rest {
+      color: #475569;
+      background: var(--gray-soft);
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .main-rule {
+      margin-top: 10px;
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: var(--orange-soft);
+      color: var(--orange);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .mini-nav {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(54px, 1fr));
+      gap: 7px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+
+    .mini-nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .day-btn {
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--text);
+      border-radius: 14px;
+      padding: 9px 6px;
+      min-width: 54px;
+      text-align: center;
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .day-btn span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .day-btn.active {
+      border-color: rgba(37, 99, 235, 0.45);
+      background: var(--blue-soft);
+      color: var(--blue2);
+    }
+
+    .day-btn.rest-day.active {
+      border-color: #cbd5e1;
+      background: var(--gray-soft);
+      color: #475569;
+    }
+
+    .day-btn.done span::after {
+      content: " ✓";
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .exercise-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .exercise {
+      border: 1px solid var(--line);
+      background: #fbfdff;
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .exercise-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .exercise-name {
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .sets {
+      flex: 0 0 auto;
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: var(--green);
+      background: var(--green-soft);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: 78px 1fr;
+      gap: 6px 8px;
+      font-size: 14px;
+    }
+
+    .meta .label {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .meta .value {
+      color: #374151;
+    }
+
+    .rest-box {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      color: #475569;
+      font-size: 15px;
+    }
+
+    .complete-panel {
+      display: grid;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    .complete-btn {
+      width: 100%;
+      border: 0;
+      border-radius: 15px;
+      padding: 13px 14px;
+      background: var(--blue);
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 900;
+      font-family: inherit;
+    }
+
+    .complete-btn.done {
+      background: var(--green);
+    }
+
+    .complete-status {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .footer-note {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      margin: 18px 0 0;
+    }
+
+    .page-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border: 1px solid rgba(37, 99, 235, 0.24);
+      border-radius: 16px;
+      padding: 13px 14px;
+      background: #eff6ff;
+      color: var(--blue2);
+      text-decoration: none;
+      font-weight: 900;
+    }
+
+    .page-link span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    @media (min-width: 680px) {
+
+      .title-block h1 {
+        font-size: 24px;
+      }
+
+      .page {
+        padding-top: 18px;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .title-block h1 {
+        font-size: 20px;
+      }
+
+      .today-pill {
+        font-size: 12px;
+        padding: 6px 8px;
+      }
+
+      .meta {
+        grid-template-columns: 70px 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="app-header">
+    <div class="header-top">
+      <div class="title-block">
+        <h1>今日训练计划</h1>
+        <p id="dateText">自动识别今天是周几</p>
+      </div>
+      <div class="today-pill" id="todayPill">今天</div>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="card today-card">
+      <div class="card-pad">
+        <div class="section-title">
+          <h2 id="todayTitle">今天训练</h2>
+          <span class="badge" id="todayBadge">加载中</span>
+        </div>
+        <p class="subtitle" id="todayDesc"></p>
+        <div class="main-rule">关键规则：引体先用全握，不用半握；每组不要练到完全崩，保留1个余力。</div>
+        <div id="todayExercises" class="exercise-list"></div>
+        <div class="complete-panel">
+          <button class="complete-btn" id="completeBtn" type="button">完成今日任务</button>
+          <p class="complete-status" id="completeStatus">练完后点一下，今天就算完成。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-pad">
+        <div class="section-title">
+          <h2>快速切换</h2>
+          <span class="badge">周计划</span>
+        </div>
+        <div class="mini-nav" id="dayNav"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-pad">
+        <div class="section-title">
+          <h2>总览页面</h2>
+          <span class="badge">第二页</span>
+        </div>
+        <a class="page-link" href="mobile_today_training_plan_weekly.html">
+          <div>
+            每周总览
+            <span>8周循环内容</span>
+          </div>
+          <div>查看</div>
+        </a>
+      </div>
+    </section>
+
+    <p class="footer-note">执行原则：周一反手，周三正手，周五反手；周二周六短练腹部；周四周日恢复。</p>
+  </main>
+
+  <script>
+    const plans = [
+      {
+        day: "周日",
+        type: "休息",
+        tag: "恢复日",
+        rest: true,
+        desc: "恢复，不硬练。",
+        summary: "恢复，不硬练。",
+        exercises: [
+          {
+            name: "建议",
+            sets: "休息",
+            reps: "休息、散步、补蛋白、睡够。",
+            note: "不要天天硬练引体。"
+          }
+        ]
+      },
+      {
+        day: "周一",
+        type: "主训练 A",
+        tag: "背 + 胳膊 + 胸肩 + 腹",
+        desc: "反手引体日：背、胳膊、胸、肩、腹。",
+        summary: "反手引体日：背、胳膊、胸、肩、腹。",
+        exercises: [
+          {
+            name: "反手全握引体",
+            sets: "5-8组",
+            reps: "每组1-2个",
+            note: "做不了就跳上去，慢慢下放3-5秒。"
+          },
+          {
+            name: "上斜俯卧撑",
+            sets: "4组",
+            reps: "6-12个",
+            note: "桌边/床边都行，身体保持一条线。"
+          },
+          {
+            name: "侧平举",
+            sets: "3组",
+            reps: "12-20个",
+            note: "练肩中束，不耸肩，不甩。"
+          },
+          {
+            name: "平板支撑",
+            sets: "3组",
+            reps: "30-45秒",
+            note: "腹部收紧，不塌腰。"
+          },
+          {
+            name: "死虫",
+            sets: "2组",
+            reps: "每边10个",
+            note: "腰贴地，动作慢。"
+          }
+        ]
+      },
+      {
+        day: "周二",
+        type: "腹部短练",
+        tag: "8-10分钟",
+        desc: "平板支撑 + 死虫，8-10分钟。",
+        summary: "平板支撑 + 死虫，8-10分钟。",
+        exercises: [
+          {
+            name: "平板支撑",
+            sets: "3组",
+            reps: "30-45秒",
+            note: "稳住身体，不追求硬撑到崩。"
+          },
+          {
+            name: "死虫",
+            sets: "3组",
+            reps: "每边10个",
+            note: "膝盖压力小，适合你的情况。"
+          }
+        ]
+      },
+      {
+        day: "周三",
+        type: "主训练 B",
+        tag: "找背部发力",
+        desc: "正手引体日：找背部发力。",
+        summary: "正手引体日：找背部发力。",
+        exercises: [
+          {
+            name: "正手全握引体",
+            sets: "5组",
+            reps: "每组1个",
+            note: "重点是“先沉肩，再拉肘”，不是数量。"
+          },
+          {
+            name: "上斜俯卧撑",
+            sets: "4组",
+            reps: "6-12个",
+            note: "能轻松12个后，再降低支撑高度。"
+          },
+          {
+            name: "侧平举",
+            sets: "3组",
+            reps: "12-20个",
+            note: "矿泉水瓶/小哑铃/书包都可以。"
+          },
+          {
+            name: "平板支撑",
+            sets: "3组",
+            reps: "30-45秒",
+            note: "身体一条线。"
+          },
+          {
+            name: "死虫",
+            sets: "2组",
+            reps: "每边10个",
+            note: "动作慢，别甩腿。"
+          }
+        ]
+      },
+      {
+        day: "周四",
+        type: "休息",
+        tag: "恢复日",
+        rest: true,
+        desc: "散步、轻微拉伸，不练上肢。",
+        summary: "散步、轻微拉伸，不练上肢。",
+        exercises: [
+          {
+            name: "建议",
+            sets: "休息",
+            reps: "散步、轻微拉伸、早睡。",
+            note: "不要练引体、俯卧撑、弯举。"
+          }
+        ]
+      },
+      {
+        day: "周五",
+        type: "主训练 C",
+        tag: "堆引体总次数",
+        desc: "反手提高次数日：堆引体总次数。",
+        summary: "反手提高次数日：堆引体总次数。",
+        exercises: [
+          {
+            name: "反手全握引体",
+            sets: "6-10组",
+            reps: "每组1个",
+            note: "目标是总数变多，比如6个→8个→10个。"
+          },
+          {
+            name: "上斜俯卧撑",
+            sets: "4组",
+            reps: "8-12个",
+            note: "做稳，别塌腰。"
+          },
+          {
+            name: "侧平举",
+            sets: "3组",
+            reps: "12-20个",
+            note: "肩膀塑形的关键动作。"
+          },
+          {
+            name: "平板支撑",
+            sets: "3组",
+            reps: "30-60秒",
+            note: "逐渐加时间，不憋气。"
+          },
+          {
+            name: "死虫/屈膝抬腿",
+            sets: "3组",
+            reps: "8-12个",
+            note: "腰或尾椎不舒服就做死虫。"
+          }
+        ]
+      },
+      {
+        day: "周六",
+        type: "腹部短练",
+        tag: "腹部线条",
+        desc: "平板支撑 + 死虫/屈膝抬腿。",
+        summary: "平板支撑 + 死虫/屈膝抬腿。",
+        exercises: [
+          {
+            name: "平板支撑",
+            sets: "3组",
+            reps: "30-45秒",
+            note: "稳定比时间更重要。"
+          },
+          {
+            name: "死虫/屈膝抬腿",
+            sets: "3组",
+            reps: "8-12个",
+            note: "优先死虫，更护膝护腰。"
+          }
+        ]
+      }
+    ];
+
+    const dayOrder = [1, 2, 3, 4, 5, 6, 0];
+    let currentDayIndex = new Date().getDay();
+
+    function currentWeekStart() {
+      const date = new Date();
+      const mondayOffset = (date.getDay() + 6) % 7;
+      date.setDate(date.getDate() - mondayOffset);
+      return date.toISOString().slice(0, 10);
+    }
+
+    function completeKey(dayIndex) {
+      return `trainingDone:${currentWeekStart()}:${dayIndex}`;
+    }
+
+    function isCompleted(dayIndex) {
+      return localStorage.getItem(completeKey(dayIndex)) === "1";
+    }
+
+    function setCompleted(dayIndex, done) {
+      if (done) {
+        localStorage.setItem(completeKey(dayIndex), "1");
+      } else {
+        localStorage.removeItem(completeKey(dayIndex));
+      }
+    }
+
+    function exerciseHtml(ex) {
+      if (ex.sets === "休息") {
+        return `
+          <div class="rest-box">
+            <strong>${ex.name}</strong><br />
+            ${ex.reps}<br />
+            <span class="note">${ex.note}</span>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="exercise">
+          <div class="exercise-head">
+            <div class="exercise-name">${ex.name}</div>
+            <div class="sets">${ex.sets}</div>
+          </div>
+          <div class="meta">
+            <div class="label">次数/时间</div>
+            <div class="value">${ex.reps}</div>
+            <div class="label">注意点</div>
+            <div class="value">${ex.note}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderToday(dayIndex) {
+      const plan = plans[dayIndex];
+      const done = isCompleted(dayIndex);
+      document.getElementById("todayTitle").textContent = `${plan.day}：${plan.type}`;
+      document.getElementById("todayBadge").textContent = plan.tag;
+      document.getElementById("todayBadge").className = plan.rest ? "badge rest" : "badge";
+      document.getElementById("todayDesc").textContent = plan.desc;
+      document.getElementById("todayExercises").innerHTML = plan.exercises.map(exerciseHtml).join("");
+      document.querySelector(".today-card").classList.toggle("done", done);
+      document.getElementById("completeBtn").textContent = done ? "今日任务已完成" : "完成今日任务";
+      document.getElementById("completeBtn").classList.toggle("done", done);
+      document.getElementById("completeStatus").textContent = done
+        ? "已记录。本周再次打开也会保留这个完成状态。"
+        : "练完后点一下，今天就算完成。";
+      document.getElementById("todayPill").textContent = `今天 ${plans[new Date().getDay()].day}`;
+      document.getElementById("dateText").textContent = new Date().toLocaleDateString("zh-CN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "long"
+      });
+
+      document.querySelectorAll(".day-btn").forEach(btn => {
+        const btnDay = Number(btn.dataset.dayIndex);
+        btn.classList.toggle("active", btnDay === dayIndex);
+        btn.classList.toggle("done", isCompleted(btnDay));
+      });
+
+      currentDayIndex = dayIndex;
+    }
+
+    function renderNav() {
+      const nav = document.getElementById("dayNav");
+      nav.innerHTML = dayOrder.map(i => {
+        const p = plans[i];
+        return `
+          <button class="day-btn ${p.rest ? "rest-day" : ""}" data-day-index="${i}">
+            ${p.day.replace("周", "")}
+            <span>${p.type.replace("主训练 ", "")}</span>
+          </button>
+        `;
+      }).join("");
+
+      nav.querySelectorAll(".day-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          renderToday(Number(btn.dataset.dayIndex));
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+      });
+    }
+
+    renderNav();
+    renderToday(currentDayIndex);
+
+    document.getElementById("completeBtn").addEventListener("click", () => {
+      setCompleted(currentDayIndex, !isCompleted(currentDayIndex));
+      renderToday(currentDayIndex);
+    });
+  </script>
+</body>
+</html>
