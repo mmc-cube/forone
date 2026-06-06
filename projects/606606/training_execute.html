@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>训练执行</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --blue: #2563eb;
+      --blue2: #1d4ed8;
+      --blue-soft: #dbeafe;
+      --green: #16a34a;
+      --green-soft: #dcfce7;
+      --orange-soft: #fff7ed;
+      --orange: #c2410c;
+      --shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: max(14px, env(safe-area-inset-top)) 14px 12px;
+      background: linear-gradient(135deg, var(--blue2), #3b82f6);
+      color: white;
+      box-shadow: 0 8px 26px rgba(37, 99, 235, 0.25);
+      border-bottom-left-radius: 22px;
+      border-bottom-right-radius: 22px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .title-block p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .header-link {
+      flex: 0 0 auto;
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      color: white;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .page {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 14px 12px 34px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      margin: 12px 0;
+      overflow: hidden;
+    }
+
+    .card-pad {
+      padding: 16px;
+    }
+
+    .hero-card {
+      border: 2px solid rgba(37, 99, 235, 0.28);
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 10px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--blue);
+      background: var(--blue-soft);
+      white-space: nowrap;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .timer {
+      margin: 16px 0 8px;
+      text-align: center;
+      font-size: 78px;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--blue2);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .mode-label {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .target-row {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin: 12px 0 4px;
+      flex-wrap: wrap;
+    }
+
+    .target-btn {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: white;
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .target-btn.active {
+      border-color: rgba(37, 99, 235, 0.4);
+      background: var(--blue-soft);
+      color: var(--blue2);
+    }
+
+    .primary-btn,
+    .secondary-btn,
+    .ghost-btn {
+      width: 100%;
+      border: 0;
+      border-radius: 16px;
+      padding: 14px 16px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 900;
+    }
+
+    .primary-btn {
+      background: var(--blue);
+      color: white;
+    }
+
+    .primary-btn.done {
+      background: var(--green);
+    }
+
+    .secondary-btn {
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .ghost-btn {
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--text);
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .note-box {
+      margin-top: 12px;
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: var(--orange-soft);
+      color: var(--orange);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .progress-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .set-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fafafa;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .set-item.current {
+      border-color: rgba(37, 99, 235, 0.4);
+      background: #eff6ff;
+      color: var(--blue2);
+    }
+
+    .set-item.done {
+      border-color: rgba(22, 163, 74, 0.32);
+      background: #f0fdf4;
+      color: var(--green);
+    }
+
+    .footer-note {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      margin: 18px 0 0;
+    }
+  </style>
+</head>
+
+<body>
+  <header class="app-header">
+    <div class="header-top">
+      <div class="title-block">
+        <h1 id="pageTitle">训练执行</h1>
+        <p id="pageSub">按组推进，练完自动记录</p>
+      </div>
+      <a class="header-link" id="backLink" href="mobile_today_training_plan.html">返回今日</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="card hero-card">
+      <div class="card-pad">
+        <div class="section-title">
+          <h2 id="exerciseName">动作</h2>
+          <span class="badge" id="setBadge">第 1 组</span>
+        </div>
+        <p class="subtitle" id="exerciseTarget"></p>
+        <div class="timer" id="timerDisplay">准备</div>
+        <div class="mode-label" id="modeLabel"></div>
+        <div class="target-row" id="targetRow"></div>
+        <div class="button-grid" id="actionArea"></div>
+        <div class="note-box" id="noteBox"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-pad">
+        <div class="section-title">
+          <h2>组数进度</h2>
+          <span class="badge" id="progressBadge"></span>
+        </div>
+        <div class="progress-list" id="progressList"></div>
+      </div>
+    </section>
+
+    <p class="footer-note">休息默认 60 秒。状态好可以加一组，累了就按计划完成。</p>
+  </main>
+
+  <script>
+    const plans = [
+      {
+        day: "周日",
+        type: "休息",
+        rest: true,
+        exercises: [
+          { name: "建议", sets: "休息", reps: "休息、散步、补蛋白、睡够。", note: "不要天天硬练引体。" }
+        ]
+      },
+      {
+        day: "周一",
+        type: "主训练 A",
+        exercises: [
+          { name: "反手全握引体", sets: "5-8组", reps: "每组1-2个", note: "做不了就跳上去，慢慢下放3-5秒。" },
+          { name: "上斜俯卧撑", sets: "4组", reps: "6-12个", note: "桌边/床边都行，身体保持一条线。" },
+          { name: "侧平举", sets: "3组", reps: "12-20个", note: "练肩中束，不耸肩，不甩。" },
+          { name: "平板支撑", sets: "3组", reps: "30-45秒", note: "腹部收紧，不塌腰。" },
+          { name: "死虫", sets: "2组", reps: "每边10个", note: "腰贴地，动作慢。" }
+        ]
+      },
+      {
+        day: "周二",
+        type: "腹部短练",
+        exercises: [
+          { name: "平板支撑", sets: "3组", reps: "30-45秒", note: "稳住身体，不追求硬撑到崩。" },
+          { name: "死虫", sets: "3组", reps: "每边10个", note: "膝盖压力小，适合你的情况。" }
+        ]
+      },
+      {
+        day: "周三",
+        type: "主训练 B",
+        exercises: [
+          { name: "正手全握引体", sets: "5组", reps: "每组1个", note: "重点是“先沉肩，再拉肘”，不是数量。" },
+          { name: "上斜俯卧撑", sets: "4组", reps: "6-12个", note: "能轻松12个后，再降低支撑高度。" },
+          { name: "侧平举", sets: "3组", reps: "12-20个", note: "矿泉水瓶/小哑铃/书包都可以。" },
+          { name: "平板支撑", sets: "3组", reps: "30-45秒", note: "身体一条线。" },
+          { name: "死虫", sets: "2组", reps: "每边10个", note: "动作慢，别甩腿。" }
+        ]
+      },
+      {
+        day: "周四",
+        type: "休息",
+        rest: true,
+        exercises: [
+          { name: "建议", sets: "休息", reps: "散步、轻微拉伸、早睡。", note: "不要练引体、俯卧撑、弯举。" }
+        ]
+      },
+      {
+        day: "周五",
+        type: "主训练 C",
+        exercises: [
+          { name: "反手全握引体", sets: "6-10组", reps: "每组1个", note: "目标是总数变多，比如6个→8个→10个。" },
+          { name: "上斜俯卧撑", sets: "4组", reps: "8-12个", note: "做稳，别塌腰。" },
+          { name: "侧平举", sets: "3组", reps: "12-20个", note: "肩膀塑形的关键动作。" },
+          { name: "平板支撑", sets: "3组", reps: "30-60秒", note: "逐渐加时间，不憋气。" },
+          { name: "死虫/屈膝抬腿", sets: "3组", reps: "8-12个", note: "腰或尾椎不舒服就做死虫。" }
+        ]
+      },
+      {
+        day: "周六",
+        type: "腹部短练",
+        exercises: [
+          { name: "平板支撑", sets: "3组", reps: "30-45秒", note: "稳定比时间更重要。" },
+          { name: "死虫/屈膝抬腿", sets: "3组", reps: "8-12个", note: "优先死虫，更护膝护腰。" }
+        ]
+      }
+    ];
+
+    const params = new URLSearchParams(window.location.search);
+    const dayIndex = Number(params.get("day") || new Date().getDay());
+    const exerciseIndex = Number(params.get("exercise") || 0);
+    const backFile = params.get("back") || "mobile_today_training_plan.html";
+    const plan = plans[dayIndex] || plans[new Date().getDay()];
+    const exercise = plan.exercises[exerciseIndex] || plan.exercises[0];
+    const REST_SECONDS = 60;
+
+    let timerId = null;
+    let phase = "ready";
+    let currentSet = 1;
+    let totalSets = parseSetCount(exercise.sets);
+    let completedSets = 0;
+    let selectedSeconds = parseSeconds(exercise.reps)[0] || 0;
+    let remainingSeconds = selectedSeconds;
+
+    document.getElementById("backLink").href = backFile;
+    document.getElementById("pageTitle").textContent = `${plan.day} ${plan.type}`;
+    document.getElementById("exerciseName").textContent = exercise.name;
+    document.getElementById("exerciseTarget").textContent = `${exercise.sets}｜${exercise.reps}`;
+    document.getElementById("noteBox").textContent = exercise.note;
+
+    function currentWeekStart() {
+      const date = new Date();
+      const mondayOffset = (date.getDay() + 6) % 7;
+      date.setDate(date.getDate() - mondayOffset);
+      return date.toISOString().slice(0, 10);
+    }
+
+    function exerciseKey(day, index) {
+      return `exerciseDone:${currentWeekStart()}:${day}:${index}`;
+    }
+
+    function completeKey(day) {
+      return `trainingDone:${currentWeekStart()}:${day}`;
+    }
+
+    function isTimeExercise() {
+      return parseSeconds(exercise.reps).length > 0;
+    }
+
+    function parseSetCount(text) {
+      const numbers = String(text).match(/\d+/g);
+      if (!numbers) return 1;
+      return Number(numbers[0]);
+    }
+
+    function parseSeconds(text) {
+      if (!String(text).includes("秒")) return [];
+      const numbers = String(text).match(/\d+/g) || [];
+      return numbers.map(Number);
+    }
+
+    function formatTime(seconds) {
+      if (seconds < 60) return String(seconds);
+      const min = Math.floor(seconds / 60);
+      const sec = seconds % 60;
+      return `${min}:${String(sec).padStart(2, "0")}`;
+    }
+
+    function clearTimer() {
+      if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+    }
+
+    function tick(onEnd) {
+      clearTimer();
+      timerId = setInterval(() => {
+        remainingSeconds -= 1;
+        render();
+        if (remainingSeconds <= 0) {
+          clearTimer();
+          onEnd();
+        }
+      }, 1000);
+    }
+
+    function startWork() {
+      if (isTimeExercise()) {
+        phase = "work";
+        remainingSeconds = selectedSeconds;
+        render();
+        tick(() => {
+          phase = "workDone";
+          render();
+          pulse();
+        });
+      } else {
+        phase = "work";
+        render();
+      }
+    }
+
+    function finishSet() {
+      clearTimer();
+      completedSets += 1;
+      if (completedSets >= totalSets) {
+        finishExercise();
+        return;
+      }
+      currentSet = completedSets + 1;
+      phase = "rest";
+      remainingSeconds = REST_SECONDS;
+      render();
+      tick(() => {
+        phase = "restDone";
+        render();
+        pulse();
+      });
+    }
+
+    function startNextSet() {
+      clearTimer();
+      phase = "ready";
+      remainingSeconds = selectedSeconds;
+      render();
+    }
+
+    function addRest(seconds) {
+      remainingSeconds += seconds;
+      render();
+    }
+
+    function addSet() {
+      totalSets += 1;
+      render();
+    }
+
+    function finishExercise() {
+      clearTimer();
+      phase = "finished";
+      completedSets = totalSets;
+      localStorage.setItem(exerciseKey(dayIndex, exerciseIndex), "1");
+      if (allExercisesCompleted(dayIndex)) {
+        localStorage.setItem(completeKey(dayIndex), "1");
+      }
+      render();
+      pulse();
+    }
+
+    function allExercisesCompleted(day) {
+      return plans[day].exercises
+        .map((ex, index) => ({ ex, index }))
+        .filter(item => item.ex.sets !== "休息")
+        .every(item => {
+          if (item.index === exerciseIndex) return true;
+          return localStorage.getItem(exerciseKey(day, item.index)) === "1";
+        });
+    }
+
+    function pulse() {
+      if (navigator.vibrate) {
+        navigator.vibrate([120, 80, 120]);
+      }
+    }
+
+    function renderTargetButtons() {
+      const row = document.getElementById("targetRow");
+      const seconds = parseSeconds(exercise.reps);
+      if (!seconds.length || phase !== "ready") {
+        row.innerHTML = "";
+        return;
+      }
+      row.innerHTML = seconds.map(sec => `
+        <button class="target-btn ${selectedSeconds === sec ? "active" : ""}" type="button" data-sec="${sec}">
+          ${sec} 秒
+        </button>
+      `).join("");
+      row.querySelectorAll(".target-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          selectedSeconds = Number(btn.dataset.sec);
+          remainingSeconds = selectedSeconds;
+          render();
+        });
+      });
+    }
+
+    function renderActions() {
+      const area = document.getElementById("actionArea");
+      if (phase === "ready") {
+        area.innerHTML = `
+          <button class="primary-btn" id="startBtn" type="button">开始本组</button>
+          <button class="ghost-btn" id="addSetBtn" type="button">加一组</button>
+        `;
+        document.getElementById("startBtn").addEventListener("click", startWork);
+        document.getElementById("addSetBtn").addEventListener("click", addSet);
+        return;
+      }
+
+      if (phase === "work") {
+        area.innerHTML = `
+          <button class="secondary-btn" id="finishSetBtn" type="button">完成本组</button>
+          <button class="ghost-btn" id="pauseBtn" type="button">暂停</button>
+        `;
+        document.getElementById("finishSetBtn").addEventListener("click", finishSet);
+        document.getElementById("pauseBtn").addEventListener("click", () => {
+          clearTimer();
+          phase = "paused";
+          render();
+        });
+        return;
+      }
+
+      if (phase === "paused") {
+        area.innerHTML = `
+          <button class="primary-btn" id="resumeBtn" type="button">继续</button>
+          <button class="secondary-btn" id="finishSetBtn" type="button">完成本组</button>
+        `;
+        document.getElementById("resumeBtn").addEventListener("click", () => {
+          phase = "work";
+          render();
+          if (isTimeExercise()) tick(() => {
+            phase = "workDone";
+            render();
+            pulse();
+          });
+        });
+        document.getElementById("finishSetBtn").addEventListener("click", finishSet);
+        return;
+      }
+
+      if (phase === "workDone") {
+        area.innerHTML = `<button class="secondary-btn" id="finishSetBtn" type="button">完成本组，开始休息</button>`;
+        document.getElementById("finishSetBtn").addEventListener("click", finishSet);
+        return;
+      }
+
+      if (phase === "rest") {
+        area.innerHTML = `
+          <div class="button-row">
+            <button class="ghost-btn" id="skipRestBtn" type="button">跳过休息</button>
+            <button class="ghost-btn" id="addRestBtn" type="button">+30秒</button>
+          </div>
+          <button class="primary-btn" id="nextBtn" type="button">开始下一组</button>
+        `;
+        document.getElementById("skipRestBtn").addEventListener("click", startNextSet);
+        document.getElementById("addRestBtn").addEventListener("click", () => addRest(30));
+        document.getElementById("nextBtn").addEventListener("click", startNextSet);
+        return;
+      }
+
+      if (phase === "restDone") {
+        area.innerHTML = `<button class="primary-btn" id="nextBtn" type="button">开始下一组</button>`;
+        document.getElementById("nextBtn").addEventListener("click", startNextSet);
+        return;
+      }
+
+      area.innerHTML = `
+        <button class="primary-btn done" id="backBtn" type="button">已完成，返回今日</button>
+        <button class="ghost-btn" id="againBtn" type="button">再练一组</button>
+      `;
+      document.getElementById("backBtn").addEventListener("click", () => {
+        window.location.href = backFile;
+      });
+      document.getElementById("againBtn").addEventListener("click", () => {
+        totalSets += 1;
+        currentSet = totalSets;
+        completedSets = totalSets - 1;
+        phase = "ready";
+        remainingSeconds = selectedSeconds;
+        render();
+      });
+    }
+
+    function renderProgress() {
+      document.getElementById("progressBadge").textContent = `${completedSets}/${totalSets}`;
+      document.getElementById("progressList").innerHTML = Array.from({ length: totalSets }, (_, index) => {
+        const setNumber = index + 1;
+        const cls = setNumber <= completedSets ? "done" : setNumber === currentSet && phase !== "finished" ? "current" : "";
+        const state = setNumber <= completedSets ? "完成" : setNumber === currentSet && phase !== "finished" ? "当前" : "待练";
+        return `
+          <div class="set-item ${cls}">
+            <span>第 ${setNumber} 组</span>
+            <span>${state}</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function render() {
+      document.getElementById("setBadge").textContent = phase === "finished"
+        ? "完成"
+        : `第 ${currentSet} / ${totalSets} 组`;
+
+      if (phase === "rest" || phase === "restDone") {
+        document.getElementById("timerDisplay").textContent = formatTime(Math.max(remainingSeconds, 0));
+        document.getElementById("modeLabel").textContent = phase === "restDone" ? "休息结束" : "休息中";
+      } else if (phase === "finished") {
+        document.getElementById("timerDisplay").textContent = "完成";
+        document.getElementById("modeLabel").textContent = "这个动作已记录";
+      } else if (isTimeExercise()) {
+        document.getElementById("timerDisplay").textContent = phase === "ready" ? selectedSeconds : formatTime(Math.max(remainingSeconds, 0));
+        document.getElementById("modeLabel").textContent = phase === "workDone" ? "本组时间到" : "计时动作";
+      } else {
+        document.getElementById("timerDisplay").textContent = `${currentSet}/${totalSets}`;
+        document.getElementById("modeLabel").textContent = phase === "work" ? "做完后点完成本组" : `目标 ${exercise.reps}`;
+      }
+
+      renderTargetButtons();
+      renderActions();
+      renderProgress();
+    }
+
+    render();
+  </script>
+</body>
+</html>

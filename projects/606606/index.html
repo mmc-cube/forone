@@ -225,6 +225,11 @@
       padding: 12px;
     }
 
+    .exercise.done {
+      border-color: rgba(22, 163, 74, 0.36);
+      background: #f0fdf4;
+    }
+
     .exercise-head {
       display: flex;
       justify-content: space-between;
@@ -263,6 +268,41 @@
 
     .meta .value {
       color: #374151;
+    }
+
+    .exercise-action {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    .exercise-state {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .exercise.done .exercise-state {
+      color: var(--green);
+    }
+
+    .start-link {
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: var(--blue);
+      color: white;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .exercise.done .start-link {
+      background: var(--green);
     }
 
     .rest-box {
@@ -627,19 +667,43 @@
       return `trainingDone:${currentWeekStart()}:${dayIndex}`;
     }
 
+    function exerciseKey(dayIndex, exerciseIndex) {
+      return `exerciseDone:${currentWeekStart()}:${dayIndex}:${exerciseIndex}`;
+    }
+
     function isCompleted(dayIndex) {
       return localStorage.getItem(completeKey(dayIndex)) === "1";
+    }
+
+    function isExerciseCompleted(dayIndex, exerciseIndex) {
+      return localStorage.getItem(exerciseKey(dayIndex, exerciseIndex)) === "1";
+    }
+
+    function allExercisesCompleted(dayIndex) {
+      const plan = plans[dayIndex];
+      const activeExercises = plan.exercises
+        .map((ex, index) => ({ ex, index }))
+        .filter(item => item.ex.sets !== "休息");
+      return activeExercises.length > 0 && activeExercises.every(item => isExerciseCompleted(dayIndex, item.index));
     }
 
     function setCompleted(dayIndex, done) {
       if (done) {
         localStorage.setItem(completeKey(dayIndex), "1");
+        plans[dayIndex].exercises.forEach((ex, index) => {
+          if (ex.sets !== "休息") {
+            localStorage.setItem(exerciseKey(dayIndex, index), "1");
+          }
+        });
       } else {
         localStorage.removeItem(completeKey(dayIndex));
+        plans[dayIndex].exercises.forEach((ex, index) => {
+          localStorage.removeItem(exerciseKey(dayIndex, index));
+        });
       }
     }
 
-    function exerciseHtml(ex) {
+    function exerciseHtml(ex, exerciseIndex, dayIndex) {
       if (ex.sets === "休息") {
         return `
           <div class="rest-box">
@@ -650,8 +714,12 @@
         `;
       }
 
+      const done = isExerciseCompleted(dayIndex, exerciseIndex);
+      const currentFile = window.location.pathname.split("/").pop() || "index.html";
+      const startUrl = `training_execute.html?day=${dayIndex}&exercise=${exerciseIndex}&back=${encodeURIComponent(currentFile)}`;
+
       return `
-        <div class="exercise">
+        <div class="exercise ${done ? "done" : ""}">
           <div class="exercise-head">
             <div class="exercise-name">${ex.name}</div>
             <div class="sets">${ex.sets}</div>
@@ -662,18 +730,24 @@
             <div class="label">注意点</div>
             <div class="value">${ex.note}</div>
           </div>
+          <div class="exercise-action">
+            <div class="exercise-state">${done ? "已完成" : "未完成"}</div>
+            <a class="start-link" href="${startUrl}">${done ? "再练一次" : "开始"}</a>
+          </div>
         </div>
       `;
     }
 
     function renderToday(dayIndex) {
       const plan = plans[dayIndex];
-      const done = isCompleted(dayIndex);
+      const done = isCompleted(dayIndex) || allExercisesCompleted(dayIndex);
       document.getElementById("todayTitle").textContent = `${plan.day}：${plan.type}`;
       document.getElementById("todayBadge").textContent = plan.tag;
       document.getElementById("todayBadge").className = plan.rest ? "badge rest" : "badge";
       document.getElementById("todayDesc").textContent = plan.desc;
-      document.getElementById("todayExercises").innerHTML = plan.exercises.map(exerciseHtml).join("");
+      document.getElementById("todayExercises").innerHTML = plan.exercises
+        .map((ex, index) => exerciseHtml(ex, index, dayIndex))
+        .join("");
       document.querySelector(".today-card").classList.toggle("done", done);
       document.getElementById("completeBtn").textContent = done ? "今日任务已完成" : "完成今日任务";
       document.getElementById("completeBtn").classList.toggle("done", done);
