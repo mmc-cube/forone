@@ -1,0 +1,1979 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>IELTS 词句循环学习器</title>
+  <style>
+    :root {
+      --bg: #eef2f7;
+      --phone: #f9fafb;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #687386;
+      --line: #dce3ec;
+      --primary: #2864d9;
+      --primary-dark: #1e4fab;
+      --green: #198754;
+      --red: #c2413b;
+      --amber: #a56a00;
+      --chip: #e8efff;
+      --shadow: 0 18px 44px rgba(18, 33, 64, 0.18);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .stage {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .phone {
+      width: min(100%, 430px);
+      height: min(920px, calc(100vh - 48px));
+      min-height: 720px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--phone);
+      border: 1px solid rgba(23, 32, 51, 0.1);
+      border-radius: 32px;
+      box-shadow: var(--shadow);
+    }
+
+    .statusbar {
+      height: 28px;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      padding: 0 22px 4px;
+      color: #2f3848;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .appbar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(249, 250, 251, 0.92);
+    }
+
+    .title-block {
+      min-width: 0;
+    }
+
+    .eyebrow {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    .screen-title {
+      margin-top: 2px;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      color: var(--text);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    .icon-btn svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .content {
+      flex: 1 1 auto;
+      overflow: auto;
+      padding: 16px 16px 98px;
+    }
+
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .section-title {
+      font-size: 15px;
+      line-height: 1.25;
+      font-weight: 800;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .small {
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .progress-row {
+      display: grid;
+      gap: 8px;
+    }
+
+    .progress-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .bar {
+      grid-column: 1 / -1;
+      height: 8px;
+      overflow: hidden;
+      background: #edf1f5;
+      border-radius: 999px;
+    }
+
+    .bar span {
+      display: block;
+      width: var(--value, 0%);
+      height: 100%;
+      background: var(--primary);
+      border-radius: inherit;
+    }
+
+    .primary-btn,
+    .secondary-btn,
+    .ghost-btn,
+    .danger-btn {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 13px;
+      border-radius: 8px;
+      font-weight: 750;
+    }
+
+    .primary-btn {
+      color: #fff;
+      background: var(--primary);
+    }
+
+    .primary-btn:active {
+      background: var(--primary-dark);
+    }
+
+    .secondary-btn {
+      color: var(--primary);
+      background: var(--chip);
+    }
+
+    .ghost-btn {
+      color: var(--text);
+      background: #f3f6fa;
+      border: 1px solid var(--line);
+    }
+
+    .danger-btn {
+      color: var(--red);
+      background: #fff0ef;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .button-row.three {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .week-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .week-card {
+      width: 100%;
+      text-align: left;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 13px;
+    }
+
+    .week-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .week-name {
+      font-size: 16px;
+      font-weight: 850;
+      line-height: 1.25;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 8px;
+      color: var(--primary);
+      background: var(--chip);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .metric {
+      padding: 9px 8px;
+      background: #f5f7fa;
+      border-radius: 8px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 16px;
+      line-height: 1.1;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .sentence-box {
+      min-height: 240px;
+      display: grid;
+      gap: 13px;
+      align-content: start;
+    }
+
+    .sentence-count {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .english {
+      font-size: 24px;
+      line-height: 1.28;
+      font-weight: 850;
+    }
+
+    .sentence-word {
+      display: inline;
+    }
+
+    .word-gap {
+      width: 0.55em;
+      min-height: 1.25em;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 0.04em;
+      padding: 0;
+      color: transparent;
+      background: transparent;
+      border-radius: 5px;
+      vertical-align: -0.14em;
+      touch-action: manipulation;
+    }
+
+    .word-gap.active {
+      width: 0.85em;
+      color: var(--primary);
+      background: var(--chip);
+      font-weight: 900;
+    }
+
+    .word-gap:active {
+      background: #dce7ff;
+    }
+
+    .english-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .speak-btn {
+      width: 36px;
+      height: 36px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      color: var(--primary);
+      background: var(--chip);
+      border: 1px solid #ccd9ff;
+      border-radius: 10px;
+    }
+
+    .speak-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .chinese {
+      color: #334155;
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      color: #173b80;
+      background: var(--chip);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .chip-btn {
+      cursor: pointer;
+    }
+
+    .chip-btn:active {
+      transform: translateY(1px);
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 48px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 52px;
+      height: 30px;
+      flex: 0 0 auto;
+      padding: 3px;
+      background: #cfd8e3;
+      border-radius: 999px;
+      transition: background 0.18s ease;
+    }
+
+    .toggle::after {
+      content: "";
+      display: block;
+      width: 24px;
+      height: 24px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 4px rgba(23, 32, 51, 0.24);
+      transition: transform 0.18s ease;
+    }
+
+    .toggle.active {
+      background: var(--primary);
+    }
+
+    .toggle.active::after {
+      transform: translateX(22px);
+    }
+
+    .sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      place-items: end center;
+      padding: 18px;
+      background: rgba(15, 23, 42, 0.32);
+    }
+
+    .sheet-backdrop.active {
+      display: grid;
+    }
+
+    .sheet {
+      width: min(100%, 398px);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.24);
+      padding: 14px;
+    }
+
+    .sheet-word {
+      font-size: 22px;
+      line-height: 1.25;
+      font-weight: 850;
+    }
+
+    .sheet-meaning {
+      margin-top: 8px;
+      color: #334155;
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .passage {
+      display: grid;
+      gap: 14px;
+      line-height: 1.68;
+      font-size: 16px;
+    }
+
+    .passage p {
+      margin: 0;
+    }
+
+    .highlight {
+      color: var(--primary);
+      font-weight: 800;
+    }
+
+    .blank-token {
+      min-width: 64px;
+      min-height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 2px;
+      padding: 1px 8px;
+      color: var(--primary);
+      background: var(--chip);
+      border: 1px solid #ccd9ff;
+      border-radius: 8px;
+      font-weight: 800;
+      vertical-align: baseline;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      padding: 4px;
+      background: #edf1f5;
+      border-radius: 10px;
+    }
+
+    .reading-segmented {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .segmented button {
+      min-height: 34px;
+      color: var(--muted);
+      background: transparent;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .segmented button.active {
+      color: var(--text);
+      background: var(--panel);
+      box-shadow: 0 1px 4px rgba(23, 32, 51, 0.12);
+    }
+
+    .quiz-question {
+      font-size: 18px;
+      line-height: 1.45;
+      font-weight: 800;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      resize: vertical;
+      color: var(--text);
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px;
+      outline: none;
+      line-height: 1.5;
+    }
+
+    textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(40, 100, 217, 0.12);
+    }
+
+    .text-input {
+      width: 100%;
+      color: var(--text);
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px;
+      outline: none;
+    }
+
+    .text-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(40, 100, 217, 0.12);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+    }
+
+    #submitQuizBtn:disabled {
+      cursor: wait;
+    }
+
+    .empty {
+      display: grid;
+      gap: 10px;
+      place-items: center;
+      min-height: 180px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .bottom-nav {
+      position: relative;
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(255, 255, 255, 0.95);
+      border-top: 1px solid var(--line);
+    }
+
+    .nav-btn {
+      min-width: 0;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      color: var(--muted);
+      background: transparent;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .nav-btn svg {
+      width: 21px;
+      height: 21px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .nav-btn.active {
+      color: var(--primary);
+      background: var(--chip);
+    }
+
+    @media (max-width: 520px) {
+      .stage {
+        display: block;
+        padding: 0;
+      }
+
+      .phone {
+        width: 100%;
+        height: 100vh;
+        min-height: 100vh;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .content {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="phone">
+      <div class="statusbar">
+        <span>9:41</span>
+        <span>LTE 100%</span>
+      </div>
+
+      <header class="appbar">
+        <button class="icon-btn" type="button" data-action="back" aria-label="返回">
+          <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>
+        </button>
+        <div class="title-block">
+          <div class="eyebrow" id="screenEyebrow">IELTS</div>
+          <div class="screen-title" id="screenTitle">今日学习</div>
+        </div>
+        <button class="icon-btn" type="button" data-screen="settings" aria-label="设置">
+          <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.37a1.7 1.7 0 0 0-1 .58V20a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-.58 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.63 15a1.7 1.7 0 0 0-.58-1H4a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 .58-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.63a1.7 1.7 0 0 0 1-.58V4a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 .58 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.37 9c.19.32.39.65.58 1H20a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-.51 1z"></path></svg>
+        </button>
+      </header>
+
+      <section class="content">
+        <div class="screen active" id="screen-home">
+          <div class="stack">
+            <div class="panel">
+              <div class="section-head">
+                <div class="section-title">当前 Week</div>
+                <button class="ghost-btn small" type="button" data-screen="weeks">切换</button>
+              </div>
+              <div id="currentWeekSummary"></div>
+            </div>
+
+            <div class="button-row">
+              <button class="primary-btn" type="button" data-screen="learn">继续学习</button>
+              <button class="secondary-btn" type="button" data-screen="mistakes">查看错题</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="screen" id="screen-weeks">
+          <div class="week-list" id="weekList"></div>
+        </div>
+
+        <div class="screen" id="screen-detail">
+          <div class="stack">
+            <div class="panel" id="weekDetail"></div>
+            <div class="button-row">
+              <button class="primary-btn" type="button" data-screen="learn">逐句学习</button>
+              <button class="secondary-btn" type="button" data-screen="read">整篇阅读</button>
+            </div>
+            <div class="button-row">
+              <button class="ghost-btn" type="button" data-screen="quiz">开始抽查</button>
+              <button class="ghost-btn" type="button" data-screen="mistakes">错题本</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="screen" id="screen-learn">
+          <div class="stack">
+            <div class="panel sentence-box">
+              <div class="sentence-count" id="sentenceCount"></div>
+              <div class="english-row">
+                <div class="english" id="sentenceEnglish"></div>
+                <button class="speak-btn" type="button" data-action="speakSentence" aria-label="朗读当前句">
+                  <svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5z"></path><path d="M15 9.5a4 4 0 0 1 0 5"></path><path d="M18 7a8 8 0 0 1 0 10"></path></svg>
+                </button>
+              </div>
+              <div class="small muted">点击两个英文词之间，可添加或取消分隔杠。</div>
+              <div class="chinese" id="sentenceChinese"></div>
+              <div>
+                <div class="small muted">目标词</div>
+                <div class="chips" id="sentenceWords"></div>
+              </div>
+              <div>
+                <div class="small muted">词组 / 表达</div>
+                <div class="chips" id="sentencePhrases"></div>
+              </div>
+            </div>
+            <div class="button-row three">
+              <button class="ghost-btn" type="button" data-action="prevSentence">上一句</button>
+              <button class="primary-btn" type="button" data-action="markKnown" id="markKnownBtn">掌握这句</button>
+              <button class="ghost-btn" type="button" data-action="nextSentence">下一句</button>
+            </div>
+            <div class="button-row">
+              <button class="secondary-btn" type="button" data-action="toggleChinese" id="toggleChineseBtn">隐藏中文</button>
+              <button class="danger-btn" type="button" data-action="markMistake">不太懂</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="screen" id="screen-read">
+          <div class="stack">
+            <div class="segmented reading-segmented" id="readingModes">
+              <button type="button" class="active" data-mode="english">纯英文</button>
+              <button type="button" data-mode="bilingual">对照</button>
+              <button type="button" data-mode="highlight">高亮</button>
+              <button type="button" data-mode="blank">挖空</button>
+            </div>
+            <div class="panel">
+              <div class="section-head">
+                <div>
+                  <div class="section-title" id="passageTitle"></div>
+                  <div class="small muted" id="passageTopic"></div>
+                </div>
+              </div>
+              <div class="passage" id="passageContent"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screen" id="screen-quiz">
+          <div class="stack">
+            <div class="panel">
+              <div class="section-head">
+                <div>
+                  <div class="section-title">抽查测试</div>
+                  <div class="small muted" id="quizTypeLabel">英译中</div>
+                </div>
+                <button class="ghost-btn small" type="button" data-action="switchQuiz">切换</button>
+              </div>
+              <div class="quiz-question" id="quizQuestion"></div>
+              <div class="small muted" id="quizSentenceCount"></div>
+            </div>
+            <div class="button-row">
+              <button class="ghost-btn" type="button" data-action="prevQuiz" id="prevQuizBtn">上一句</button>
+              <button class="ghost-btn" type="button" data-action="nextQuiz" id="nextQuizBtn">下一句</button>
+            </div>
+            <textarea id="quizAnswer" placeholder="在这里输入答案"></textarea>
+            <button class="primary-btn" type="button" data-action="submitQuiz" id="submitQuizBtn">提交答案</button>
+            <div class="panel" id="quizFeedback" hidden></div>
+          </div>
+        </div>
+
+        <div class="screen" id="screen-mistakes">
+          <div class="stack" id="mistakeList"></div>
+        </div>
+
+        <div class="screen" id="screen-settings">
+          <div class="stack">
+            <div class="panel">
+              <div class="settings-row">
+                <div>
+                  <div class="section-title">默认显示中文</div>
+                  <div class="small muted">关闭后，进入逐句学习时默认隐藏中文。</div>
+                </div>
+                <button class="toggle active" type="button" data-action="toggleDefaultChinese" id="defaultChineseToggle" aria-label="默认显示中文"></button>
+              </div>
+            </div>
+            <div class="panel stack">
+              <div>
+                <div class="section-title">DeepSeek AI 评分</div>
+                <div class="small muted" id="deepseekStatus">使用 deepseek-v4-flash。Key 仅保存在当前浏览器。</div>
+              </div>
+              <input class="text-input" id="deepseekApiKey" type="password" autocomplete="off" placeholder="输入 DeepSeek API Key">
+              <div class="button-row">
+                <button class="primary-btn" type="button" data-action="saveDeepseekKey">保存 Key</button>
+                <button class="ghost-btn" type="button" data-action="clearDeepseekKey">清除 Key</button>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="section-title">数据接入</div>
+              <p class="small muted">文章生成完成后，把数据替换到页面底部的 APP_DATA.passages 即可。纯 HTML 不需要构建工具，适合后续放进 WebView。</p>
+            </div>
+            <div class="panel">
+              <div class="section-title">当前状态</div>
+              <p class="small muted">框架已预留 Week、逐句学习、整篇阅读、抽查和错题本。当前进度按已掌握句子、目标词和表达统计。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="sheet-backdrop" id="lookupSheet" aria-hidden="true">
+        <div class="sheet">
+          <div class="section-head">
+            <div>
+              <div class="small muted" id="lookupType">目标词</div>
+              <div class="sheet-word" id="lookupWord"></div>
+            </div>
+            <button class="speak-btn" type="button" data-action="speakLookup" aria-label="朗读当前词或表达">
+              <svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5z"></path><path d="M15 9.5a4 4 0 0 1 0 5"></path><path d="M18 7a8 8 0 0 1 0 10"></path></svg>
+            </button>
+            <button class="icon-btn" type="button" data-action="closeLookup" aria-label="关闭">
+              <svg viewBox="0 0 24 24"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+            </button>
+          </div>
+          <div class="sheet-meaning" id="lookupMeaning"></div>
+        </div>
+      </div>
+
+      <nav class="bottom-nav" aria-label="底部导航">
+        <button class="nav-btn active" type="button" data-screen="home">
+          <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path></svg>
+          <span>今日</span>
+        </button>
+        <button class="nav-btn" type="button" data-screen="weeks">
+          <svg viewBox="0 0 24 24"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg>
+          <span>词表</span>
+        </button>
+        <button class="nav-btn" type="button" data-screen="learn">
+          <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"></path></svg>
+          <span>学习</span>
+        </button>
+        <button class="nav-btn" type="button" data-screen="quiz">
+          <svg viewBox="0 0 24 24"><path d="M9 11l2 2 4-5"></path><path d="M5 3h14v18H5z"></path></svg>
+          <span>抽查</span>
+        </button>
+        <button class="nav-btn" type="button" data-screen="mistakes">
+          <svg viewBox="0 0 24 24"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>
+          <span>错题</span>
+        </button>
+      </nav>
+    </div>
+  </main>
+
+  <script>
+    const APP_DATA = {
+      weeks: Array.from({ length: 29 }, (_, index) => ({
+        id: `week-${String(index + 1).padStart(2, "0")}`,
+        name: `Week ${String(index + 1).padStart(2, "0")}`,
+        wordCount: index === 28 ? 28 : 100,
+        learned: 0,
+        mastered: 0,
+        mistakes: 0,
+        status: index === 0 ? "已生成文章" : "待填入文章"
+      })),
+      passages: {
+        "week-01": {
+          title: "A Week on an International Campus",
+          topic: "education",
+          difficulty: "IELTS 5.5-6.5",
+          sentences: [
+            {
+              english: "On the first date of the new academic calendar, the dean gave an overview of a campus reform plan at a small academy.",
+              chinese: "在新学术日历的第一天，院长在一所小学院介绍了校园改革计划的概况。",
+              target_words: ["date", "academic", "calendar", "dean", "overview", "campus", "academy"],
+              target_phrases: ["academic calendar", "give an overview of", "campus reform plan"]
+            },
+            {
+              english: "He said the main factor was a lack of useful data about how students used each facility, from the canteen and cafeteria to the lab and gallery.",
+              chinese: "他说，主要因素是缺乏有用数据，无法了解学生如何使用每一处设施，从食堂、自助餐厅到实验室和画廊都是如此。",
+              target_words: ["factor", "lack", "data", "facility", "canteen", "cafeteria", "lab", "gallery"],
+              target_phrases: ["useful data", "each facility", "the main factor"]
+            },
+            {
+              english: "The school wanted to facilitate access to every resource, create an abundance of choices, and restore balance between study, career preparation, and daily life.",
+              chinese: "学校希望促进学生使用每一种资源，创造丰富的选择，并恢复学习、职业准备和日常生活之间的平衡。",
+              target_words: ["facilitate", "access", "resource", "abundance", "restore", "balance", "career"],
+              target_phrases: ["facilitate access to", "an abundance of choices", "restore balance"]
+            },
+            {
+              english: "Before making changes, a capable candidate was asked to calculate the capacity of each room and the percentage of idle space.",
+              chinese: "在进行改变之前，一位有能力的候选人被要求计算每个房间的容量以及闲置空间的百分比。",
+              target_words: ["capable", "candidate", "calculate", "capacity", "percentage", "idle"],
+              target_phrases: ["a capable candidate", "calculate the capacity", "idle space"]
+            },
+            {
+              english: "His report showed that only twenty percent of the capital budget produced a clear effect on efficient learning.",
+              chinese: "他的报告显示，只有百分之二十的资金预算对高效学习产生了明显影响。",
+              target_words: ["percent", "capital", "effect", "efficient"],
+              target_phrases: ["twenty percent of", "capital budget", "efficient learning"]
+            },
+            {
+              english: "The next edition used a clear sequence of charts, so students could absorb abstract ideas without feeling lost.",
+              chinese: "下一版报告使用了清晰的一系列图表，因此学生能够吸收抽象概念而不至于迷失。",
+              target_words: ["edition", "sequence", "absorb", "abstract"],
+              target_phrases: ["the next edition", "a clear sequence of", "absorb abstract ideas"]
+            },
+            {
+              english: "One youngster was naive enough to perceive every new rule as a penalty, while another gave a responsible response.",
+              chinese: "一个年轻人天真地把每一条新规则都看成惩罚，而另一个人则给出了负责任的回应。",
+              target_words: ["youngster", "naive", "perceive", "penalty", "responsible", "response"],
+              target_phrases: ["perceive A as B", "a responsible response", "a new rule"]
+            },
+            {
+              english: "A jealous peer tried to magnify one small setback and label the whole plan as abnormal.",
+              chinese: "一位嫉妒的同辈试图放大一个小挫折，并把整个计划贴上反常的标签。",
+              target_words: ["jealous", "peer", "magnify", "setback", "label", "abnormal"],
+              target_phrases: ["magnify a setback", "label A as B", "the whole plan"]
+            },
+            {
+              english: "The dean had to restrain the argument before it became severe abuse among a noisy gang near the balcony.",
+              chinese: "院长不得不在争论变成阳台附近一群吵闹学生之间的严重辱骂之前加以制止。",
+              target_words: ["restrain", "severe", "abuse", "gang", "balcony"],
+              target_phrases: ["restrain an argument", "severe abuse", "near the balcony"]
+            },
+            {
+              english: "One student made a dash through a damp corridor, dropped a glass jar, and caused minor damage to the old fabric on display.",
+              chinese: "一名学生冲过潮湿的走廊，摔落了一个玻璃罐，并对展出的旧织物造成了轻微损坏。",
+              target_words: ["dash", "damp", "jar", "damage", "fabric"],
+              target_phrases: ["make a dash", "a damp corridor", "minor damage"]
+            },
+            {
+              english: "The gallery guide used the accident to explain why a shallow view of culture can make people abandon magnificent objects too quickly.",
+              chinese: "画廊讲解员利用这次事故解释，为什么对文化的肤浅看法会让人们过快放弃宏伟的物品。",
+              target_words: ["gallery", "shallow", "abandon", "magnificent"],
+              target_phrases: ["a shallow view of", "abandon objects", "magnificent objects"]
+            },
+            {
+              english: "In the ecology session, students learned how bacteria, habitat, and human labour all affect the yield of local farms.",
+              chinese: "在生态学课程中，学生们了解到细菌、栖息地和人类劳动都会影响当地农场的产量。",
+              target_words: ["ecology", "session", "bacteria", "habitat", "labour", "yield"],
+              target_phrases: ["ecology session", "human labour", "affect the yield"]
+            },
+            {
+              english: "A fabulous overseas expert warned that people often worship technology and gamble with nature when they ignore ecological limits.",
+              chinese: "一位出色的海外专家警告说，当人们忽视生态限制时，往往会崇拜技术并拿自然冒险。",
+              target_words: ["fabulous", "overseas", "worship", "gamble"],
+              target_phrases: ["overseas expert", "worship technology", "gamble with nature"]
+            },
+            {
+              english: "To ease the pressure, the school set up a badminton club and a garden like a resort where keen students could wrap up the day by practising each idiom quietly.",
+              chinese: "为了缓解压力，学校成立了羽毛球俱乐部，并建了一个像度假地一样的花园，让热心的学生可以通过安静练习每个习语来结束一天。",
+              target_words: ["ease", "badminton", "resort", "keen", "wrap", "idiom"],
+              target_phrases: ["ease the pressure", "badminton club", "wrap up the day", "practise an idiom"]
+            },
+            {
+              english: "In the art workshop, learners used a magnet, a naked model drawing, and a wooden board to capture light and carve basic shapes.",
+              chinese: "在艺术工作坊中，学习者使用磁铁、人体素描和木板来捕捉光线并雕刻基本形状。",
+              target_words: ["magnet", "naked", "capture", "carve"],
+              target_phrases: ["capture light", "carve shapes", "art workshop"]
+            },
+            {
+              english: "The academy also trained a cashier, a hairdresser, and other workers, because education should not make practical skills look shabby.",
+              chinese: "学院还培训出纳员、理发师和其他劳动者，因为教育不应该让实用技能显得低劣。",
+              target_words: ["academy", "cashier", "hairdresser", "shabby"],
+              target_phrases: ["train workers", "practical skills", "look shabby"]
+            },
+            {
+              english: "The reform considered baggage storage, pension advice for older staff, and a series of services for people with different needs.",
+              chinese: "这项改革考虑了行李存放、为年长员工提供养老金建议，以及一系列满足不同需求的服务。",
+              target_words: ["baggage", "pension", "series"],
+              target_phrases: ["baggage storage", "pension advice", "a series of services"]
+            },
+            {
+              english: "During one overseas exchange, students had to show identification at a former jail that had become a history museum.",
+              chinese: "在一次海外交流中，学生们必须在一座已变成历史博物馆的旧监狱出示身份证明。",
+              target_words: ["overseas", "identification", "jail"],
+              target_phrases: ["show identification", "former jail", "history museum"]
+            },
+            {
+              english: "The guide helped them identify identical cells and explained how a lack of freedom could change the economy of a whole city.",
+              chinese: "导游帮助他们识别完全相同的牢房，并解释缺乏自由如何改变一整座城市的经济。",
+              target_words: ["identify", "identical", "lack", "economy"],
+              target_phrases: ["identify identical cells", "lack of freedom", "change the economy"]
+            },
+            {
+              english: "At dawn, the bus almost got stuck in a traffic jam, so the teacher had to cancel the morning lecture and move the deadline.",
+              chinese: "黎明时，公交车差点陷入交通堵塞，所以老师不得不取消上午的讲座并推迟截止日期。",
+              target_words: ["dawn", "jam", "cancel", "deadline"],
+              target_phrases: ["at dawn", "traffic jam", "move the deadline"]
+            },
+            {
+              english: "That change created no serious setback because the calendar still had an extra session for an elaborate discussion.",
+              chinese: "这个改变没有造成严重挫折，因为日历上仍然有一节额外课程用于详细讨论。",
+              target_words: ["setback", "calendar", "session", "elaborate"],
+              target_phrases: ["serious setback", "extra session", "elaborate discussion"]
+            },
+            {
+              english: "By the end, students saw idealism not as a remote ideal but as a practical way to oversee resources, protect people, and build a better academy.",
+              chinese: "到最后，学生们不再把理想主义看作遥远的理想，而是把它看作监督资源、保护人们并建设更好学院的实际方式。",
+              target_words: ["idealism", "ideal", "oversee", "academy"],
+              target_phrases: ["remote ideal", "oversee resources", "build a better academy"]
+            }
+          ]
+        }
+      },
+      wordTranslations: {
+        "abstract": "adj. 抽象的;抽象派的 n. 摘要,梗概;抽象派艺术作品 vt. 提取,抽取;写...的摘要",
+        "abundance": "n. 大量,充足",
+        "abuse": "n. 滥用;虐待;辱骂 vt. 滥用;虐待;辱骂",
+        "baggage": "n. 行李;(思想) 负担,包袱",
+        "candidate": "n. 候选人,申请人;考生",
+        "canteen": "n. 食堂,餐厅;水壶",
+        "capable": "adj. 能做...的;能力强的,能干的",
+        "capacity": "n. 容量;能力;职责;生产量",
+        "capital": "n. 首都;资本,资金;大写字母 adj. 死刑的;大写的",
+        "data": "n. 资料,数据",
+        "date": "n. 日期;时候;约会对象;海枣 vt. 写上日期;确定年代 vi. 与某人谈恋爱",
+        "economy": "n. 经济;经济体;节约",
+        "edition": "n. 版本;版次;一期节目",
+        "facilitate": "vt. 促进,使便利",
+        "facility": "n. 设备,设施;特色功能;天资",
+        "gamble": "vi./vt. 赌博;冒险 n. 冒险,赌博",
+        "gang": "n. 一帮人;一伙朋友",
+        "hairdresser": "n. 理发师;理发店",
+        "identification": "n. 确认,识别;身份证明",
+        "identify": "vt. 认出,确认,识别;发现,查明",
+        "idiom": "n. 习语,成语",
+        "idle": "adj. 闲置的;懒散的 vi. 闲荡",
+        "jar": "n. 玻璃罐;撞击 vt./vi. 使不快;撞击",
+        "jealous": "adj. 嫉妒的;小心守护的",
+        "labour": "n. 劳动;劳动力 vi. 努力做",
+        "lack": "n./vt. 缺乏,不足",
+        "magnify": "vt. 放大;夸大",
+        "naive": "adj. 幼稚的;天真的",
+        "overview": "n. 概况,概述",
+        "pension": "n. 养老金 vt. 给...发养老金",
+        "perceive": "vt. 看待,视为;察觉",
+        "percent": "n./adv./adj. 百分之...",
+        "percentage": "n. 百分比,百分率",
+        "responsible": "adj. 负责的;应担责的",
+        "restore": "vt. 恢复;修复;归还",
+        "restrain": "vt. 制止,阻止;克制",
+        "setback": "n. 挫折,阻碍",
+        "severe": "adj. 严重的;严厉的",
+        "shabby": "adj. 破旧的;不公平的",
+        "shallow": "adj. 浅的;肤浅的",
+        "yield": "vt. 出产;产生;放弃 vi. 屈服 n. 产量",
+        "youngster": "n. 儿童,年轻人",
+        "abandon": "vt. 放弃;抛弃 n. 放任",
+        "abnormal": "adj. 不正常的,反常的",
+        "absorb": "vt. 吸收;理解;承受",
+        "bacteria": "n. 细菌",
+        "badminton": "n. 羽毛球运动",
+        "cafeteria": "n. 自助餐厅,食堂",
+        "calculate": "vt. 计算;预测",
+        "calendar": "n. 日历;日程表",
+        "campus": "n. 校园",
+        "cancel": "vt. 取消,废除",
+        "damage": "n./vt. 损害,伤害",
+        "damp": "adj. 潮湿的 n. 潮湿 vt. 抑制",
+        "dash": "vi./vt. 猛冲 n. 猛冲;少量",
+        "ease": "n. 容易;舒适 vt./vi. 缓解",
+        "ecology": "n. 生态学",
+        "fabric": "n. 织物;结构",
+        "fabulous": "adj. 极好的;巨大的",
+        "gallery": "n. 展览馆,画廊",
+        "habitat": "n. 栖息地",
+        "ideal": "adj. 理想的 n. 理想",
+        "idealism": "n. 理想主义",
+        "identical": "adj. 完全相同的",
+        "jail": "n. 监狱 vt. 监禁",
+        "jam": "n. 果酱;拥挤 vt./vi. 卡住",
+        "keen": "adj. 渴望的;热情的;敏锐的",
+        "lab": "n. 实验室",
+        "label": "n. 标签 vt. 贴标签;把...称为",
+        "magnet": "n. 磁铁;有吸引力的人或物",
+        "magnificent": "adj. 宏伟的,令人印象深刻的",
+        "naked": "adj. 裸体的;无遮盖的",
+        "overseas": "adv. 在海外 adj. 海外的",
+        "oversee": "vt. 监督,监管",
+        "peer": "n. 同龄人 vi. 端详",
+        "penalty": "n. 处罚,罚金;害处",
+        "resort": "n. 度假胜地;采用的方法 vi. 诉诸",
+        "resource": "n. 资源;资料",
+        "response": "n. 回答;反应",
+        "sequence": "n. 顺序;一系列 vt. 按顺序排列",
+        "series": "n. 一系列;系列节目",
+        "session": "n. 一场,一节;会议",
+        "worship": "n./vt./vi. 崇拜;敬奉",
+        "wrap": "vt. 包,裹 n. 包装材料",
+        "academic": "adj. 学术的 n. 学者",
+        "academy": "n. 学院;研究院",
+        "access": "n. 进入权;使用权 vt. 访问",
+        "balance": "n./vt./vi. 平衡;权衡",
+        "balcony": "n. 阳台;楼座",
+        "capture": "vt. 捕捉;攻占 n. 捕获",
+        "career": "n. 职业,事业",
+        "carve": "vt./vi. 雕刻;切成块",
+        "cashier": "n. 出纳员,收银员",
+        "dawn": "n. 黎明;开端 vi. 破晓",
+        "deadline": "n. 最后期限",
+        "dean": "n. 院长,系主任",
+        "effect": "n. 影响,结果 vt. 引起",
+        "efficient": "adj. 效率高的",
+        "elaborate": "adj. 复杂的,详尽的 vt./vi. 详尽说明",
+        "factor": "n. 因素,要素"
+      },
+      phraseTranslations: {
+        "academic calendar": "学术日历;校历",
+        "give an overview of": "概述;介绍整体情况",
+        "campus reform plan": "校园改革计划",
+        "useful data": "有用的数据",
+        "each facility": "每一处设施",
+        "the main factor": "主要因素",
+        "facilitate access to": "促进/便利使用...",
+        "an abundance of choices": "丰富的选择",
+        "restore balance": "恢复平衡",
+        "a capable candidate": "有能力的候选人",
+        "calculate the capacity": "计算容量",
+        "idle space": "闲置空间",
+        "twenty percent of": "...的百分之二十",
+        "capital budget": "资金预算",
+        "efficient learning": "高效学习",
+        "the next edition": "下一版",
+        "a clear sequence of": "清晰的一系列...",
+        "absorb abstract ideas": "理解/吸收抽象概念",
+        "perceive A as B": "把 A 看作 B",
+        "a responsible response": "负责任的回应",
+        "a new rule": "新规则",
+        "magnify a setback": "放大挫折/问题",
+        "label A as B": "把 A 贴上 B 的标签",
+        "the whole plan": "整个计划",
+        "restrain an argument": "制止争论",
+        "severe abuse": "严重辱骂/虐待",
+        "near the balcony": "在阳台附近",
+        "make a dash": "猛冲",
+        "a damp corridor": "潮湿的走廊",
+        "minor damage": "轻微损坏",
+        "a shallow view of": "对...的肤浅看法",
+        "abandon objects": "放弃物品",
+        "magnificent objects": "宏伟/精美的物品",
+        "ecology session": "生态学课程",
+        "human labour": "人类劳动",
+        "affect the yield": "影响产量",
+        "overseas expert": "海外专家",
+        "worship technology": "崇拜技术",
+        "gamble with nature": "拿自然冒险",
+        "ease the pressure": "缓解压力",
+        "badminton club": "羽毛球俱乐部",
+        "wrap up the day": "结束一天",
+        "practise an idiom": "练习一个习语",
+        "capture light": "捕捉光线",
+        "carve shapes": "雕刻形状",
+        "art workshop": "艺术工作坊",
+        "train workers": "培训劳动者",
+        "practical skills": "实用技能",
+        "look shabby": "显得低劣/破旧",
+        "baggage storage": "行李存放",
+        "pension advice": "养老金建议",
+        "a series of services": "一系列服务",
+        "show identification": "出示身份证明",
+        "former jail": "旧监狱",
+        "history museum": "历史博物馆",
+        "identify identical cells": "识别完全相同的牢房",
+        "lack of freedom": "缺乏自由",
+        "change the economy": "改变经济",
+        "at dawn": "在黎明时",
+        "traffic jam": "交通堵塞",
+        "move the deadline": "推迟截止日期",
+        "serious setback": "严重挫折",
+        "extra session": "额外课程",
+        "elaborate discussion": "详细讨论",
+        "remote ideal": "遥远的理想",
+        "oversee resources": "监督资源",
+        "build a better academy": "建设更好的学院"
+      },
+      mistakes: []
+    };
+
+    const state = {
+      screen: "home",
+      history: ["home"],
+      currentWeekId: "week-01",
+      sentenceIndex: 0,
+      showChinese: localStorage.getItem("ielts.showChineseByDefault") !== "false",
+      readingMode: "english",
+      quizType: "en_to_cn",
+      settings: {
+        showChineseByDefault: localStorage.getItem("ielts.showChineseByDefault") !== "false"
+      },
+      masteredSentences: new Set(),
+      masteredWords: new Set(),
+      masteredPhrases: new Set(),
+      sentenceBreaks: {},
+      lookupText: ""
+    };
+
+    const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
+    const DEEPSEEK_MODEL = "deepseek-v4-flash";
+    const DEEPSEEK_KEY_STORAGE = "ielts.deepseekApiKey";
+    const QUIZ_PASS_SCORE = 70;
+
+    const titles = {
+      home: ["IELTS", "今日学习"],
+      weeks: ["29 个词表", "词表管理"],
+      detail: ["Week", "词表详情"],
+      learn: ["逐句阅读", "句子学习"],
+      read: ["整篇阅读", "阅读模式"],
+      quiz: ["主动回忆", "抽查测试"],
+      mistakes: ["复盘", "错题本"],
+      settings: ["本地 WebView", "设置"]
+    };
+
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+
+    function readSavedProgress() {
+      try {
+        return JSON.parse(localStorage.getItem("ielts.progress.v1") || "{}");
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function applySavedProgress() {
+      const saved = readSavedProgress();
+      if (!saved || typeof saved !== "object") return;
+
+      if (saved.currentWeekId && APP_DATA.weeks.some((week) => week.id === saved.currentWeekId)) {
+        state.currentWeekId = saved.currentWeekId;
+      }
+      if (Number.isInteger(saved.sentenceIndex)) {
+        state.sentenceIndex = saved.sentenceIndex;
+      }
+      if (typeof saved.showChineseByDefault === "boolean") {
+        state.settings.showChineseByDefault = saved.showChineseByDefault;
+        state.showChinese = saved.showChineseByDefault;
+        localStorage.setItem("ielts.showChineseByDefault", String(saved.showChineseByDefault));
+      }
+      if (Array.isArray(saved.masteredSentences)) {
+        state.masteredSentences = new Set(saved.masteredSentences);
+      }
+      if (Array.isArray(saved.masteredWords)) {
+        state.masteredWords = new Set(saved.masteredWords);
+      }
+      if (Array.isArray(saved.masteredPhrases)) {
+        state.masteredPhrases = new Set(saved.masteredPhrases);
+      }
+      if (saved.sentenceBreaks && typeof saved.sentenceBreaks === "object" && !Array.isArray(saved.sentenceBreaks)) {
+        state.sentenceBreaks = saved.sentenceBreaks;
+      }
+      if (Array.isArray(saved.mistakes)) {
+        APP_DATA.mistakes = saved.mistakes;
+      }
+      APP_DATA.weeks.forEach(syncWeekStats);
+    }
+
+    function saveProgress() {
+      const progress = {
+        currentWeekId: state.currentWeekId,
+        sentenceIndex: state.sentenceIndex,
+        readingMode: state.readingMode,
+        showChineseByDefault: state.settings.showChineseByDefault,
+        masteredSentences: Array.from(state.masteredSentences),
+        masteredWords: Array.from(state.masteredWords),
+        masteredPhrases: Array.from(state.masteredPhrases),
+        sentenceBreaks: state.sentenceBreaks,
+        mistakes: APP_DATA.mistakes
+      };
+      localStorage.setItem("ielts.progress.v1", JSON.stringify(progress));
+    }
+
+    function currentWeek() {
+      return APP_DATA.weeks.find((week) => week.id === state.currentWeekId) || APP_DATA.weeks[0];
+    }
+
+    function currentPassage() {
+      return APP_DATA.passages[state.currentWeekId] || APP_DATA.passages["week-01"];
+    }
+
+    function sentenceKey(weekId = state.currentWeekId, index = state.sentenceIndex) {
+      return `${weekId}:${index}`;
+    }
+
+    function syncWeekStats(week = currentWeek()) {
+      const prefix = `${week.id}:`;
+      week.learned = Array.from(state.masteredSentences).filter((key) => key.startsWith(prefix)).length;
+      const wordPrefix = `${week.id}:`;
+      const phrasePrefix = `${week.id}:`;
+      const masteredWordCount = Array.from(state.masteredWords).filter((key) => key.startsWith(wordPrefix)).length;
+      const masteredPhraseCount = Array.from(state.masteredPhrases).filter((key) => key.startsWith(phrasePrefix)).length;
+      week.mastered = masteredWordCount + masteredPhraseCount;
+      week.mistakes = APP_DATA.mistakes.filter((item) => item.weekId === week.id || (!item.weekId && item.week === week.name)).length;
+    }
+
+    function markCurrentSentenceMastered() {
+      const passage = currentPassage();
+      const sentence = passage.sentences[state.sentenceIndex];
+      state.masteredSentences.add(sentenceKey());
+      (sentence.target_words || []).forEach((word) => {
+        state.masteredWords.add(`${state.currentWeekId}:${word.toLowerCase()}`);
+      });
+      (sentence.target_phrases || []).forEach((phrase) => {
+        state.masteredPhrases.add(`${state.currentWeekId}:${phrase.toLowerCase()}`);
+      });
+      syncWeekStats();
+      saveProgress();
+    }
+
+    function resetSentenceVisibility() {
+      state.showChinese = state.settings.showChineseByDefault;
+    }
+
+    function clampSentenceIndex() {
+      const passage = currentPassage();
+      state.sentenceIndex = Math.max(0, Math.min(state.sentenceIndex, passage.sentences.length - 1));
+    }
+
+    function go(screen, push = true) {
+      state.screen = screen;
+      if (push && state.history[state.history.length - 1] !== screen) {
+        state.history.push(screen);
+      }
+      saveProgress();
+      render();
+    }
+
+    function goBack() {
+      if (state.history.length > 1) {
+        state.history.pop();
+        state.screen = state.history[state.history.length - 1];
+      } else {
+        state.screen = "home";
+      }
+      saveProgress();
+      render();
+    }
+
+    function render() {
+      APP_DATA.weeks.forEach(syncWeekStats);
+      $$(".screen").forEach((screen) => screen.classList.remove("active"));
+      $(`#screen-${state.screen}`).classList.add("active");
+
+      const [eyebrow, title] = titles[state.screen] || titles.home;
+      $("#screenEyebrow").textContent = eyebrow;
+      $("#screenTitle").textContent = title;
+
+      $$(".nav-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.screen === state.screen);
+      });
+
+      renderHome();
+      renderWeeks();
+      renderDetail();
+      renderLearn();
+      renderRead();
+      renderQuiz();
+      renderMistakes();
+      renderSettings();
+    }
+
+    function renderHome() {
+      const week = currentWeek();
+      const passage = currentPassage();
+      $("#currentWeekSummary").innerHTML = `
+        <div class="week-top">
+          <div>
+            <div class="week-name">${week.name}</div>
+            <div class="small muted">${week.status}</div>
+          </div>
+          <span class="badge">${passage.sentences.length} 句</span>
+        </div>
+        <div class="meta-grid">
+          <div class="metric"><strong>${week.learned}</strong><span>掌握句</span></div>
+          <div class="metric"><strong>${week.mastered}</strong><span>词/表达</span></div>
+          <div class="metric"><strong>${week.mistakes}</strong><span>错题</span></div>
+        </div>
+      `;
+    }
+
+    function renderWeeks() {
+      $("#weekList").innerHTML = APP_DATA.weeks.map((week) => `
+        <button class="week-card" type="button" data-week-id="${week.id}">
+          <div class="week-top">
+            <div>
+              <div class="week-name">${week.name}</div>
+              <div class="small muted">${week.status}</div>
+            </div>
+            <span class="badge">${week.wordCount} 词</span>
+          </div>
+          <div class="meta-grid">
+            <div class="metric"><strong>${week.learned}</strong><span>掌握句</span></div>
+            <div class="metric"><strong>${week.mastered}</strong><span>词/表达</span></div>
+            <div class="metric"><strong>${week.mistakes}</strong><span>错题</span></div>
+          </div>
+        </button>
+      `).join("");
+    }
+
+    function renderDetail() {
+      const week = currentWeek();
+      const passage = currentPassage();
+      $("#weekDetail").innerHTML = `
+        <div class="section-head">
+          <div>
+            <div class="section-title">${week.name}</div>
+            <div class="small muted">${week.status}</div>
+          </div>
+          <span class="badge">${passage.sentences.length} 句</span>
+        </div>
+        <div class="meta-grid">
+          <div class="metric"><strong>${week.wordCount}</strong><span>单词</span></div>
+          <div class="metric"><strong>${week.learned}</strong><span>掌握句</span></div>
+          <div class="metric"><strong>${week.mistakes}</strong><span>错题</span></div>
+        </div>
+      `;
+    }
+
+    function renderSegmentedSentence(text) {
+      const words = text.trim().split(/\s+/);
+      const breaks = new Set(state.sentenceBreaks[sentenceKey()] || []);
+      return words.map((word, index) => {
+        const wordHtml = `<span class="sentence-word">${escapeHtml(word)}</span>`;
+        if (index === words.length - 1) return wordHtml;
+        const active = breaks.has(index);
+        return `${wordHtml}<button class="word-gap${active ? " active" : ""}" type="button" data-break-index="${index}" aria-label="${active ? "取消" : "添加"}词间分隔">${active ? "|" : "·"}</button>`;
+      }).join("");
+    }
+
+    function renderLearn() {
+      clampSentenceIndex();
+      const passage = currentPassage();
+      const sentence = passage.sentences[state.sentenceIndex];
+      $("#sentenceCount").textContent = `Sentence ${state.sentenceIndex + 1} / ${passage.sentences.length}`;
+      $("#sentenceEnglish").innerHTML = renderSegmentedSentence(sentence.english);
+      $("#sentenceEnglish").classList.remove("muted");
+      $("#sentenceChinese").textContent = state.showChinese ? sentence.chinese : "中文已隐藏";
+      $("#sentenceWords").innerHTML = (sentence.target_words || []).map((word) => `<button class="chip chip-btn" type="button" data-lookup-type="word" data-lookup-value="${escapeHtml(word)}">${escapeHtml(word)}</button>`).join("");
+      $("#sentencePhrases").innerHTML = (sentence.target_phrases || []).map((phrase) => `<button class="chip chip-btn" type="button" data-lookup-type="phrase" data-lookup-value="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>`).join("");
+      $("#toggleChineseBtn").textContent = state.showChinese ? "隐藏中文" : "显示中文";
+      const mastered = state.masteredSentences.has(sentenceKey());
+      $("#markKnownBtn").textContent = mastered ? "已掌握" : "掌握这句";
+      $("#markKnownBtn").className = mastered ? "secondary-btn" : "primary-btn";
+    }
+
+    function renderSettings() {
+      const toggle = $("#defaultChineseToggle");
+      if (toggle) {
+        toggle.classList.toggle("active", state.settings.showChineseByDefault);
+        toggle.setAttribute("aria-pressed", String(state.settings.showChineseByDefault));
+      }
+      const keyInput = $("#deepseekApiKey");
+      const hasKey = Boolean(localStorage.getItem(DEEPSEEK_KEY_STORAGE));
+      if (keyInput && document.activeElement !== keyInput) {
+        keyInput.value = "";
+        keyInput.placeholder = hasKey ? "Key 已保存，输入新 Key 可替换" : "输入 DeepSeek API Key";
+      }
+      const status = $("#deepseekStatus");
+      if (status) {
+        status.textContent = hasKey
+          ? `已配置 ${DEEPSEEK_MODEL}，抽查提交后由 AI 评分。`
+          : `未配置 Key。使用 ${DEEPSEEK_MODEL}，Key 仅保存在当前浏览器。`;
+      }
+    }
+
+    function renderRead() {
+      const passage = currentPassage();
+      $("#passageTitle").textContent = passage.title;
+      $("#passageTopic").textContent = `${passage.topic} · ${passage.difficulty || "IELTS 5.5-6.5"}`;
+      $$("#readingModes button").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.mode === state.readingMode);
+      });
+
+      $("#passageContent").innerHTML = passage.sentences.map((sentence) => {
+        if (state.readingMode === "english") {
+          return `<p>${escapeHtml(sentence.english)}</p>`;
+        }
+
+        if (state.readingMode === "highlight") {
+          return `<p>${highlightWords(sentence.english, sentence.target_words || [])}</p>`;
+        }
+
+        if (state.readingMode === "blank") {
+          return `<p>${blankWords(sentence.english, sentence.target_words || [])}<br><span class="muted">${escapeHtml(sentence.chinese)}</span></p>`;
+        }
+
+        return `<p>${escapeHtml(sentence.english)}<br><span class="muted">${escapeHtml(sentence.chinese)}</span></p>`;
+      }).join("");
+    }
+
+    function renderQuiz() {
+      clampSentenceIndex();
+      const passage = currentPassage();
+      const sentence = passage.sentences[state.sentenceIndex];
+      const isEnToCn = state.quizType === "en_to_cn";
+      $("#quizTypeLabel").textContent = isEnToCn ? "英译中" : "中译英";
+      $("#quizQuestion").textContent = isEnToCn ? sentence.english : sentence.chinese;
+      $("#quizSentenceCount").textContent = `第 ${state.sentenceIndex + 1} 句 / 共 ${passage.sentences.length} 句`;
+      $("#prevQuizBtn").disabled = state.sentenceIndex === 0;
+      $("#nextQuizBtn").disabled = state.sentenceIndex === passage.sentences.length - 1;
+    }
+
+    function resetQuizInput() {
+      $("#quizAnswer").value = "";
+      $("#quizFeedback").hidden = true;
+      $("#quizFeedback").innerHTML = "";
+    }
+
+    function renderMistakes() {
+      const root = $("#mistakeList");
+      if (!APP_DATA.mistakes.length) {
+        root.innerHTML = `
+          <div class="panel empty">
+            <div class="section-title">暂无错题</div>
+            <div class="small">学习时点击“不太懂”或抽查提交后，可把内容加入这里。</div>
+          </div>
+        `;
+        return;
+      }
+
+      root.innerHTML = APP_DATA.mistakes.map((item, index) => `
+        <div class="panel">
+          <div class="section-head">
+            <div class="section-title">${item.type}</div>
+            <span class="badge">${item.week}${Number.isInteger(item.sentenceIndex) ? ` · 第 ${item.sentenceIndex + 1} 句` : ""}</span>
+          </div>
+          <div class="small muted">${escapeHtml(item.question)}</div>
+          <p>${escapeHtml(item.answer || "待复习")}</p>
+          <div class="button-row">
+            ${item.weekId && Number.isInteger(item.sentenceIndex) ? `<button class="primary-btn" type="button" data-review-mistake="${index}">回到原句</button>` : ""}
+            <button class="ghost-btn" type="button" data-remove-mistake="${index}">标记掌握</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function addMistake(type, question, answer) {
+      APP_DATA.mistakes.unshift({
+        type,
+        question,
+        answer,
+        week: currentWeek().name,
+        weekId: state.currentWeekId,
+        sentenceIndex: state.sentenceIndex,
+        createdAt: new Date().toISOString()
+      });
+      const week = currentWeek();
+      week.mistakes += 1;
+      saveProgress();
+    }
+
+    function getEnglishVoice() {
+      if (!("speechSynthesis" in window)) return null;
+      const voices = window.speechSynthesis.getVoices();
+      const englishVoices = voices.filter((voice) => voice.lang && voice.lang.toLowerCase().startsWith("en-"));
+      return englishVoices.find((voice) => voice.lang === "en-GB" && /google|microsoft|natural|premium/i.test(voice.name))
+        || englishVoices.find((voice) => voice.lang === "en-US" && /google|microsoft|natural|premium/i.test(voice.name))
+        || englishVoices.find((voice) => voice.lang === "en-GB")
+        || englishVoices.find((voice) => voice.lang === "en-US")
+        || englishVoices[0]
+        || null;
+    }
+
+    function speakEnglish(text) {
+      if (!text || !("speechSynthesis" in window)) {
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voice = getEnglishVoice();
+      utterance.lang = voice?.lang || "en-US";
+      utterance.rate = 0.82;
+      utterance.pitch = 1;
+      if (voice) utterance.voice = voice;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function speakCurrentSentence() {
+      const sentence = currentPassage().sentences[state.sentenceIndex];
+      speakEnglish(sentence.english);
+    }
+
+    function showLookup(type, value) {
+      const key = value.toLowerCase();
+      const isWord = type === "word";
+      const meaning = isWord
+        ? APP_DATA.wordTranslations[key]
+        : APP_DATA.phraseTranslations[value] || APP_DATA.phraseTranslations[key];
+      $("#lookupType").textContent = isWord ? "目标词" : "词组 / 表达";
+      $("#lookupWord").textContent = value;
+      $("#lookupMeaning").textContent = meaning || "暂时没有释义，后续接入词组库后会自动补全。";
+      state.lookupText = value;
+      $("#lookupSheet").classList.add("active");
+      $("#lookupSheet").setAttribute("aria-hidden", "false");
+      speakEnglish(value);
+    }
+
+    function closeLookup() {
+      $("#lookupSheet").classList.remove("active");
+      $("#lookupSheet").setAttribute("aria-hidden", "true");
+    }
+
+    function setDefaultChinese(value) {
+      state.settings.showChineseByDefault = value;
+      state.showChinese = value;
+      localStorage.setItem("ielts.showChineseByDefault", String(value));
+      saveProgress();
+      render();
+    }
+
+    function saveDeepseekKey() {
+      const input = $("#deepseekApiKey");
+      const key = input.value.trim();
+      if (!key) {
+        $("#deepseekStatus").textContent = "请输入有效的 DeepSeek API Key。";
+        return;
+      }
+      localStorage.setItem(DEEPSEEK_KEY_STORAGE, key);
+      input.value = "";
+      renderSettings();
+    }
+
+    function clearDeepseekKey() {
+      localStorage.removeItem(DEEPSEEK_KEY_STORAGE);
+      renderSettings();
+    }
+
+    function normalizeQuizResult(result) {
+      const score = Math.max(0, Math.min(100, Number(result.score) || 0));
+      return {
+        score,
+        passed: score >= QUIZ_PASS_SCORE,
+        feedback: String(result.feedback || "暂无具体反馈。"),
+        improvedAnswer: String(result.improved_answer || "")
+      };
+    }
+
+    async function scoreQuizWithDeepseek(question, userAnswer, reference, quizType) {
+      const apiKey = localStorage.getItem(DEEPSEEK_KEY_STORAGE);
+      if (!apiKey) {
+        throw new Error("请先在设置页保存 DeepSeek API Key。");
+      }
+
+      const direction = quizType === "en_to_cn" ? "英译中" : "中译英";
+      const response = await fetch(DEEPSEEK_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: DEEPSEEK_MODEL,
+          thinking: { type: "disabled" },
+          response_format: { type: "json_object" },
+          max_tokens: 400,
+          messages: [
+            {
+              role: "system",
+              content: "你是严格但合理的英语翻译老师。按语义准确性、关键信息完整性和语言自然度评分。不要因措辞与参考答案不同而扣分。输出且只输出 JSON，格式为：{\"score\":85,\"feedback\":\"简短中文反馈\",\"improved_answer\":\"更自然的参考表达\"}。score 为 0 到 100 的整数。"
+            },
+            {
+              role: "user",
+              content: `评分类型：${direction}\n题目：${question}\n学生答案：${userAnswer}\n参考答案：${reference}\n请输出 JSON 评分。`
+            }
+          ]
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error?.message || `DeepSeek 请求失败（HTTP ${response.status}）`);
+      }
+
+      const content = payload.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error("DeepSeek 没有返回评分内容，请重试。");
+      }
+      return normalizeQuizResult(JSON.parse(content));
+    }
+
+    async function submitQuiz() {
+      const sentence = currentPassage().sentences[state.sentenceIndex];
+      const userAnswer = $("#quizAnswer").value.trim();
+      const reference = state.quizType === "en_to_cn" ? sentence.chinese : sentence.english;
+      if (!userAnswer) {
+        $("#quizFeedback").hidden = false;
+        $("#quizFeedback").innerHTML = `<div class="section-title">先输入答案</div><p class="small muted">输入后将由 ${DEEPSEEK_MODEL} 评分。</p>`;
+        return;
+      }
+
+      const submitBtn = $("#submitQuizBtn");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "AI 评分中...";
+      $("#quizFeedback").hidden = false;
+      $("#quizFeedback").innerHTML = `<div class="section-title">正在评分</div><p class="small muted">${DEEPSEEK_MODEL} 正在比较你的答案与参考答案。</p>`;
+
+      try {
+        const result = await scoreQuizWithDeepseek(
+          $("#quizQuestion").textContent,
+          userAnswer,
+          reference,
+          state.quizType
+        );
+        if (!result.passed) {
+          addMistake(state.quizType === "en_to_cn" ? "英译中" : "中译英", $("#quizQuestion").textContent, userAnswer);
+        }
+        $("#quizFeedback").innerHTML = `
+          <div class="section-title">${result.passed ? "通过" : "需要复习"} · ${result.score} 分</div>
+          <p>${escapeHtml(result.feedback)}</p>
+          ${result.improvedAnswer ? `<p><strong>推荐表达：</strong>${escapeHtml(result.improvedAnswer)}</p>` : ""}
+          <p class="small muted">${result.passed ? "本题未加入错题本。" : "低于 70 分，已加入错题本。"}</p>
+          <p><strong>参考答案：</strong>${escapeHtml(reference)}</p>
+        `;
+        $("#quizAnswer").value = "";
+        renderHome();
+        renderMistakes();
+      } catch (error) {
+        $("#quizFeedback").innerHTML = `
+          <div class="section-title">评分失败</div>
+          <p class="small muted">${escapeHtml(error.message || "无法连接 DeepSeek。")}</p>
+          <p><strong>参考答案：</strong>${escapeHtml(reference)}</p>
+        `;
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "提交答案";
+      }
+    }
+
+    function highlightWords(text, words) {
+      let escaped = escapeHtml(text);
+      words.forEach((word) => {
+        const safeWord = escapeRegExp(word);
+        escaped = escaped.replace(new RegExp(`\\b(${safeWord})\\b`, "gi"), '<span class="highlight">$1</span>');
+      });
+      return escaped;
+    }
+
+    function blankWords(text, words) {
+      let escaped = escapeHtml(text);
+      words.forEach((word) => {
+        const safeWord = escapeRegExp(word);
+        escaped = escaped.replace(new RegExp(`\\b(${safeWord})\\b`, "gi"), (match) => {
+          return `<button class="blank-token" type="button" data-blank-answer="${escapeHtml(match)}">_____</button>`;
+        });
+      });
+      return escaped;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function escapeRegExp(value) {
+      return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    document.addEventListener("click", (event) => {
+      const screenBtn = event.target.closest("[data-screen]");
+      if (screenBtn) {
+        go(screenBtn.dataset.screen);
+        return;
+      }
+
+      const weekBtn = event.target.closest("[data-week-id]");
+      if (weekBtn) {
+        state.currentWeekId = weekBtn.dataset.weekId;
+        state.sentenceIndex = 0;
+        resetSentenceVisibility();
+        saveProgress();
+        go("detail");
+        return;
+      }
+
+      const lookupBtn = event.target.closest("[data-lookup-type]");
+      if (lookupBtn) {
+        showLookup(lookupBtn.dataset.lookupType, lookupBtn.dataset.lookupValue);
+        return;
+      }
+
+      const breakBtn = event.target.closest("[data-break-index]");
+      if (breakBtn) {
+        const key = sentenceKey();
+        const index = Number(breakBtn.dataset.breakIndex);
+        const breaks = new Set(state.sentenceBreaks[key] || []);
+        if (breaks.has(index)) {
+          breaks.delete(index);
+        } else {
+          breaks.add(index);
+        }
+        state.sentenceBreaks[key] = Array.from(breaks).sort((a, b) => a - b);
+        saveProgress();
+        renderLearn();
+        return;
+      }
+
+      const actionBtn = event.target.closest("[data-action]");
+      if (actionBtn) {
+        const action = actionBtn.dataset.action;
+        if (action === "back") goBack();
+        if (action === "prevSentence") {
+          state.sentenceIndex -= 1;
+          resetSentenceVisibility();
+          saveProgress();
+        }
+        if (action === "nextSentence") {
+          state.sentenceIndex += 1;
+          resetSentenceVisibility();
+          saveProgress();
+        }
+        if (action === "toggleChinese") {
+          state.showChinese = !state.showChinese;
+          saveProgress();
+        }
+        if (action === "markKnown") {
+          markCurrentSentenceMastered();
+          const passage = currentPassage();
+          if (state.sentenceIndex < passage.sentences.length - 1) {
+            state.sentenceIndex += 1;
+            resetSentenceVisibility();
+          }
+          saveProgress();
+        }
+        if (action === "markMistake") {
+          const sentence = currentPassage().sentences[state.sentenceIndex];
+          addMistake("句子", sentence.english, sentence.chinese);
+          go("mistakes");
+          return;
+        }
+        if (action === "switchQuiz") {
+          state.quizType = state.quizType === "en_to_cn" ? "cn_to_en" : "en_to_cn";
+          resetQuizInput();
+        }
+        if (action === "prevQuiz") {
+          state.sentenceIndex -= 1;
+          clampSentenceIndex();
+          resetQuizInput();
+          saveProgress();
+        }
+        if (action === "nextQuiz") {
+          state.sentenceIndex += 1;
+          clampSentenceIndex();
+          resetQuizInput();
+          saveProgress();
+        }
+        if (action === "submitQuiz") {
+          submitQuiz();
+          return;
+        }
+        if (action === "saveDeepseekKey") {
+          saveDeepseekKey();
+          return;
+        }
+        if (action === "clearDeepseekKey") {
+          clearDeepseekKey();
+          return;
+        }
+        if (action === "speakSentence") {
+          speakCurrentSentence();
+          return;
+        }
+        if (action === "speakLookup") {
+          speakEnglish(state.lookupText);
+          return;
+        }
+        if (action === "toggleDefaultChinese") {
+          setDefaultChinese(!state.settings.showChineseByDefault);
+          return;
+        }
+        if (action === "closeLookup") {
+          closeLookup();
+          return;
+        }
+        render();
+        return;
+      }
+
+      const modeBtn = event.target.closest("[data-mode]");
+      if (modeBtn) {
+        state.readingMode = modeBtn.dataset.mode;
+        saveProgress();
+        renderRead();
+        return;
+      }
+
+      const blankBtn = event.target.closest("[data-blank-answer]");
+      if (blankBtn) {
+        blankBtn.textContent = blankBtn.dataset.blankAnswer;
+        return;
+      }
+
+      const removeBtn = event.target.closest("[data-remove-mistake]");
+      if (removeBtn) {
+        APP_DATA.mistakes.splice(Number(removeBtn.dataset.removeMistake), 1);
+        saveProgress();
+        renderMistakes();
+      }
+
+      const reviewBtn = event.target.closest("[data-review-mistake]");
+      if (reviewBtn) {
+        const item = APP_DATA.mistakes[Number(reviewBtn.dataset.reviewMistake)];
+        if (item?.weekId && Number.isInteger(item.sentenceIndex)) {
+          state.currentWeekId = item.weekId;
+          state.sentenceIndex = item.sentenceIndex;
+          resetSentenceVisibility();
+          saveProgress();
+          go("learn");
+        }
+        return;
+      }
+
+      if (event.target.id === "lookupSheet") {
+        closeLookup();
+      }
+    });
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+
+    applySavedProgress();
+    render();
+  </script>
+</body>
+</html>
