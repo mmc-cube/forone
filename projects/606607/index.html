@@ -837,7 +837,13 @@
         </div>
 
         <div class="screen" id="screen-vocabulary">
-          <div class="stack" id="vocabularyList"></div>
+          <div class="stack">
+            <div class="button-row">
+              <button class="primary-btn" type="button" data-action="exportVocabularyJson">导出 JSON</button>
+              <button class="secondary-btn" type="button" data-action="exportVocabularyCsv">导出 CSV</button>
+            </div>
+            <div class="stack" id="vocabularyList"></div>
+          </div>
         </div>
 
         <div class="screen" id="screen-settings">
@@ -2271,6 +2277,43 @@
       `).join("");
     }
 
+    function downloadFile(filename, content, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function exportVocabulary(format) {
+      if (!state.vocabulary.length) {
+        alert("生词本为空，暂无内容可导出。");
+        return;
+      }
+      const date = new Date().toISOString().slice(0, 10);
+      if (format === "json") {
+        const content = JSON.stringify({
+          exportedAt: new Date().toISOString(),
+          count: state.vocabulary.length,
+          vocabulary: state.vocabulary
+        }, null, 2);
+        downloadFile(`ielts-vocabulary-${date}.json`, content, "application/json;charset=utf-8");
+        return;
+      }
+
+      const csvCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+      const rows = [
+        ["word", "meaning", "sentence", "addedAt"],
+        ...state.vocabulary.map((item) => [item.word, item.meaning, item.sentence, item.addedAt])
+      ];
+      const content = "\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+      downloadFile(`ielts-vocabulary-${date}.csv`, content, "text/csv;charset=utf-8");
+    }
+
     function addMistake(type, question, answer) {
       APP_DATA.mistakes.unshift({
         type,
@@ -2633,6 +2676,14 @@
         }
         if (action === "toggleVocabulary") {
           toggleVocabulary();
+          return;
+        }
+        if (action === "exportVocabularyJson") {
+          exportVocabulary("json");
+          return;
+        }
+        if (action === "exportVocabularyCsv") {
+          exportVocabulary("csv");
           return;
         }
         if (action === "toggleDefaultChinese") {
