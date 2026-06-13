@@ -343,6 +343,20 @@
 
     .sentence-word {
       display: inline;
+      margin: 0;
+      padding: 0;
+      color: inherit;
+      background: transparent;
+      border-radius: 4px;
+      font: inherit;
+      text-align: left;
+      vertical-align: baseline;
+      touch-action: manipulation;
+    }
+
+    .sentence-word:active {
+      color: var(--primary);
+      background: var(--chip);
     }
 
     .word-gap {
@@ -720,6 +734,7 @@
               <button class="primary-btn" type="button" data-screen="learn">继续学习</button>
               <button class="secondary-btn" type="button" data-screen="mistakes">查看错题</button>
             </div>
+            <button class="ghost-btn" type="button" data-screen="vocabulary">个人生词本</button>
           </div>
         </div>
 
@@ -821,6 +836,10 @@
           <div class="stack" id="mistakeList"></div>
         </div>
 
+        <div class="screen" id="screen-vocabulary">
+          <div class="stack" id="vocabularyList"></div>
+        </div>
+
         <div class="screen" id="screen-settings">
           <div class="stack">
             <div class="panel">
@@ -870,6 +889,7 @@
             </button>
           </div>
           <div class="sheet-meaning" id="lookupMeaning"></div>
+          <button class="primary-btn" type="button" data-action="toggleVocabulary" id="lookupVocabularyBtn">加入生词本</button>
         </div>
       </div>
 
@@ -1469,6 +1489,324 @@
         "elaborate": "adj. 复杂的,详尽的 vt./vi. 详尽说明",
         "factor": "n. 因素,要素"
       },
+      sentenceWordTranslations: {
+        "at": "在；向（介词）",
+        "the": "这个；该（定冠词）",
+        "start": "开始（名词）",
+        "of": "的；关于（介词）",
+        "new": "新的",
+        "academic": "学术的",
+        "year": "年",
+        "dean": "院长；教务长",
+        "gave": "给予（过去式）",
+        "an": "一个（不定冠词）",
+        "overview": "概述",
+        "reform": "改革",
+        "plan": "计划",
+        "to": "向；给；不定式标记",
+        "students": "学生们",
+        "academy": "学院",
+        "first": "第一的；首先的",
+        "event": "事件；活动",
+        "on": "在……上；关于",
+        "campus": "校园",
+        "calendar": "校历；日程表",
+        "was": "是；被（过去式）",
+        "scheduled": "安排（过去分词）",
+        "for": "为了；对于",
+        "september": "九月",
+        "but": "但是",
+        "exact": "确切的",
+        "date": "日期",
+        "had": "有；已经（过去式）",
+        "not": "不；没有",
+        "yet": "还；尚未",
+        "been": "是；被（过去分词）",
+        "announced": "宣布（过去分词）",
+        "main": "主要的",
+        "factor": "因素",
+        "behind": "在……背后；作为……的原因",
+        "a": "一个（不定冠词）",
+        "lack": "缺乏",
+        "reliable": "可靠的",
+        "data": "数据",
+        "about": "关于；对于",
+        "how": "如何；怎样",
+        "used": "使用（过去式）",
+        "each": "每个",
+        "facility": "设施；设备",
+        "survey": "调查",
+        "covered": "覆盖；包括",
+        "canteen": "食堂；餐厅",
+        "cafeteria": "自助餐厅",
+        "science": "科学",
+        "lab": "实验室",
+        "and": "和；及",
+        "art": "艺术",
+        "gallery": "画廊；美术馆",
+        "school": "学校",
+        "hoped": "希望（过去式）",
+        "facilitate": "促进；使便利",
+        "access": "使用权；使用机会",
+        "every": "每个；所有的",
+        "learning": "学习",
+        "resource": "资源",
+        "offer": "提供",
+        "abundance": "丰富；大量",
+        "useful": "有用的",
+        "choices": "选择（复数）",
+        "another": "另一个；另一",
+        "goal": "目标",
+        "restore": "恢复",
+        "balance": "平衡",
+        "between": "在…之间",
+        "study": "学习；研究",
+        "career": "职业",
+        "preparation": "准备",
+        "daily": "日常的",
+        "life": "生活",
+        "capable": "有能力的",
+        "candidate": "候选人",
+        "chosen": "被选中的",
+        "calculate": "计算",
+        "capacity": "容量；能力",
+        "classroom": "教室",
+        "she": "她",
+        "also": "也",
+        "measured": "测量",
+        "percentage": "百分比",
+        "space": "空间",
+        "that": "那个（指代）",
+        "remained": "保持",
+        "idle": "闲置的",
+        "during": "在……期间",
+        "day": "白天",
+        "her": "她的",
+        "report": "报告",
+        "showed": "显示",
+        "only": "仅仅",
+        "twenty": "二十",
+        "percent": "百分之",
+        "capital": "资金；资本",
+        "budget": "预算",
+        "clear": "明显的",
+        "effect": "效果",
+        "efficient": "高效的",
+        "revised": "修订过的",
+        "edition": "版本",
+        "presented": "呈现",
+        "findings": "发现",
+        "in": "以……方式；在……中",
+        "sequence": "序列",
+        "charts": "图表",
+        "helping": "帮助（正在）",
+        "absorb": "吸收",
+        "abstract": "抽象的",
+        "ideas": "概念",
+        "one": "一个",
+        "naive": "天真的",
+        "youngster": "年轻人",
+        "tended": "倾向于",
+        "perceive": "视为",
+        "rule": "规则",
+        "as": "作为",
+        "penalty": "惩罚",
+        "his": "他的",
+        "peer": "同龄人",
+        "responsible": "负责的",
+        "response": "回应",
+        "explained": "解释（过去式）",
+        "why": "为什么",
+        "some": "一些",
+        "rules": "规则",
+        "were": "是（过去式）",
+        "necessary": "必要的",
+        "jealous": "嫉妒的",
+        "student": "学生",
+        "tried": "试图（过去式）",
+        "magnify": "放大",
+        "minor": "次要的",
+        "setback": "挫折",
+        "label": "把……说成；贴标签",
+        "entire": "整个",
+        "abnormal": "不正常的",
+        "teacher": "老师",
+        "restrain": "制止",
+        "gang": "一群",
+        "noisy": "吵闹的",
+        "before": "在…之前",
+        "their": "他们的",
+        "argument": "争论",
+        "turned": "变成（过去式）",
+        "into": "进去",
+        "severe": "严重的",
+        "verbal": "言语的",
+        "abuse": "辱骂",
+        "near": "在…附近",
+        "balcony": "阳台",
+        "made": "作出（过去式）",
+        "dash": "猛冲",
+        "through": "穿过",
+        "damp": "潮湿的",
+        "corridor": "走廊",
+        "dropped": "掉落（过去式）",
+        "glass": "玻璃制的",
+        "jar": "罐子",
+        "caused": "导致（过去式）",
+        "damage": "损害",
+        "piece": "件",
+        "historic": "历史的",
+        "fabric": "织物",
+        "guide": "导游；向导",
+        "warned": "警告（过去式）",
+        "shallow": "肤浅的",
+        "understanding": "理解",
+        "history": "历史",
+        "can": "会；可能",
+        "lead": "导致",
+        "people": "人们",
+        "abandon": "放弃",
+        "magnificent": "宏伟的",
+        "objects": "物品（复数）",
+        "too": "太",
+        "quickly": "快地",
+        "ecology": "生态学",
+        "session": "课程；会议",
+        "examined": "检查（过去式）",
+        "bacteria": "细菌",
+        "affect": "影响",
+        "natural": "自然的",
+        "habitat": "栖息地",
+        "they": "他们（主格）",
+        "discussed": "讨论（过去式）",
+        "human": "人的",
+        "labour": "劳动",
+        "changing": "变化的",
+        "weather": "天气",
+        "influence": "影响（动词）",
+        "yield": "产量",
+        "local": "当地的",
+        "farms": "农场（复数）",
+        "overseas": "海外的",
+        "expert": "专家",
+        "fabulous": "极好的",
+        "lecture": "讲座；演讲",
+        "should": "应当（情态动词）",
+        "worship": "崇拜；敬奉",
+        "technology": "技术；科技",
+        "or": "或；或者（连词）",
+        "gamble": "赌博；冒险",
+        "with": "与；和；用（介词）",
+        "nature": "自然；大自然",
+        "ease": "缓解；减轻",
+        "pressure": "压力",
+        "opened": "开设；开放（过去式）",
+        "badminton": "羽毛球运动",
+        "club": "俱乐部；社团",
+        "keen": "热衷的；渴望的",
+        "weekend": "周末",
+        "seaside": "海边的；海滨的",
+        "resort": "度假胜地",
+        "language": "语言",
+        "group": "小组；团体",
+        "would": "会；将（过去将来）",
+        "wrap": "结束；总结",
+        "up": "（副词）向上；完全",
+        "by": "通过；凭借（介词）",
+        "practising": "练习（动名词）",
+        "idiom": "习语；成语",
+        "workshop": "工作室；工作坊",
+        "magnet": "磁铁；磁石",
+        "held": "固定；握住（过去式）",
+        "drawing": "素描；图画",
+        "naked": "裸体的；无遮盖的",
+        "model": "模特；模型",
+        "place": "位置；地方",
+        "while": "当……时（连词）",
+        "learned": "学习（过去式）",
+        "capture": "捕捉；描绘",
+        "light": "光；光线",
+        "shadow": "阴影；影子",
+        "later": "后来；随后",
+        "simple": "简单的；简易的",
+        "tools": "工具（复数）",
+        "carve": "雕刻",
+        "basic": "基本的",
+        "shapes": "形状",
+        "wooden": "木制的",
+        "boards": "板",
+        "trained": "培训",
+        "cashier": "收银员",
+        "hairdresser": "理发师",
+        "carefully": "仔细地",
+        "because": "因为",
+        "practical": "实用的",
+        "skills": "技能",
+        "never": "从不",
+        "be": "被；是（系动词）",
+        "treated": "对待；视为",
+        "shabby": "低劣的；寒酸的",
+        "unimportant": "不重要的",
+        "introduced": "引入；推出",
+        "baggage": "行李",
+        "storage": "存储",
+        "pension": "养老金",
+        "advice": "建议",
+        "older": "年长的",
+        "staff": "员工",
+        "series": "一系列",
+        "support": "支持",
+        "services": "服务",
+        "exchange": "交流",
+        "show": "出示",
+        "identification": "身份证明",
+        "entering": "进入",
+        "former": "以前的",
+        "jail": "监狱",
+        "become": "变成；成为",
+        "museum": "博物馆",
+        "helped": "帮助（过去式）",
+        "them": "他们（宾格）",
+        "identify": "识别；辨认",
+        "several": "几个",
+        "identical": "完全相同的",
+        "cells": "细胞",
+        "freedom": "自由",
+        "affected": "影响（过去式）",
+        "economy": "经济",
+        "dawn": "黎明",
+        "bus": "公共汽车",
+        "became": "变得（过去式）",
+        "stuck": "陷入（过去分词）",
+        "traffic": "交通",
+        "jam": "拥堵",
+        "forcing": "迫使（现在分词）",
+        "cancel": "取消",
+        "morning": "上午的",
+        "extend": "延长",
+        "deadline": "截止日期",
+        "delay": "延误",
+        "serious": "严重的",
+        "included": "包含（过去式）",
+        "extra": "额外的",
+        "elaborate": "详尽的",
+        "discussion": "讨论",
+        "end": "结束",
+        "programme": "项目",
+        "no": "不再（用于否定）",
+        "longer": "更长（时间）",
+        "saw": "视为（过去式）",
+        "idealism": "理想主义",
+        "remote": "遥远的",
+        "ideal": "理想",
+        "it": "它（指代理想主义）",
+        "commitment": "承诺",
+        "oversee": "监督",
+        "resources": "资源",
+        "protect": "保护",
+        "build": "建设",
+        "better": "更好的"
+      },
       phraseTranslations: {
         "academic calendar": "学术日历;校历",
         "give an overview of": "概述;介绍整体情况",
@@ -1556,7 +1894,9 @@
       masteredWords: new Set(),
       masteredPhrases: new Set(),
       sentenceBreaks: {},
-      lookupText: ""
+      vocabulary: [],
+      lookupText: "",
+      lookupMeaning: ""
     };
 
     const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
@@ -1572,6 +1912,7 @@
       read: ["整篇阅读", "阅读模式"],
       quiz: ["主动回忆", "抽查测试"],
       mistakes: ["复盘", "错题本"],
+      vocabulary: ["积累", "个人生词本"],
       settings: ["本地 WebView", "设置"]
     };
 
@@ -1613,6 +1954,9 @@
       if (saved.sentenceBreaks && typeof saved.sentenceBreaks === "object" && !Array.isArray(saved.sentenceBreaks)) {
         state.sentenceBreaks = saved.sentenceBreaks;
       }
+      if (Array.isArray(saved.vocabulary)) {
+        state.vocabulary = saved.vocabulary;
+      }
       if (Array.isArray(saved.mistakes)) {
         APP_DATA.mistakes = saved.mistakes;
       }
@@ -1629,6 +1973,7 @@
         masteredWords: Array.from(state.masteredWords),
         masteredPhrases: Array.from(state.masteredPhrases),
         sentenceBreaks: state.sentenceBreaks,
+        vocabulary: state.vocabulary,
         mistakes: APP_DATA.mistakes
       };
       localStorage.setItem("ielts.progress.v1", JSON.stringify(progress));
@@ -1720,6 +2065,7 @@
       renderRead();
       renderQuiz();
       renderMistakes();
+      renderVocabulary();
       renderSettings();
     }
 
@@ -1783,8 +2129,11 @@
     function renderSegmentedSentence(text) {
       const words = text.trim().split(/\s+/);
       const breaks = new Set(state.sentenceBreaks[sentenceKey()] || []);
-      return words.map((word, index) => {
-        const wordHtml = `<span class="sentence-word">${escapeHtml(word)}</span>`;
+      return words.map((token, index) => {
+        const match = token.match(/^([^A-Za-z']*)([A-Za-z]+(?:'[A-Za-z]+)?)([^A-Za-z']*)$/);
+        const wordHtml = match
+          ? `${escapeHtml(match[1])}<button class="sentence-word" type="button" data-lookup-type="sentence-word" data-lookup-value="${escapeHtml(match[2])}">${escapeHtml(match[2])}</button>${escapeHtml(match[3])}`
+          : escapeHtml(token);
         if (index === words.length - 1) return wordHtml;
         const active = breaks.has(index);
         return `${wordHtml}<button class="word-gap${active ? " active" : ""}" type="button" data-break-index="${index}" aria-label="${active ? "取消" : "添加"}词间分隔">${active ? "|" : "·"}</button>`;
@@ -1898,6 +2247,30 @@
       `).join("");
     }
 
+    function renderVocabulary() {
+      const root = $("#vocabularyList");
+      if (!state.vocabulary.length) {
+        root.innerHTML = `
+          <div class="panel empty">
+            <div class="section-title">暂无生词</div>
+            <div class="small">在逐句学习中点击任意英文词，再点击“加入生词本”。</div>
+          </div>
+        `;
+        return;
+      }
+
+      root.innerHTML = state.vocabulary.map((item, index) => `
+        <div class="panel">
+          <div class="section-head">
+            <button class="section-title sentence-word" type="button" data-lookup-type="sentence-word" data-lookup-value="${escapeHtml(item.word)}">${escapeHtml(item.word)}</button>
+            <button class="ghost-btn small" type="button" data-remove-vocabulary="${index}">移除</button>
+          </div>
+          <p>${escapeHtml(item.meaning)}</p>
+          <div class="small muted">${escapeHtml(item.sentence || "")}</div>
+        </div>
+      `).join("");
+    }
+
     function addMistake(type, question, answer) {
       APP_DATA.mistakes.unshift({
         type,
@@ -1948,16 +2321,42 @@
     function showLookup(type, value) {
       const key = value.toLowerCase();
       const isWord = type === "word";
-      const meaning = isWord
-        ? APP_DATA.wordTranslations[key]
-        : APP_DATA.phraseTranslations[value] || APP_DATA.phraseTranslations[key];
-      $("#lookupType").textContent = isWord ? "目标词" : "词组 / 表达";
+      const isSentenceWord = type === "sentence-word";
+      const meaning = isSentenceWord
+        ? APP_DATA.sentenceWordTranslations[key] || APP_DATA.wordTranslations[key]
+        : isWord
+          ? APP_DATA.wordTranslations[key]
+          : APP_DATA.phraseTranslations[value] || APP_DATA.phraseTranslations[key];
+      $("#lookupType").textContent = isSentenceWord ? "句中单词" : isWord ? "目标词" : "词组 / 表达";
       $("#lookupWord").textContent = value;
       $("#lookupMeaning").textContent = meaning || "暂时没有释义，后续接入词组库后会自动补全。";
       state.lookupText = value;
+      state.lookupMeaning = meaning || "";
+      const vocabularyBtn = $("#lookupVocabularyBtn");
+      const saved = state.vocabulary.some((item) => item.word.toLowerCase() === key);
+      vocabularyBtn.hidden = !isSentenceWord && !isWord;
+      vocabularyBtn.textContent = saved ? "已加入生词本，点击移除" : "加入生词本";
       $("#lookupSheet").classList.add("active");
       $("#lookupSheet").setAttribute("aria-hidden", "false");
       speakEnglish(value);
+    }
+
+    function toggleVocabulary() {
+      const key = state.lookupText.toLowerCase();
+      const index = state.vocabulary.findIndex((item) => item.word.toLowerCase() === key);
+      if (index >= 0) {
+        state.vocabulary.splice(index, 1);
+      } else {
+        state.vocabulary.unshift({
+          word: state.lookupText,
+          meaning: state.lookupMeaning || "暂无释义",
+          sentence: currentPassage().sentences[state.sentenceIndex]?.english || "",
+          addedAt: new Date().toISOString()
+        });
+      }
+      saveProgress();
+      renderVocabulary();
+      $("#lookupVocabularyBtn").textContent = index >= 0 ? "加入生词本" : "已加入生词本，点击移除";
     }
 
     function closeLookup() {
@@ -2232,6 +2631,10 @@
           speakEnglish(state.lookupText);
           return;
         }
+        if (action === "toggleVocabulary") {
+          toggleVocabulary();
+          return;
+        }
         if (action === "toggleDefaultChinese") {
           setDefaultChinese(!state.settings.showChineseByDefault);
           return;
@@ -2263,6 +2666,14 @@
         APP_DATA.mistakes.splice(Number(removeBtn.dataset.removeMistake), 1);
         saveProgress();
         renderMistakes();
+      }
+
+      const removeVocabularyBtn = event.target.closest("[data-remove-vocabulary]");
+      if (removeVocabularyBtn) {
+        state.vocabulary.splice(Number(removeVocabularyBtn.dataset.removeVocabulary), 1);
+        saveProgress();
+        renderVocabulary();
+        return;
       }
 
       const reviewBtn = event.target.closest("[data-review-mistake]");
