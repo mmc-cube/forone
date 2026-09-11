@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>STM32 智能唤醒时钟系统</title>
+<style>
+:root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --alarm: #F44336;
+    --ok: #4CAF50;
+    --text: #212121;
+    --sub: #757575;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    background: var(--bg);
+    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 12px 20px;
+}
+.topbar {
+    padding: 44px 16px 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.topbar h1 { font-size: 18px; font-weight: 600; flex: 1; }
+.status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--alarm);
+    transition: background 0.3s;
+}
+.status-dot.connected { background: var(--ok); }
+.status-text { font-size: 13px; color: var(--sub); }
+
+.card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+.card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--sub);
+    margin-bottom: 12px;
+}
+
+.data-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.data-row:last-child { border-bottom: none; }
+.data-label { font-size: 13px; color: var(--sub); }
+.data-value { font-size: 28px; font-weight: bold; }
+.data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+.data-value.alarm { color: var(--alarm); }
+
+.alarm-normal {
+    color: var(--ok);
+    font-size: 15px;
+    text-align: center;
+    padding: 8px;
+}
+.alarm-item {
+    background: #FFF3F3;
+    color: var(--alarm);
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 14px;
+}
+.alarm-item:last-child { margin-bottom: 0; }
+
+.ctrl-btn {
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+    margin-bottom: 8px;
+    transition: opacity 0.15s;
+}
+.ctrl-btn:active { opacity: 0.7; }
+.ctrl-btn:last-child { margin-bottom: 0; }
+.btn-blue { background: var(--primary); }
+.btn-red { background: var(--alarm); }
+.btn-green { background: var(--ok); }
+.btn-orange { background: #FF9800; }
+.btn-teal { background: #009688; }
+.btn-purple { background: #9C27B0; }
+
+.thresh-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.thresh-row:last-child { border-bottom: none; }
+.thresh-label { font-size: 13px; color: var(--sub); }
+.thresh-val { font-size: 20px; font-weight: bold; }
+.thresh-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+
+.thresh-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.thresh-input-row:last-child { margin-bottom: 0; }
+.thresh-input-label { font-size: 13px; flex: 1; }
+.thresh-input {
+    width: 80px;
+    height: 36px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 14px;
+    outline: none;
+}
+.thresh-input:focus { border-color: var(--primary); }
+.thresh-send {
+    height: 36px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+}
+.thresh-send:active { opacity: 0.7; }
+
+.log-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+.log-arrow { transition: transform 0.2s; font-size: 12px; color: var(--sub); }
+.log-arrow.open { transform: rotate(180deg); }
+.log-content { display: none; margin-top: 10px; max-height: 200px; overflow-y: auto; }
+.log-content.open { display: block; }
+.log-entry {
+    font-size: 12px;
+    font-family: monospace;
+    padding: 4px 0;
+    border-bottom: 1px solid #f5f5f5;
+    color: var(--sub);
+}
+</style>
+</head>
+<body>
+
+<!-- 状态栏 -->
+<div class="topbar">
+    <h1>智能唤醒时钟</h1>
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">未连接</span>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+    <div class="card-title">实时数据</div>
+    <div class="data-row">
+        <span class="data-label">时间</span>
+        <span><span class="data-value" id="clock_time">--:--</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">光照强度</span>
+        <span><span class="data-value" id="light_pct">--</span><span class="data-unit">%</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">闹钟时间</span>
+        <span><span class="data-value" id="alarm_time">--:--</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">闹钟开关</span>
+        <span><span class="data-value" id="alarm_on">--</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">响铃状态</span>
+        <span><span class="data-value" id="alarm_ringing">--</span></span>
+    </div>
+    <div class="data-row">
+        <span class="data-label">工作模式</span>
+        <span><span class="data-value" id="work_mode" style="font-size:16px;">--</span></span>
+    </div>
+</div>
+
+<!-- 报警状态卡 -->
+<div class="card" id="alarmCard">
+    <div class="card-title">报警状态</div>
+    <div id="alarmBody">
+        <div class="alarm-normal">运行正常 ✓</div>
+    </div>
+</div>
+
+<!-- 控制卡 -->
+<div class="card">
+    <div class="card-title">远程控制</div>
+    <button class="ctrl-btn btn-green" onclick="sendCmd('02')">开启闹钟</button>
+    <button class="ctrl-btn btn-orange" onclick="sendCmd('03')">关闭闹钟</button>
+    <button class="ctrl-btn btn-blue" onclick="sendCmd('05')">一键启动</button>
+    <button class="ctrl-btn btn-purple" onclick="sendCmd('06')">查询状态</button>
+</div>
+
+<!-- 闹钟设置卡 -->
+<div class="card">
+    <div class="card-title">闹钟时间设置</div>
+    <div class="thresh-input-row">
+        <span class="thresh-input-label">时 (0-23)</span>
+        <input type="number" class="thresh-input" id="alarm_hour_input" min="0" max="23" placeholder="时">
+    </div>
+    <div class="thresh-input-row">
+        <span class="thresh-input-label">分 (0-59)</span>
+        <input type="number" class="thresh-input" id="alarm_min_input" min="0" max="59" placeholder="分">
+    </div>
+    <button class="thresh-send" style="width:100%;margin-top:8px;height:40px;" onclick="setAlarmTime()">发送闹钟时间</button>
+</div>
+
+<!-- 日志卡 -->
+<div class="card">
+    <div class="log-toggle" onclick="toggleLog()">
+        <span class="card-title" style="margin-bottom:0;">通信日志</span>
+        <span class="log-arrow" id="logArrow">&#9660;</span>
+    </div>
+    <div class="log-content" id="logContent"></div>
+</div>
+
+<script src="mqtt.min.js"></script>
+<script>
+const UPLOAD_TOPIC = '001/001/dulaojiankang/upload';
+const CMD_TOPIC    = '001/001/dulaojiankang/cmd';
+
+let client;
+let logOpen = false;
+const logs = [];
+
+let currentData = {
+    clock_hour: null,
+    clock_min: null,
+    light_pct: null,
+    alarm_hour: null,
+    alarm_min: null,
+    alarm_on: null,
+    alarm_ringing: null,
+    work_mode: null
+};
+
+// 同步保护状态
+let waitingSync = { alarm: false };
+let pendingValue = { alarm_hour: null, alarm_min: null };
+let syncTimeoutTimer = null;
+
+let lastUserSetTime = { alarm_time: 0 };
+const DEBOUNCE_MS = 500;
+const SYNC_TIMEOUT_MS = 5000;
+
+function connect() {
+    client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+        clientId: 'web_' + Math.random().toString(36).substr(2, 8),
+        reconnectPeriod: 3000
+    });
+
+    client.on('connect', () => {
+        document.getElementById('statusDot').classList.add('connected');
+        document.getElementById('statusText').textContent = '已连接';
+        client.subscribe(UPLOAD_TOPIC);
+    });
+
+    client.on('close', () => {
+        document.getElementById('statusDot').classList.remove('connected');
+        document.getElementById('statusText').textContent = '未连接';
+    });
+
+    client.on('message', (topic, payload) => {
+        parseMessage(payload.toString());
+    });
+}
+
+function parseMessage(message) {
+    const parts = message.split(',');
+    if (parts.length < 8) return;
+
+    const newData = {
+        clock_hour: parseInt(parts[0]),
+        clock_min: parseInt(parts[1]),
+        clock_sec: 0,
+        light_pct: parseInt(parts[2]),
+        alarm_hour: parseInt(parts[3]),
+        alarm_min: parseInt(parts[4]),
+        alarm_on: parseInt(parts[5]),
+        alarm_ringing: parseInt(parts[6]),
+        work_mode: parts[7] ? parts[7].trim() : '--'
+    };
+
+    const now = Date.now();
+
+    // 传感器值和状态始终更新（带防抖）
+    for (const [key, value] of Object.entries(newData)) {
+        if (key === 'work_mode') {
+            currentData[key] = value;
+        } else if (key !== 'alarm_hour' && key !== 'alarm_min') {
+            currentData[key] = value;
+        }
+    }
+
+    // 闹钟时间防抖保护
+    if (!lastUserSetTime.alarm_time || (now - lastUserSetTime.alarm_time) >= DEBOUNCE_MS) {
+        if (!waitingSync.alarm) {
+            currentData.alarm_hour = newData.alarm_hour;
+            currentData.alarm_min = newData.alarm_min;
+        }
+    } else {
+        // 防抖期间也要更新秒数和时间相关的其他非设置字段
+        currentData.clock_sec = newData.clock_sec;
+        currentData.clock_hour = newData.clock_hour;
+        currentData.clock_min = newData.clock_min;
+        currentData.light_pct = newData.light_pct;
+        currentData.alarm_on = newData.alarm_on;
+        currentData.alarm_ringing = newData.alarm_ringing;
+        currentData.work_mode = newData.work_mode;
+    }
+
+    // 检查下位机是否确认了闹钟设置
+    if (waitingSync.alarm && pendingValue.alarm_hour !== null) {
+        if (newData.alarm_hour === pendingValue.alarm_hour &&
+            newData.alarm_min === pendingValue.alarm_min) {
+            console.log('Alarm sync confirmed');
+            if (syncTimeoutTimer) {
+                clearTimeout(syncTimeoutTimer);
+                syncTimeoutTimer = null;
+            }
+            waitingSync.alarm = false;
+            pendingValue.alarm_hour = null;
+            pendingValue.alarm_min = null;
+            lastUserSetTime.alarm_time = 0;
+        }
+    }
+
+    updateUI();
+    checkAlarms();
+    addLog(message);
+}
+
+function updateUI() {
+    // 时间显示
+    const h = currentData.clock_hour !== null ? String(currentData.clock_hour).padStart(2, '0') : '--';
+    const m = currentData.clock_min !== null ? String(currentData.clock_min).padStart(2, '0') : '--';
+    document.getElementById('clock_time').textContent = `${h}:${m}`;
+
+    // 光照
+    if (currentData.light_pct !== null) {
+        document.getElementById('light_pct').textContent = currentData.light_pct;
+    }
+
+    // 闹钟时间
+    const ah = currentData.alarm_hour !== null ? String(currentData.alarm_hour).padStart(2, '0') : '--';
+    const am = currentData.alarm_min !== null ? String(currentData.alarm_min).padStart(2, '0') : '--';
+    document.getElementById('alarm_time').textContent = `${ah}:${am}`;
+
+    // 闹钟开关
+    if (currentData.alarm_on !== null) {
+        const el = document.getElementById('alarm_on');
+        el.textContent = currentData.alarm_on === 1 ? '开' : '关';
+        el.className = 'data-value' + (currentData.alarm_on === 1 ? '' : ' alarm');
+    }
+
+    // 响铃状态
+    if (currentData.alarm_ringing !== null) {
+        const el = document.getElementById('alarm_ringing');
+        el.textContent = currentData.alarm_ringing === 1 ? '响铃中' : '静默';
+        el.className = 'data-value' + (currentData.alarm_ringing === 1 ? ' alarm' : '');
+    }
+
+    // 工作模式
+    if (currentData.work_mode) {
+        document.getElementById('work_mode').textContent =
+            currentData.work_mode === 'NORM' ? '正常' :
+            currentData.work_mode === 'SET' ? '设置' : currentData.work_mode;
+    }
+}
+
+function checkAlarms() {
+    const alarms = [];
+
+    if (currentData.alarm_on === 1 && currentData.alarm_ringing === 1) {
+        alarms.push('闹钟响铃中');
+    }
+
+    renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+    const body = document.getElementById('alarmBody');
+    if (alarms.length === 0) {
+        body.innerHTML = '<div class="alarm-normal">运行正常 ✓</div>';
+    } else {
+        body.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
+    }
+}
+
+function sendCmd(cmd) {
+    if (!client || !client.connected) {
+        alert('MQTT 未连接');
+        return;
+    }
+    client.publish(CMD_TOPIC, cmd);
+}
+
+function setAlarmTime() {
+    const hourInput = document.getElementById('alarm_hour_input');
+    const minInput = document.getElementById('alarm_min_input');
+
+    const h = parseInt(hourInput.value);
+    const m = parseInt(minInput.value);
+
+    if (isNaN(h) || h < 0 || h > 23) {
+        alert('请输入有效的小时 (0-23)');
+        return;
+    }
+    if (isNaN(m) || m < 0 || m > 59) {
+        alert('请输入有效的分钟 (0-59)');
+        return;
+    }
+
+    if (waitingSync.alarm) {
+        console.log('Already waiting sync for alarm time');
+        return;
+    }
+
+    // 1. 设置等待同步状态
+    waitingSync.alarm = true;
+    pendingValue.alarm_hour = h;
+    pendingValue.alarm_min = m;
+
+    // 2. 发送指令
+    sendCmd(`04,${h},${m}`);
+
+    // 3. 记录用户操作时间（防抖）
+    lastUserSetTime.alarm_time = Date.now();
+
+    // 4. 立即更新显示（预测状态）
+    currentData.alarm_hour = h;
+    currentData.alarm_min = m;
+    updateUI();
+
+    // 5. 立即检查报警
+    checkAlarms();
+
+    // 6. 设置超时保护
+    syncTimeoutTimer = setTimeout(() => {
+        if (waitingSync.alarm) {
+            console.warn('Alarm sync timeout, releasing protection');
+            waitingSync.alarm = false;
+            pendingValue.alarm_hour = null;
+            pendingValue.alarm_min = null;
+            syncTimeoutTimer = null;
+        }
+    }, SYNC_TIMEOUT_MS);
+
+    hourInput.blur();
+    minInput.blur();
+}
+
+function addLog(message) {
+    logs.unshift(`[${new Date().toLocaleTimeString()}] ${message}`);
+    if (logs.length > 20) logs.pop();
+    renderLog();
+}
+
+function renderLog() {
+    const el = document.getElementById('logContent');
+    el.innerHTML = logs.map(l => `<div class="log-entry">${l}</div>`).join('');
+}
+
+function toggleLog() {
+    logOpen = !logOpen;
+    document.getElementById('logContent').classList.toggle('open', logOpen);
+    document.getElementById('logArrow').classList.toggle('open', logOpen);
+}
+
+// 自动连接
+connect();
+</script>
+</body>
+</html>
