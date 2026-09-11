@@ -260,6 +260,50 @@
         .cat-safety    { color: #fbbf24; border-color: rgba(251,191,36,0.4); background: rgba(251,191,36,0.1); }
         .cat-education { color: #a78bfa; border-color: rgba(167,139,250,0.4); background: rgba(167,139,250,0.1); }
         .cat-other     { color: rgba(255,255,255,0.4); border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); }
+
+        /* ===== 管理员项目查看器 ===== */
+        .project-viewer {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: #111827;
+        }
+        .project-viewer.show { display: block; }
+        .project-frame {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            background: #fff;
+        }
+        .viewer-back {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 0px) + 12px);
+            right: 12px;
+            z-index: 1002;
+            padding: 9px 14px;
+            border: 1px solid rgba(255,255,255,0.35);
+            border-radius: 999px;
+            background: rgba(25,35,55,0.88);
+            color: #fff;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.22);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .viewer-status {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 0px) + 14px);
+            left: 12px;
+            z-index: 1001;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: rgba(17,24,39,0.78);
+            color: rgba(255,255,255,0.72);
+            font-size: 12px;
+        }
+        .viewer-status.hide { display: none; }
     </style>
 </head>
 <body>
@@ -315,97 +359,18 @@
 
     </div>
 
+    <!-- 管理员项目查看器：普通用户不会进入这里 -->
+    <div class="project-viewer" id="projectViewer" aria-hidden="true">
+        <button class="viewer-back" type="button" onclick="closeProjectViewer()">返回管理台</button>
+        <div class="viewer-status" id="viewerStatus">正在打开项目…</div>
+        <iframe class="project-frame" id="projectFrame" title="项目页面"></iframe>
+    </div>
+
     <script>
         // ========== 配置 ==========
         // date 字段格式 "YYYY-MM"，新增项目时填入当月即可
         const BUILTIN_PROJECTS = [
-            {"id":"001001","name":"独居老人智能监护",          "date":"2026-03"},
-            {"id":"001002","name":"智能木屋环境监控系统",      "date":"2026-03"},
-            {"id":"112233","name":"教师桌面助手系统",          "date":"2026-03"},
-            {"id":"117365","name":"智能台灯控制系统",          "date":"2026-03"},
-            {"id":"1233",  "name":"畜禽舍环境监控系统",        "date":"2026-02"},
-            {"id":"123124","name":"易燃物品智能安全检测系统",  "date":"2026-03"},
-            {"id":"001003","name":"水质监测系统",              "date":"2026-03"},
-            {"id":"123455","name":"智能蔬菜大棚",              "date":"2026-02"},
-            {"id":"123456","name":"家居物联网监控系统",        "date":"2026-03"},
-            {"id":"123457","name":"智能药箱管理系统",          "date":"2026-02"},
-            {"id":"134902","name":"智能药箱管理系统",          "date":"2026-03"},
-            {"id":"231234","name":"智能路灯",                  "date":"2026-02"},
-            {"id":"284558","name":"智能垃圾桶控制",            "date":"2026-02"},
-            {"id":"312332","name":"智慧雨水利用系统",          "date":"2026-02"},
-            {"id":"364875","name":"ESP32S3 控制面板",          "date":"2026-02"},
-            {"id":"459821","name":"智能垃圾桶系统",            "date":"2026-03"},
-            {"id":"556677","name":"独居老人智能监护",          "date":"2026-03"},
-            {"id":"583214","name":"星座查找器",                "date":"2026-04"},
-            {"id":"583921","name":"计算机实验室安全监测系统",  "date":"2026-03"},
-            {"id":"665522","name":"易燃物品智能安全检测系统",  "date":"2026-03"},
-            {"id":"738291","name":"智能电动窗帘控制系统",      "date":"2026-03"},
-            {"id":"738292","name":"易燃物品智能安全检测系统",  "date":"2026-03"},
-            {"id":"857364","name":"独居老人智能监护",          "date":"2026-03"},
-            {"id":"888888","name":"多参数智能空气净化系统",    "date":"2026-03"},
-            {"id":"001004","name":"豆芽生长箱智能控制系统",    "date":"2026-03"},
-            {"id":"847291","name":"智能调光照明系统",          "date":"2026-03"},
-            {"id":"001005","name":"婴幼儿智能监护系统",        "date":"2026-03"},
-            {"id":"001006","name":"易燃物品智能安全检测系统",  "date":"2026-03"},
-            {"id":"711111","name":"空气质量监测预警系统",      "date":"2026-03"},
-            {"id":"712469","name":"婴幼儿智能监护系统",        "date":"2026-03"},
-            {"id":"001007","name":"豆芽生长箱智能控制系统",    "date":"2026-03"},
-            {"id":"593327","name":"豆芽生长箱智能控制系统",    "date":"2026-03"},
-            {"id":"401657","name":"老人健康监护系统",          "date":"2026-03"},
-            {"id":"878287","name":"智能控制系统",              "date":"2026-03"},
-            {"id":"100001","name":"老人健康监护系统",          "date":"2026-03"},
-            {"id":"001008","name":"智能电动窗帘控制系统",      "date":"2026-03"},
-            {"id":"583924","name":"井盖异常检测系统",          "date":"2026-03"},
-            {"id":"753284","name":"林区火情监测系统","date":"2026-05"},
-            {"id":"001009","name":"菜蟹共生养殖环境监测系统","date":"2026-03"},
-            {"id":"454510","name":"智能环境监控与解锁柜","date":"2026-03"},
-            {"id":"001010","name":"蓝牙自动售货机",            "date":"2026-04"},
-            {"id":"001011","name":"农机作业监测终端",          "date":"2026-04"},
-            {"id":"001012","name":"生鲜冷链物流监控系统",      "date":"2026-04"},
-            {"id":"001013","name":"健康监护仪",        "date":"2026-04"},
-            {"id":"013224","name":"基于LoRa的积水检测装置",    "date":"2026-04"},
-            {"id":"001014","name":"多参数智能空气净化系统",    "date":"2026-04"},
-            {"id":"001015","name":"养殖水质监测与预警系统","date":"2026-04"},
-            {"id":"847293","name":"粮仓环境安全监测系统",          "date":"2026-04"},
-            {"id":"457891","name":"双药盒智能管理系统","date":"2026-04"},
-            {"id":"001016","name":"菜蟹共生养殖环境监测系统","date":"2026-04"},
-            {"id":"001017","name":"超声波清洗机智能控制系统","date":"2026-04"},
-            {"id":"001018","name":"智能坐姿矫正台灯系统","date":"2026-04"},
-            {"id":"001019","name":"智能坐姿矫正台灯系统（蓝牙版）","date":"2026-04"},
-            {"id":"489385","name":"多传感器安全监测报警系统","date":"2026-04"},
-            {"id":"099099","name":"独居老人智能监护","date":"2026-04"},
-            {"id":"001020","name":"智能空气质量监测报警系统","date":"2026-04"},
-            {"id":"428751","name":"多参数环境监测报警系统","date":"2026-04"},
-            {"id":"001021","name":"智能家居环境控制系统","date":"2026-04"},
-            {"id":"753285","name":"智能鸡舍环境监控与自动控制系统","date":"2026-04"},
-            {"id":"753286","name":"多功能农业补光系统","date":"2026-04"},
-            {"id":"001022","name":"智能木屋环境监控系统（增强版）","date":"2026-04"},
-            {"id":"753287","name":"盘山公路行车安全智能监控与预警系统","date":"2026-04"},
-            {"id":"001023","name":"智能控制系统","date":"2026-04"},
-            {"id":"001024","name":"智能语音风扇","date":"2026-04"},
-            {"id":"001025","name":"智能坐姿矫正台灯系统（蓝牙版）","date":"2026-04"},
-            {"id":"001026","name":"粮仓玉米烘干自动控制系统","date":"2026-04"},
-            {"id":"231669","name":"种植监测系统","date":"2026-04"},
-            {"id":"001027","name":"工地环境监测系统","date":"2026-04"},
-            {"id":"001028","name":"营地环境监测与安防预警系统","date":"2026-04"},
-            {"id":"001029","name":"远程甲烷气体浓度采集系统","date":"2026-04"},
-            {"id":"001030","name":"营地环境监测与安防预警系统","date":"2026-04"},
-            {"id":"753288","name":"智能药盒系统","date":"2026-04"},
-            {"id":"001031","name":"智能唤醒时钟系统","date":"2026-04"},
-            {"id":"001032","name":"STM32智能唤醒时钟系统","date":"2026-04"},
-            {"id":"731624","name":"大气污染物检测系统","date":"2026-04"},
-            {"id":"731625","name":"婴儿车环境监测与安全看护系统","date":"2026-04"},
-            {"id":"753289","name":"多功能农业补光系统","date":"2026-04"},
-            {"id":"753290","name":"菜蟹共生养殖环境监测系统","date":"2026-05"},
-            {"id":"753291","name":"水质检测与智能控制系统","date":"2026-05"},
-            {"id":"538214","name":"小型雨林观赏系统","date":"2026-05"},
-            {"id":"471926","name":"智能停车场系统","date":"2026-05"},
-            {"id":"683421","name":"智能光照电能监控系统","date":"2026-05"},
-            {"id":"001033","name":"旅行路线地图","date":"2026-05"},
-            {"id":"002001","name":"STM32 功耗监测平台","date":"2026-05"},
-            {"id":"999888","name":"智能停车场系统","date":"2026-05"},
-            {"id":"606606","name":"今日训练计划","date":"2026-06"},
-            {"id":"606607","name":"IELTS 词句循环学习器","date":"2026-06"}
+            {"id":"001002","name":"独居老人智能监护","date":"2026-09"}
         ];
 
         let PROJECTS = [...BUILTIN_PROJECTS];
@@ -469,13 +434,45 @@
 
         // ========== 跳转 ==========
         function goToProject(id) {
+            const url = BASE_URL ? `${BASE_URL}/projects/${id}/index.html` : `projects/${id}/index.html`;
+
+            // 管理员在当前管理台内打开项目，保留管理台状态，避免反复退出重进。
+            if (localStorage.getItem('admin_token') === ADMIN_PWD) {
+                openProjectViewer(id, url);
+                return;
+            }
+
             showMsg('验证成功，正在跳转...', true);
             document.getElementById('loading').classList.add('show');
             document.getElementById('enterBtn').disabled = true;
             setTimeout(() => {
-                const url = BASE_URL ? `${BASE_URL}/projects/${id}/index.html` : `projects/${id}/index.html`;
                 window.location.href = url;
             }, 300);
+        }
+
+        function openProjectViewer(id, url) {
+            const viewer = document.getElementById('projectViewer');
+            const frame = document.getElementById('projectFrame');
+            const status = document.getElementById('viewerStatus');
+
+            document.getElementById('adminPanel').classList.remove('show');
+            frame.title = `项目 ${id}`;
+            status.textContent = `正在打开项目 ${id}…`;
+            status.classList.remove('hide');
+            viewer.classList.add('show');
+            viewer.setAttribute('aria-hidden', 'false');
+            frame.onload = () => status.classList.add('hide');
+            frame.src = url;
+        }
+
+        function closeProjectViewer() {
+            const viewer = document.getElementById('projectViewer');
+            const frame = document.getElementById('projectFrame');
+
+            frame.src = 'about:blank';
+            viewer.classList.remove('show');
+            viewer.setAttribute('aria-hidden', 'true');
+            document.getElementById('adminPanel').classList.add('show');
         }
 
         // ========== 登录逻辑 ==========
