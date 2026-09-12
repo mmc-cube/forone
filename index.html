@@ -103,6 +103,24 @@
             white-space: nowrap;
         }
         .admin-logout:active { background: rgba(255,255,255,0.08); }
+        .admin-header-actions { display: flex; align-items: center; gap: 8px; }
+        .record-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: rgba(255,255,255,0.5);
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .record-toggle input {
+            width: 14px;
+            height: 14px;
+            margin: 0;
+            accent-color: #667eea;
+            cursor: pointer;
+        }
 
         /* 搜索框 */
         .search-wrap {
@@ -292,6 +310,7 @@
             font-weight: 600;
             cursor: pointer;
         }
+        .viewer-back.hidden { display: none; }
         .viewer-status {
             position: fixed;
             top: calc(env(safe-area-inset-top, 0px) + 14px);
@@ -331,7 +350,13 @@
                 <h2>全部项目</h2>
                 <span class="total-badge" id="totalBadge">0 个</span>
             </div>
-            <button class="admin-logout" onclick="adminLogout()">退出管理</button>
+            <div class="admin-header-actions">
+                <label class="record-toggle">
+                    <input type="checkbox" id="recordModeToggle" onchange="toggleRecordingMode(this.checked)">
+                    <span>拍摄模式</span>
+                </label>
+                <button class="admin-logout" onclick="adminLogout()">退出管理</button>
+            </div>
         </div>
 
         <!-- 搜索 -->
@@ -361,7 +386,7 @@
 
     <!-- 管理员项目查看器：普通用户不会进入这里 -->
     <div class="project-viewer" id="projectViewer" aria-hidden="true">
-        <button class="viewer-back" type="button" onclick="closeProjectViewer()">返回管理台</button>
+        <button class="viewer-back" id="viewerBack" type="button" onclick="closeProjectViewer()">返回管理台</button>
         <div class="viewer-status" id="viewerStatus">正在打开项目…</div>
         <iframe class="project-frame" id="projectFrame" title="项目页面"></iframe>
     </div>
@@ -462,6 +487,7 @@
             status.classList.remove('hide');
             viewer.classList.add('show');
             viewer.setAttribute('aria-hidden', 'false');
+            toggleRecordingMode(recordingMode);
             frame.onload = () => status.classList.add('hide');
             frame.src = url;
         }
@@ -514,6 +540,12 @@
         let currentCat  = 'all';
         let currentDate = 'all';
         let currentKeyword = '';
+        let recordingMode = false;
+
+        function toggleRecordingMode(enabled) {
+            recordingMode = Boolean(enabled);
+            document.getElementById('viewerBack').classList.toggle('hidden', recordingMode);
+        }
 
         function showAdminPanel() {
             document.getElementById('loginWrap').style.display = 'none';
@@ -679,6 +711,9 @@
             document.getElementById('adminPanel').classList.remove('show');
             document.getElementById('msg').textContent = '';
             document.getElementById('pwd').value = '';
+            recordingMode = false;
+            document.getElementById('recordModeToggle').checked = false;
+            toggleRecordingMode(false);
             // 重置筛选状态
             currentCat     = 'all';
             currentDate    = 'all';
