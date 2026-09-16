@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>林区火情监测</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--text);padding:12px;min-height:100vh}
+:root{--bg:#F5F5F5;--card:#FFFFFF;--primary:#2196F3;--alarm:#F44336;--ok:#4CAF50;--text:#212121;--sub:#757575;--shadow:0 2px 8px rgba(0,0,0,0.08);--radius:12px}
+
+.header{display:flex;justify-content:space-between;align-items:center;padding:8px 0 16px}
+.header h1{font-size:18px;font-weight:600}
+.status-bar{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub)}
+.status-dot{width:8px;height:8px;border-radius:50%}
+.status-dot.connected{background:var(--ok)}
+.status-dot.disconnected{background:var(--alarm)}
+.alarm-badge{font-size:12px;padding:3px 8px;border-radius:10px;font-weight:600}
+.alarm-badge.normal{background:#E8F5E9;color:#2E7D32}
+.alarm-badge.alarm{background:#FFEBEE;color:#C62828}
+.alarm-badge.muted{background:#FFF3E0;color:#E65100}
+
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.card-title{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.card-title .icon{font-size:16px}
+
+.data-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F0F0F0}
+.data-row:last-child{border-bottom:none}
+.data-label{font-size:13px;color:var(--sub)}
+.data-value{font-size:28px;font-weight:700;line-height:1}
+.data-unit{font-size:13px;color:var(--sub);margin-left:4px}
+.data-value.alarm{color:var(--alarm)}
+.data-value .exclaim{color:var(--alarm);font-weight:700}
+
+.progress-bar{width:100%;height:6px;background:#E0E0E0;border-radius:3px;margin-top:6px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width 0.3s,background 0.3s}
+
+.alarm-normal{color:var(--ok);font-size:14px;text-align:center;padding:8px}
+.alarm-item{background:#FFF3F0;color:var(--alarm);padding:10px 12px;border-radius:8px;margin-bottom:6px;font-size:14px;font-weight:500}
+.alarm-item:last-child{margin-bottom:0}
+
+.ctrl-btn{width:100%;height:48px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:all 0.15s}
+.ctrl-btn:active{transform:scale(0.97)}
+.ctrl-btn.mute{background:var(--alarm);color:#fff}
+.ctrl-btn.mute:active{background:#D32F2F}
+
+.threshold-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #F0F0F0}
+.threshold-row:last-child{border-bottom:none}
+.threshold-label{font-size:13px;color:var(--sub);min-width:60px}
+.threshold-value{font-size:15px;font-weight:600;color:var(--text);flex:1}
+.threshold-input{flex:1;height:40px;border:1px solid #E0E0E0;border-radius:8px;padding:0 12px;font-size:15px;text-align:center;outline:none}
+.threshold-input:focus{border-color:var(--primary)}
+.threshold-send{width:72px;height:40px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.threshold-send:active{background:#1976D2}
+
+.gps-status{font-size:14px;color:var(--sub);text-align:center;padding:8px}
+.gps-coord{font-size:13px;color:var(--sub);margin-top:4px;text-align:center}
+.gps-location{font-size:16px;font-weight:600;text-align:center;margin-top:8px;color:var(--text)}
+
+.log-toggle{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center}
+.log-toggle::after{content:'\25B6';font-size:12px;transition:transform 0.2s}
+.log-toggle.open::after{transform:rotate(90deg)}
+.log-content{max-height:0;overflow:hidden;transition:max-height 0.3s ease}
+.log-content.open{max-height:400px;overflow-y:auto}
+.log-entry{font-size:12px;color:var(--sub);padding:4px 0;border-bottom:1px solid #F5F5F5;font-family:monospace}
+.log-entry:last-child{border-bottom:none}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>林区火情监测</h1>
+    <div class="status-bar">
+        <span id="statusText">未连接</span>
+        <span class="status-dot disconnected" id="statusDot"></span>
+        <span class="alarm-badge normal" id="alarmBadge" style="display:none">正常</span>
+    </div>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+    <div class="card-title"><span class="icon">📊</span>实时数据</div>
+    <div class="data-row">
+        <span class="data-label">温度</span>
+        <div><span class="data-value" id="val_temp">--</span><span class="data-unit">°C</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">湿度</span>
+        <div><span class="data-value" id="val_humi">--</span><span class="data-unit">%RH</span></div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">烟雾浓度</span>
+        <div style="flex:1;margin-left:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="data-value" id="val_smoke">--</span>
+                <span class="data-unit">/4095</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="bar_smoke" style="width:0%;background:#4CAF50"></div></div>
+        </div>
+    </div>
+    <div class="data-row">
+        <span class="data-label">火焰距离</span>
+        <div><span class="data-value" id="val_flame">--</span><span class="data-unit" id="flame_status"> m</span></div>
+    </div>
+</div>
+
+<!-- 报警状态卡 -->
+<div class="card">
+    <div class="card-title"><span class="icon">🔔</span>报警状态</div>
+    <div id="alarm_display">
+        <div class="alarm-normal">环境正常</div>
+    </div>
+</div>
+
+<!-- 消警按钮 -->
+<div class="card">
+    <div class="card-title"><span class="icon">🔇</span>消警控制</div>
+    <button class="ctrl-btn mute" onclick="sendMute()">一键消警</button>
+</div>
+
+<!-- 当前阈值（只读，跟随设备回传更新） -->
+<div class="card">
+    <div class="card-title"><span class="icon">📋</span>当前阈值</div>
+    <div class="threshold-row">
+        <span class="threshold-label">TEMPH</span>
+        <span class="threshold-value" id="disp_temp">35</span>
+    </div>
+    <div class="threshold-row">
+        <span class="threshold-label">HUMIH</span>
+        <span class="threshold-value" id="disp_humi">80</span>
+    </div>
+    <div class="threshold-row">
+        <span class="threshold-label">SMOKEH</span>
+        <span class="threshold-value" id="disp_smoke">1200</span>
+    </div>
+</div>
+
+<!-- 阈值设置（手动输入下发，不被回传覆盖） -->
+<div class="card">
+    <div class="card-title"><span class="icon">⚙️</span>阈值设置</div>
+    <div class="threshold-row">
+        <span class="threshold-label">TEMPH</span>
+        <input class="threshold-input" type="number" id="thr_temp" value="35" min="0" max="50">
+        <button class="threshold-send" onclick="sendThreshold('SET_TEMP','thr_temp')">发送</button>
+    </div>
+    <div class="threshold-row">
+        <span class="threshold-label">HUMIH</span>
+        <input class="threshold-input" type="number" id="thr_humi" value="80" min="0" max="100">
+        <button class="threshold-send" onclick="sendThreshold('SET_HUMI','thr_humi')">发送</button>
+    </div>
+    <div class="threshold-row">
+        <span class="threshold-label">SMOKEH</span>
+        <input class="threshold-input" type="number" id="thr_smoke" value="1200" min="0" max="4095">
+        <button class="threshold-send" onclick="sendThreshold('SET_SMOKE','thr_smoke')">发送</button>
+    </div>
+</div>
+
+<!-- GPS 位置卡 -->
+<div class="card">
+    <div class="card-title"><span class="icon">📍</span>GPS 位置</div>
+    <div class="gps-status" id="gps_status">定位中...</div>
+    <div class="gps-coord" id="gps_coord"></div>
+</div>
+
+<!-- 日志卡（默认折叠） -->
+<div class="card">
+    <div class="card-title log-toggle" id="log_toggle" onclick="toggleLog()">📋 数据日志</div>
+    <div class="log-content" id="log_content">
+        <div id="log_list"></div>
+    </div>
+</div>
+
+<script src="mqtt.min.js"></script>
+<script>
+const UPLOAD_TOPIC = '753284/401657/linquhuoqing/upload';
+const CMD_TOPIC    = '753284/401657/linquhuoqing/cmd';
+
+// ===== 华为云 IoTDA 配置 =====
+const HW_CONFIG = {
+  hostname:  "f8ba437f04.st1.iotda-device.cn-north-4.myhuaweicloud.com",
+  username:  "69f58461cbb0cf6bb956d0ad_12345",
+  password:  "fc9fddb0e99857c89325932fffc47c29e1547bc87e9ca8b8341f7985c3481be7",
+  clientId:  "69f58461cbb0cf6bb956d0ad_12345_0_0_2026050209",
+  port_wss:  443
+};
+const HW_DEVICE_ID = HW_CONFIG.username;
+const HW_TOPIC = `$oc/devices/${HW_DEVICE_ID}/sys/properties/report`;
+const HW_URL = `wss://${HW_CONFIG.hostname}:${HW_CONFIG.port_wss}/mqtt`;
+
+let currentData = {
+    temp: 0, humi: 0, smoke: 0, flame: 0, fire_distance: 0, lat: 0, lng: 0,
+    TEMPH: 35, HUMIH: 80, SMOKEH: 1200
+};
+
+let waitingSync = {temp:false,humi:false,smoke:false};
+let alarmState = 'NORMAL';
+let alarmMute = false;
+let logEntries = [];
+let client = null;
+let hwClient = null;
+let hwConnected = false;
+let hwConnecting = false;
+
+function connect() {
+    client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+        clientId: 'huoqing_' + Math.random().toString(36).substr(2, 8),
+        reconnectPeriod: 3000
+    });
+
+    client.on('connect', () => {
+        document.getElementById('statusText').textContent = '已连接';
+        document.getElementById('statusDot').className = 'status-dot connected';
+        client.subscribe(UPLOAD_TOPIC);
+        addLog('✅ MQTT 已连接');
+        connectHuawei();
+    });
+
+    client.on('close', () => {
+        document.getElementById('statusText').textContent = '未连接';
+        document.getElementById('statusDot').className = 'status-dot disconnected';
+    });
+
+    client.on('message', (topic, payload) => {
+        const msg = payload.toString();
+        addLog(msg);
+        parseAndUpdate(msg);
+    });
+}
+
+// ===== 华为云 IoTDA 连接 =====
+function connectHuawei() {
+    // 防止重复创建连接（EMQX 重连时会再次触发 connectHuawei）
+    if (hwClient && hwConnected) return;
+    if (hwClient && hwConnecting) return;
+
+    hwConnecting = true;
+
+    hwClient = mqtt.connect(HW_URL, {
+        clientId:    HW_CONFIG.clientId,
+        username:    HW_CONFIG.username,
+        password:    HW_CONFIG.password,
+        protocolVersion: 4,
+        clean:       true,
+        reconnectPeriod: 30000,  // 失败后 30 秒再重连，避免刷屏
+        connectTimeout: 10000,
+        rejectUnauthorized: false,
+    });
+
+    hwClient.on('connect', () => {
+        hwConnected = true;
+        hwConnecting = false;
+        addLog('☁️ 华为云已连接');
+    });
+
+    hwClient.on('error', (err) => {
+        hwConnecting = false;
+        addLog('☁️ 错误: ' + err.message);
+    });
+
+    hwClient.on('close', () => {
+        hwConnected = false;
+        addLog('☁️ 连接关闭');
+    });
+
+    hwClient.on('reconnect', () => {
+        hwConnecting = true;
+        addLog('☁️ 尝试重连...');
+    });
+
+    hwClient.on('offline', () => {
+        hwConnected = false;
+        addLog('☁️ 离线');
+    });
+}
+
+// ===== 上报数据到华为云 =====
+function reportToHuawei() {
+    if (!hwConnected) return;
+
+    const payload = {
+        services: [{
+            service_id: "stm32",
+            properties: {
+                "温度": currentData.temp,
+                "湿度": currentData.humi,
+                "MQ2": currentData.smoke,
+                "火焰": currentData.fire_distance === 0 ? -1 : currentData.fire_distance
+            },
+            event_time: new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z'
+        }]
+    };
+
+    const jsonStr = JSON.stringify(payload);
+    hwClient.publish(HW_TOPIC, jsonStr, { qos: 0 }, (err) => {
+        if (err) {
+            addLog('☁️ 上报失败: ' + err.message);
+        }
+    });
+}
+
+function parseAndUpdate(message) {
+    const parts = message.split(',');
+    if (parts.length < 10) return;
+
+    const newThr = {
+        TEMPH: parseFloat(parts[7]),
+        HUMIH: parseFloat(parts[8]),
+        SMOKEH: parseFloat(parts[9])
+    };
+
+    // Check sync completion for each threshold
+    if (waitingSync.temp && Math.abs(newThr.TEMPH - currentData.TEMPH) < 0.1) waitingSync.temp = false;
+    if (waitingSync.humi && Math.abs(newThr.HUMIH - currentData.HUMIH) < 0.1) waitingSync.humi = false;
+    if (waitingSync.smoke && Math.abs(newThr.SMOKEH - currentData.SMOKEH) < 0.1) waitingSync.smoke = false;
+
+    currentData.temp = parseFloat(parts[0]);
+    currentData.humi = parseFloat(parts[1]);
+    currentData.smoke = parseFloat(parts[2]);
+    currentData.flame = parseFloat(parts[3]);
+    currentData.fire_distance = parseFloat(parts[4]);
+    currentData.lat = parseFloat(parts[5]);
+    currentData.lng = parseFloat(parts[6]);
+
+    if (!waitingSync.temp) currentData.TEMPH = newThr.TEMPH;
+    if (!waitingSync.humi) currentData.HUMIH = newThr.HUMIH;
+    if (!waitingSync.smoke) currentData.SMOKEH = newThr.SMOKEH;
+
+    // Auto-reset mute flag when all data returns to normal
+    const allNormal = currentData.temp <= currentData.TEMPH
+        && currentData.humi <= currentData.HUMIH
+        && currentData.smoke <= currentData.SMOKEH
+        && currentData.fire_distance === 0;
+    if (allNormal && alarmMute) {
+        alarmMute = false;
+    }
+
+    // 先上报到华为云，再更新UI
+    reportToHuawei();
+
+    updateUI();
+
+    if (!waitingSync.temp && !waitingSync.humi && !waitingSync.smoke) {
+        checkAlarms();
+    }
+}
+
+function updateUI() {
+    const d = currentData;
+
+    document.getElementById('val_temp').innerHTML =
+        formatValue('temp', d.temp, d.TEMPH) + '°C';
+    document.getElementById('val_humi').innerHTML =
+        formatValue('humi', d.humi, d.HUMIH) + '%RH';
+    document.getElementById('val_smoke').innerHTML =
+        formatValue('smoke', d.smoke, d.SMOKEH);
+
+    // Flame distance display
+    if (d.fire_distance === 0) {
+        document.getElementById('val_flame').textContent = '无';
+        document.getElementById('flame_status').textContent = '火焰';
+    } else {
+        document.getElementById('val_flame').innerHTML =
+            '<span class="alarm">' + d.fire_distance + '<span class="exclaim">!</span></span>';
+        document.getElementById('flame_status').textContent = 'm';
+    }
+
+    // Current threshold display (read-only)
+    document.getElementById('disp_temp').textContent = d.TEMPH;
+    document.getElementById('disp_humi').textContent = d.HUMIH;
+    document.getElementById('disp_smoke').textContent = d.SMOKEH;
+
+    // Alarm badge
+    updateAlarmBadge();
+
+    // GPS
+    if (d.lat === 0 && d.lng === 0) {
+        document.getElementById('gps_status').textContent = '定位中...';
+        document.getElementById('gps_coord').textContent = '';
+        document.getElementById('gps_location').textContent = '';
+    } else {
+        document.getElementById('gps_status').textContent = '已定位';
+        document.getElementById('gps_coord').textContent = d.lat.toFixed(4) + ', ' + d.lng.toFixed(4);
+    }
+}
+
+function formatValue(key, value, threshold) {
+    const display = (typeof value === 'number') ? value.toFixed(value % 1 === 0 ? 0 : 1) : value;
+    if (threshold !== undefined && value > threshold) {
+        return '<span class="alarm">' + display + '<span class="exclaim">!</span></span>';
+    }
+    return display;
+}
+
+function checkAlarms() {
+    const alarms = [];
+    if (currentData.temp > currentData.TEMPH) alarms.push('⚠ 温度异常：' + currentData.temp + '°C');
+    if (currentData.humi > currentData.HUMIH) alarms.push('⚠ 湿度异常：' + currentData.humi + '%');
+    if (currentData.smoke > currentData.SMOKEH) alarms.push('⚠ 烟雾异常');
+    if (currentData.fire_distance >= 1) alarms.push('🔥 检测到火源！距离 ' + currentData.fire_distance + ' m');
+
+    if (alarms.length === 0 && !alarmMute) {
+        alarmState = 'NORMAL';
+    } else if (alarms.length > 0 && !alarmMute) {
+        alarmState = 'ALARM';
+    } else if (alarmMute) {
+        alarmState = 'MUTED';
+    }
+
+    renderAlarms(alarms);
+}
+
+function updateAlarmBadge() {
+    const badge = document.getElementById('alarmBadge');
+    badge.style.display = 'inline';
+    badge.className = 'alarm-badge ' + alarmState.toLowerCase();
+    if (alarmState === 'NORMAL') badge.textContent = '正常';
+    else if (alarmState === 'ALARM') badge.textContent = '报警';
+    else if (alarmState === 'MUTED') badge.textContent = '已消警';
+}
+
+function renderAlarms(alarms) {
+    const el = document.getElementById('alarm_display');
+    if (alarms.length === 0) {
+        el.innerHTML = '<div class="alarm-normal">环境正常</div>';
+    } else {
+        el.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+    }
+}
+
+function sendMute() {
+    if (!client || !client.connected) { alert('MQTT 未连接'); return; }
+    client.publish(CMD_TOPIC, 'ALARM_MUTE');
+    alarmMute = true;
+    alarmState = 'MUTED';
+    updateAlarmBadge();
+    addLog('🔇 下发消警指令');
+}
+
+function sendThreshold(cmd, inputId) {
+    if (!client || !client.connected) { alert('MQTT 未连接'); return; }
+    const input = document.getElementById(inputId);
+    const value = parseInt(input.value);
+    if (isNaN(value) || value < 0) { alert('请输入有效数值'); return; }
+
+    const cmdStr = cmd + ',' + value;
+    client.publish(CMD_TOPIC, cmdStr);
+    addLog('⚙️ 下发 ' + cmdStr);
+
+    // Optimistic update
+    const key = cmd.split('_')[1].toLowerCase();
+    if (key === 'temp') { currentData.TEMPH = value; waitingSync.temp = true; }
+    else if (key === 'humi') { currentData.HUMIH = value; waitingSync.humi = true; }
+    else if (key === 'smoke') { currentData.SMOKEH = value; waitingSync.smoke = true; }
+
+    // Immediate feedback
+    if (waitingSync[key]) {
+        const sensorVal = currentData[key];
+        const newAlarms = [];
+        if (key === 'temp' && sensorVal > value) newAlarms.push('⚠ 温度异常：' + sensorVal + '°C');
+        if (key === 'humi' && sensorVal > value) newAlarms.push('⚠ 湿度异常：' + sensorVal + '%');
+        if (key === 'smoke' && sensorVal > value) newAlarms.push('⚠ 烟雾异常');
+        if (newAlarms.length > 0) renderAlarms(newAlarms);
+    }
+
+    updateUI();
+}
+
+// Log
+function addLog(entry) {
+    logEntries.unshift({time: new Date().toLocaleTimeString(), text: entry});
+    if (logEntries.length > 20) logEntries.pop();
+    renderLog();
+}
+
+function renderLog() {
+    document.getElementById('log_list').innerHTML = logEntries.map(e =>
+        '<div class="log-entry">[' + e.time + '] ' + e.text + '</div>'
+    ).join('');
+}
+
+function toggleLog() {
+    const toggle = document.getElementById('log_toggle');
+    const content = document.getElementById('log_content');
+    toggle.classList.toggle('open');
+    content.classList.toggle('open');
+}
+
+connect();
+</script>
+</body>
+</html>
