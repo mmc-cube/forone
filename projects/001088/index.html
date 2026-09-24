@@ -146,6 +146,31 @@
     font-size: 13px; font-family: "Courier New", monospace; color: #555; line-height: 1.7;
     white-space: pre-wrap; word-break: break-all;
   }
+
+  /* ── 已连接摘要条（连接后折叠设备列表） ── */
+  .bt-connected-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 10px 12px; margin-bottom: 10px; background: #E8F5E9; border-radius: 8px;
+  }
+  .btn-mini {
+    min-height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px;
+    background: #FFFFFF; color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  /* ── 全局浮层提示 ── */
+  .toast {
+    position: fixed; left: 50%; bottom: 74px; transform: translateX(-50%);
+    background: rgba(33, 33, 33, .92); color: #FFFFFF; font-size: 13px; line-height: 1.5;
+    padding: 10px 16px; border-radius: 20px; max-width: 88%; text-align: center;
+    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 99;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ── 调试模式横幅 ── */
+  .debug-banner {
+    background: #FFF3E0; color: #E65100; font-size: 13px;
+    padding: 8px 12px; text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -159,15 +184,29 @@
   </div>
 </div>
 
+<!-- ══ 调试模式横幅（无蓝牙桥时显示）══ -->
+<div class="debug-banner" id="debug-banner" style="display:none">调试模式：未检测到蓝牙桥（BluetoothBridge），当前显示的是模拟数据</div>
+
 <!-- ══ Tab：数据 ══ -->
 <section id="tab-data" class="tab-content active">
 
   <div class="card">
     <div class="card-title">蓝牙连接</div>
-    <div class="device-list" id="device-list">
-      <div class="hint">点击下方按钮扫描已配对设备</div>
+    <!-- 已连接：折叠设备列表，只留一行摘要 + 更换入口 -->
+    <div class="bt-connected-bar" id="bt-connected-bar" style="display:none">
+      <div>
+        <div class="device-name" id="bt-connected-name">已连接</div>
+        <div class="device-addr" id="bt-connected-addr"></div>
+      </div>
+      <button class="btn-mini" onclick="expandDevices()">更换设备</button>
     </div>
-    <button class="btn btn-primary" id="btn-scan" onclick="scanDevices()">扫描配对设备</button>
+    <!-- 未连接：展开设备列表与扫描按钮 -->
+    <div id="device-area">
+      <div class="device-list" id="device-list">
+        <div class="hint">点击下方按钮扫描已配对设备</div>
+      </div>
+      <button class="btn btn-primary" id="btn-scan" onclick="scanDevices()">扫描配对设备</button>
+    </div>
     <button class="btn btn-ghost" id="btn-disconnect" style="display:none" onclick="doDisconnect()">断开连接</button>
   </div>
 
@@ -287,12 +326,19 @@
   <div class="tab-item" data-tab="log">日志</div>
 </nav>
 
+<!-- ══ 全局浮层提示 ══ -->
+<div class="toast" id="toast"></div>
+
 <script>
 /* ════════════════════════════════════════════════
    全局状态
    ════════════════════════════════════════════════ */
 let isConnected = false;
 let debugMode = 0;            /* 浏览器调试流的模式，跟随本地切模式 */
+let deviceCache = [];         /* 最近一次扫描到的设备，用于连接时取名字 */
+let connectedInfo = { name: '', address: '' };
+let btTimer = null;           /* 扫描 / 连接的超时定时器 */
+let toastTimer = null;
 let currentData = {
   temp: 0, humi: 0, lux: 0, occ: 0, door: 0,
   fan: 0, ac: 0, lamp: 0,
@@ -322,9 +368,13 @@ document.querySelectorAll('.tab-item').forEach(item => {
 
 /** 收到配对设备列表 */
 window.onBtDeviceList = function (devices) {
+  clearBtTimer();
+  setStatus('disconnected');            /* 列表到手，结束"连接中…" */
+  deviceCache = devices || [];
   const list = document.getElementById('device-list');
   if (!devices || devices.length === 0) {
     list.innerHTML = '<div class="hint">未找到已配对设备，请先在系统蓝牙设置中配对蓝牙模块</div>';
+    toast('没有已配对的设备——请先在系统蓝牙里配对模块', 3000);
     return;
   }
   list.innerHTML = devices.map(d => `
@@ -342,18 +392,42 @@ window.onBtDeviceList = function (devices) {
 /** 连接成功 */
 window.onBtConnected = function (address) {
   isConnected = true;
+  clearBtTimer();
   setStatus('connected');
-  document.getElementById('btn-scan').style.display = 'none';
-  document.getElementById('btn-disconnect').style.display = 'block';
+  if (address) connectedInfo.address = address;
+  showConnectedBar();                    /* 连接后折叠设备列表 */
+  toast('已连接' + (connectedInfo.name ? '：' + connectedInfo.name : ''));
   log('已连接：' + address);
 };
+
+/** 已连接：折叠设备列表，只留一行摘要 */
+function showConnectedBar() {
+  document.getElementById('bt-connected-name').textContent = connectedInfo.name || '已连接';
+  document.getElementById('bt-connected-addr').textContent = connectedInfo.address || '';
+  document.getElementById('bt-connected-bar').style.display = 'flex';
+  document.getElementById('device-area').style.display = 'none';
+  document.getElementById('btn-disconnect').style.display = 'block';
+}
+
+/** 未连接：展开设备列表 */
+function showDeviceList() {
+  document.getElementById('bt-connected-bar').style.display = 'none';
+  document.getElementById('device-area').style.display = 'block';
+  document.getElementById('btn-disconnect').style.display = 'none';
+}
+
+/** 更换设备：收起摘要条，展开列表并重新扫描 */
+function expandDevices() {
+  showDeviceList();
+  scanDevices();
+}
 
 /** 连接断开 */
 window.onBtDisconnected = function () {
   isConnected = false;
+  clearBtTimer();
   setStatus('disconnected');
-  document.getElementById('btn-scan').style.display = 'block';
-  document.getElementById('btn-disconnect').style.display = 'none';
+  showDeviceList();
   greyActuators();
   log('蓝牙已断开');
 };
@@ -367,36 +441,74 @@ window.onBtData = function (line) {
 window.onBtError = function (msg) {
   log('[错误] ' + msg);
   isConnected = false;
+  clearBtTimer();
   setStatus('disconnected');
-  document.getElementById('btn-scan').style.display = 'block';
-  document.getElementById('btn-disconnect').style.display = 'none';
+  showDeviceList();
   greyActuators();
+  toast('[错误] ' + msg, 3000);
 };
 
 /* ════════════════════════════════════════════════
    操作函数
    ════════════════════════════════════════════════ */
 function scanDevices() {
+  const list = document.getElementById('device-list');
+  list.innerHTML = '<div class="hint">正在获取已配对设备…</div>';
   if (window.BluetoothBridge) {
+    if (!isConnected) setStatus('scanning');   /* 已连接换设备时不动状态栏 */
     log('正在获取配对设备...');
-    setStatus('scanning');
+    startBtTimer(6000, '没有收到设备列表——请确认 App 已获得蓝牙权限，且模块已在系统蓝牙中配对');
     window.BluetoothBridge.getPairedDevices();
   } else {
-    log('[调试] BluetoothBridge 不可用，加载模拟设备');
+    log('[调试模式] BluetoothBridge 不可用，加载模拟设备');
+    setStatus('scanning');
     window.onBtDeviceList([{ name: 'HC-05', address: '00:00:00:00:00:00' }]);
   }
 }
 
 function doConnect(address) {
+  const hit = deviceCache.find(x => x.address === address);
+  connectedInfo = { name: (hit && hit.name) || '', address: address };
   if (window.BluetoothBridge) {
     log('正在连接 ' + address + ' ...');
     setStatus('scanning');
+    startBtTimer(10000, '连接超时——请确认模块已上电、处于可连接状态');
     window.BluetoothBridge.connect(address);
   } else {
     log('[调试] 模拟连接成功');
     window.onBtConnected(address);
     startDebugFeed();
   }
+}
+
+/* ── 超时与全局提示 ── */
+function startBtTimer(ms, msg) {
+  clearBtTimer();
+  btTimer = setTimeout(() => {
+    btTimer = null;
+    setStatus('disconnected');
+    toast(msg, 3500);
+    log('[超时] ' + msg);
+  }, ms);
+}
+
+function clearBtTimer() {
+  if (btTimer) { clearTimeout(btTimer); btTimer = null; }
+}
+
+function toast(msg, ms) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms || 2000);
+}
+
+/** 无蓝牙桥时挂出调试横幅，避免把模拟数据当真 */
+function checkBridge() {
+  const b = document.getElementById('debug-banner');
+  if (b) b.style.display = window.BluetoothBridge ? 'none' : 'block';
 }
 
 function doDisconnect() {
@@ -411,6 +523,7 @@ function doDisconnect() {
 function sendCmd(str) {
   if (!isConnected) {
     log('[提示] 蓝牙未连接，指令未发送');
+    toast('蓝牙未连接，指令未发送');
     return false;
   }
   if (window.BluetoothBridge) {
@@ -436,9 +549,11 @@ function setMode(code) {
 /* ── 执行器开/关（仅 MANUAL 有效，下发 21/22/23,值） ── */
 function toggleDevice(which) {
   if (currentData.mode !== 1) {
-    setModeHint(currentData.mode === 0
+    const why = currentData.mode === 0
       ? '当前 AUTO 模式，执行器由传感器自动控制'
-      : '尚未收到设备数据，请先连接蓝牙');
+      : '尚未收到设备数据，请先连接蓝牙';
+    setModeHint(why);
+    toast(why);
     log('[提示] 仅 MANUAL 模式可手动控制执行器');
     return;
   }
@@ -484,6 +599,7 @@ function sendThr(key) {
   const val = parseFloat(el.value);
   if (isNaN(val) || val < 0 || val > 500) {
     log('[设置] 请输入 0~500 之间的数值');
+    toast('请输入 0~500 之间的数值');
     el.focus();
     return;
   }
@@ -494,6 +610,7 @@ function sendThr(key) {
   lastUserSet[key] = Date.now();
   renderThresholds();
   checkAlarms(currentData);
+  toast('已发送 ' + fieldName(key) + '=' + val);
 }
 
 /* ════════════════════════════════════════════════
@@ -613,7 +730,6 @@ function updateUI() {
 }
 
 function renderThresholds() {
-  const now = Date.now();
   const d = currentData;
   const rows = [
     ['lux', 'thrLux', '  lx'],
@@ -626,7 +742,6 @@ function renderThresholds() {
     parts.push(fieldName(key) + '=' + Number(d[field]).toFixed(0) + unit.trim());
   });
   document.getElementById('thr-hint').textContent = '当前阈值：' + parts.join('  |  ');
-  return now;
 }
 
 function fieldName(key) {
@@ -777,6 +892,7 @@ function startDebugFeed() {
 greyActuators();
 setModeHint('未连接蓝牙，请先在"数据"页扫描并连接设备');
 log('页面已加载，请先连接蓝牙设备');
+setTimeout(checkBridge, 600);          /* 桥可能晚于页面加载注入，延迟检测 */
 </script>
 </body>
 </html>
