@@ -292,6 +292,7 @@
    全局状态
    ════════════════════════════════════════════════ */
 let isConnected = false;
+let debugMode = 0;            /* 浏览器调试流的模式，跟随本地切模式 */
 let currentData = {
   temp: 0, humi: 0, lux: 0, occ: 0, door: 0,
   fan: 0, ac: 0, lamp: 0,
@@ -300,7 +301,7 @@ let currentData = {
   valid: false
 };
 const DEBOUNCE_MS = 800;
-const lastUserSet = { lux: 0, cold: 0, comfort: 0, hot: 0 };
+const lastUserSet = { lux: 0, cold: 0, comfort: 0, hot: 0, fan: 0, ac: 0, lamp: 0, mode: 0 };
 
 /* ════════════════════════════════════════════════
    Tab 切换
@@ -353,6 +354,7 @@ window.onBtDisconnected = function () {
   setStatus('disconnected');
   document.getElementById('btn-scan').style.display = 'block';
   document.getElementById('btn-disconnect').style.display = 'none';
+  greyActuators();
   log('蓝牙已断开');
 };
 
@@ -368,6 +370,7 @@ window.onBtError = function (msg) {
   setStatus('disconnected');
   document.getElementById('btn-scan').style.display = 'block';
   document.getElementById('btn-disconnect').style.display = 'none';
+  greyActuators();
 };
 
 /* ════════════════════════════════════════════════
@@ -417,14 +420,25 @@ function sendCmd(str) {
   return true;
 }
 
-/* ── 模式切换 ── */
+/* ── 模式切换（10=AUTO，11=MANUAL） ── */
 function setMode(code) {
-  sendCmd(code);
+  if (!sendCmd(code)) {
+    setModeHint('蓝牙未连接，指令未发送');
+    return;
+  }
+  /* 乐观更新：立即切换本地模式，800ms 内不被在途上报覆盖 */
+  currentData.mode = (code === '11') ? 1 : 0;
+  lastUserSet.mode = Date.now();
+  debugMode = currentData.mode;
+  updateUI();
 }
 
 /* ── 执行器开/关（仅 MANUAL 有效，下发 21/22/23,值） ── */
 function toggleDevice(which) {
   if (currentData.mode !== 1) {
+    setModeHint(currentData.mode === 0
+      ? '当前 AUTO 模式，执行器由传感器自动控制'
+      : '尚未收到设备数据，请先连接蓝牙');
     log('[提示] 仅 MANUAL 模式可手动控制执行器');
     return;
   }
@@ -434,7 +448,27 @@ function toggleDevice(which) {
     lamp: { code: '23', val: currentData.lamp }
   };
   const m = map[which];
-  sendCmd(m.code + ',' + (m.val ? 0 : 1));
+  const next = m.val ? 0 : 1;          /* 按当前状态取反 */
+  if (!sendCmd(m.code + ',' + next)) {
+    setModeHint('蓝牙未连接，指令未发送');
+    return;
+  }
+  /* 乐观更新：立即翻转本地状态，800ms 内不被在途上报覆盖 */
+  currentData[which] = next;
+  lastUserSet[which] = Date.now();
+  updateUI();
+}
+
+function setModeHint(t) {
+  const el = document.getElementById('mode-hint');
+  if (el) el.textContent = t;
+}
+
+function greyActuators() {
+  ['b-fan', 'b-ac', 'b-lamp'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = true;
+  });
 }
 
 /* ── 阈值设置（02/03/04/05,值） ── */
@@ -501,6 +535,13 @@ function parseFrame(line) {
     return;
   }
 
+  /* 用户刚操作过的字段：800ms 内沿用本地值，避免被在途的旧上报打回 */
+  const nowTs = Date.now();
+  ['fan', 'ac', 'lamp'].forEach(k => {
+    if (nowTs - lastUserSet[k] < DEBOUNCE_MS) d[k] = currentData[k];
+  });
+  if (nowTs - lastUserSet.mode < DEBOUNCE_MS) d.mode = currentData.mode;
+
   currentData = d;
   addLog(raw);
   updateUI();
@@ -552,8 +593,10 @@ function updateUI() {
   setText('mode-now', d.mode === 1 ? 'MANUAL' : (d.mode === 0 ? 'AUTO' : '--'));
   setValClass('mode-now', 'state-val ' + (isManual ? 'manual' : 'off'));
 
-  /* 模式联动：AUTO 下执行器按钮置灰 */
-  ['b-fan', 'b-ac', 'b-lamp'].forEach(id => { document.getElementById(id).disabled = !isManual; });
+  /* 模式联动：AUTO 或未连接时执行器按钮置灰 */
+  ['b-fan', 'b-ac', 'b-lamp'].forEach(id => {
+    document.getElementById(id).disabled = !isManual || !isConnected;
+  });
   document.getElementById('btn-auto').disabled = (d.mode === 0);
   document.getElementById('btn-manual').disabled = (d.mode === 1);
   document.getElementById('mode-hint').textContent = isManual
@@ -724,12 +767,15 @@ function startDebugFeed() {
       zone === 0 || zone === 3 ? '1' : '0',
       '0',
       '100', '15', '24', '30',
-      '0'
+      String(debugMode)
     ].join(',');
     parseFrame(line);
   }, 1000);
 }
 
+/* 初始状态：未连接 → 执行器按钮置灰，连接并收到数据后由 updateUI 接管 */
+greyActuators();
+setModeHint('未连接蓝牙，请先在"数据"页扫描并连接设备');
 log('页面已加载，请先连接蓝牙设备');
 </script>
 </body>
