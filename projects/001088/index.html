@@ -782,7 +782,7 @@ function checkAlarms(d) {
   }
 
   if (d.door === 1) warns.push('门窗已打开');
-  if (d.occ === 0)  warns.push('室内无人，设备已关闭');
+  if (d.occ === 0)  warns.push('室内无人');
 
   /* Banner */
   banner.className = 'alarm-banner';
