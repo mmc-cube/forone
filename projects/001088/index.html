@@ -292,11 +292,6 @@
       <button class="btn-send" onclick="sendThr('lux')">发送</button>
     </div>
     <div class="thr-row">
-      <span class="thr-label">低温下限</span>
-      <input class="thr-input" id="in-cold" type="number" min="0" max="500" step="1" placeholder="℃">
-      <button class="btn-send" onclick="sendThr('cold')">发送</button>
-    </div>
-    <div class="thr-row">
       <span class="thr-label">舒适区上限</span>
       <input class="thr-input" id="in-comfort" type="number" min="0" max="500" step="1" placeholder="℃">
       <button class="btn-send" onclick="sendThr('comfort')">发送</button>
@@ -342,12 +337,12 @@ let toastTimer = null;
 let currentData = {
   temp: 0, humi: 0, lux: 0, occ: 0, door: 0,
   fan: 0, ac: 0, lamp: 0,
-  thrLux: 100, thrCold: 15, thrComfort: 24, thrHot: 30,
+  thrLux: 100, thrComfort: 24, thrHot: 30,
   mode: -1,                 /* -1=未知 0=AUTO 1=MANUAL */
   valid: false
 };
 const DEBOUNCE_MS = 800;
-const lastUserSet = { lux: 0, cold: 0, comfort: 0, hot: 0, fan: 0, ac: 0, lamp: 0, mode: 0 };
+const lastUserSet = { lux: 0, comfort: 0, hot: 0, fan: 0, ac: 0, lamp: 0, mode: 0 };
 
 /* ════════════════════════════════════════════════
    Tab 切换
@@ -586,13 +581,12 @@ function greyActuators() {
   });
 }
 
-/* ── 阈值设置（02/03/04/05,值） ── */
+/* ── 阈值设置（02/03/04,值） ── */
 function sendThr(key) {
   const map = {
     lux:     { code: '02', input: 'in-lux',     data: 'thrLux',     unit: ' lx' },
-    cold:    { code: '03', input: 'in-cold',    data: 'thrCold',    unit: ' ℃' },
-    comfort: { code: '04', input: 'in-comfort', data: 'thrComfort', unit: ' ℃' },
-    hot:     { code: '05', input: 'in-hot',     data: 'thrHot',     unit: ' ℃' }
+    comfort: { code: '03', input: 'in-comfort', data: 'thrComfort', unit: ' ℃' },
+    hot:     { code: '04', input: 'in-hot',     data: 'thrHot',     unit: ' ℃' }
   };
   const m = map[key];
   const el = document.getElementById(m.input);
@@ -616,14 +610,14 @@ function sendThr(key) {
 /* ════════════════════════════════════════════════
    数据解析
    格式：温度,湿度,照度,有人,门窗,吊扇,空调,照明灯,
-        LUX_TH,T_COLD,T_COMFORT,T_HOT,SYSTEM_MODE
+        LUX_TH,T_COMFORT,T_HOT,SYSTEM_MODE
    ════════════════════════════════════════════════ */
 function parseFrame(line) {
   const raw = String(line).trim();
   if (!raw) return;
 
   const p = raw.split(',');
-  if (p.length < 13) {
+  if (p.length < 12) {
     log('[格式错误] ' + raw);
     return;
   }
@@ -638,15 +632,14 @@ function parseFrame(line) {
     ac:         parseInt(p[6], 10),
     lamp:       parseInt(p[7], 10),
     thrLux:     parseFloat(p[8]),
-    thrCold:    parseFloat(p[9]),
-    thrComfort: parseFloat(p[10]),
-    thrHot:     parseFloat(p[11]),
-    mode:       parseInt(p[12], 10),
+    thrComfort: parseFloat(p[9]),
+    thrHot:     parseFloat(p[10]),
+    mode:       parseInt(p[11], 10),
     valid:      true
   };
 
   /* 数值字段校验（温度允许 -1 表示读取失败） */
-  const numKeys = ['humi','lux','occ','door','fan','ac','lamp','thrLux','thrCold','thrComfort','thrHot','mode'];
+  const numKeys = ['humi','lux','occ','door','fan','ac','lamp','thrLux','thrComfort','thrHot','mode'];
   if (isNaN(d.temp) || numKeys.some(k => isNaN(d[k]))) {
     log('[数值异常] ' + raw);
     return;
@@ -676,7 +669,7 @@ function updateUI() {
   const tempFail = (d.temp === -1);
   setText('v-temp', tempFail ? '--' : d.temp.toFixed(1));
   toggleNoData('v-temp', tempFail);
-  toggleAlarm('v-temp', !tempFail && (d.temp < d.thrCold || d.temp > d.thrHot));
+  toggleAlarm('v-temp', !tempFail && d.temp > d.thrHot);
 
   /* 湿度：-1 表示 DHT11 读取失败 */
   const humiFail = (d.humi === -1);
@@ -724,7 +717,6 @@ function updateUI() {
 
   /* 阈值输入框默认值（用户未输入时） */
   fillThrInput('in-lux', 'thrLux', 'lux');
-  fillThrInput('in-cold', 'thrCold', 'cold');
   fillThrInput('in-comfort', 'thrComfort', 'comfort');
   fillThrInput('in-hot', 'thrHot', 'hot');
 }
@@ -733,7 +725,6 @@ function renderThresholds() {
   const d = currentData;
   const rows = [
     ['lux', 'thrLux', '  lx'],
-    ['cold', 'thrCold', '  ℃'],
     ['comfort', 'thrComfort', '  ℃'],
     ['hot', 'thrHot', '  ℃']
   ];
@@ -745,7 +736,7 @@ function renderThresholds() {
 }
 
 function fieldName(key) {
-  return { lux: 'LUX_TH', cold: 'T_COLD', comfort: 'T_COMFORT', hot: 'T_HOT' }[key] || key;
+  return { lux: 'LUX_TH', comfort: 'T_COMFORT', hot: 'T_HOT' }[key] || key;
 }
 
 /** 阈值输入框填默认值：只在用户没正在编辑时填 */
@@ -767,8 +758,6 @@ function checkAlarms(d) {
 
   if (d.temp === -1) {
     alarms.push('温度传感器读取失败');
-  } else if (d.temp < d.thrCold) {
-    alarms.push('温度低于下限');
   } else if (d.temp > d.thrHot) {
     alarms.push('温度高于上限');
   } else if (d.temp >= d.thrComfort && d.temp <= d.thrHot) {
@@ -866,22 +855,19 @@ function startDebugFeed() {
   debugTimer = setInterval(() => {
     t += 0.1;
     const temp = 24 + Math.sin(t) * 4;
-    const thrCold = 15, thrComfort = 24, thrHot = 30;
-    let zone = 0;
-    if (temp < thrCold) zone = 0;
-    else if (temp < thrComfort) zone = 1;
-    else if (temp < thrHot) zone = 2;
-    else zone = 3;
+    const thrComfort = 24, thrHot = 30;
+    const warm = temp >= thrComfort;     /* 偏热及以上：吊扇开 */
+    const hot  = temp >= thrHot;         /* 高温：空调也开 */
     const line = [
       temp.toFixed(1),
       (60 + Math.sin(t * 0.5) * 10).toFixed(0),
       String(100 + Math.round(Math.abs(Math.sin(t * 0.3)) * 400)),
       '1',
       '0',
-      zone >= 2 ? '1' : '0',
-      zone === 0 || zone === 3 ? '1' : '0',
+      warm ? '1' : '0',
+      hot ? '1' : '0',
       '0',
-      '100', '15', '24', '30',
+      '100', '24', '30',
       String(debugMode)
     ].join(',');
     parseFrame(line);
