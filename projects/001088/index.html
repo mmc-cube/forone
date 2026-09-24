@@ -228,11 +228,6 @@
         <div class="data-value no-data" id="v-lux">---</div>
         <div class="data-unit">lx</div>
       </div>
-      <div class="data-item">
-        <div class="data-label">人体感应</div>
-        <div class="data-value no-data" id="v-occ">--</div>
-        <div class="data-unit">PIR</div>
-      </div>
       <div class="data-item wide">
         <div class="data-label">门窗状态</div>
         <div class="data-value wide no-data" id="v-door">--</div>
@@ -335,7 +330,7 @@ let connectedInfo = { name: '', address: '' };
 let btTimer = null;           /* 扫描 / 连接的超时定时器 */
 let toastTimer = null;
 let currentData = {
-  temp: 0, humi: 0, lux: 0, occ: 0, door: 0,
+  temp: 0, humi: 0, lux: 0, door: 0,
   fan: 0, ac: 0, lamp: 0,
   thrLux: 100, thrComfort: 24, thrHot: 30,
   mode: -1,                 /* -1=未知 0=AUTO 1=MANUAL */
@@ -609,7 +604,7 @@ function sendThr(key) {
 
 /* ════════════════════════════════════════════════
    数据解析
-   格式：温度,湿度,照度,有人,门窗,吊扇,空调,照明灯,
+   格式：温度,湿度,照度,门窗,吊扇,空调,照明灯,
         LUX_TH,T_COMFORT,T_HOT,SYSTEM_MODE
    ════════════════════════════════════════════════ */
 function parseFrame(line) {
@@ -617,7 +612,7 @@ function parseFrame(line) {
   if (!raw) return;
 
   const p = raw.split(',');
-  if (p.length < 12) {
+  if (p.length < 11) {
     log('[格式错误] ' + raw);
     return;
   }
@@ -626,20 +621,19 @@ function parseFrame(line) {
     temp:       parseFloat(p[0]),
     humi:       parseFloat(p[1]),
     lux:        parseInt(p[2], 10),
-    occ:        parseInt(p[3], 10),
-    door:       parseInt(p[4], 10),
-    fan:        parseInt(p[5], 10),
-    ac:         parseInt(p[6], 10),
-    lamp:       parseInt(p[7], 10),
-    thrLux:     parseFloat(p[8]),
-    thrComfort: parseFloat(p[9]),
-    thrHot:     parseFloat(p[10]),
-    mode:       parseInt(p[11], 10),
+    door:       parseInt(p[3], 10),
+    fan:        parseInt(p[4], 10),
+    ac:         parseInt(p[5], 10),
+    lamp:       parseInt(p[6], 10),
+    thrLux:     parseFloat(p[7]),
+    thrComfort: parseFloat(p[8]),
+    thrHot:     parseFloat(p[9]),
+    mode:       parseInt(p[10], 10),
     valid:      true
   };
 
   /* 数值字段校验（温度允许 -1 表示读取失败） */
-  const numKeys = ['humi','lux','occ','door','fan','ac','lamp','thrLux','thrComfort','thrHot','mode'];
+  const numKeys = ['humi','lux','door','fan','ac','lamp','thrLux','thrComfort','thrHot','mode'];
   if (isNaN(d.temp) || numKeys.some(k => isNaN(d[k]))) {
     log('[数值异常] ' + raw);
     return;
@@ -681,10 +675,6 @@ function updateUI() {
   setText('v-lux', luxFail ? '---' : String(d.lux));
   toggleNoData('v-lux', luxFail);
   toggleAlarm('v-lux', !luxFail && d.lux < d.thrLux);
-
-  setText('v-occ', d.occ ? '有人' : '无人');
-  toggleNoData('v-occ', false);
-  setValClass('v-occ', d.occ ? 'data-value' : 'data-value alarm');
 
   setText('v-door', d.door ? '打开' : '关闭');
   toggleNoData('v-door', false);
@@ -771,7 +761,6 @@ function checkAlarms(d) {
   }
 
   if (d.door === 1) warns.push('门窗已打开');
-  if (d.occ === 0)  warns.push('室内无人');
 
   /* Banner */
   banner.className = 'alarm-banner';
@@ -862,7 +851,6 @@ function startDebugFeed() {
       temp.toFixed(1),
       (60 + Math.sin(t * 0.5) * 10).toFixed(0),
       String(100 + Math.round(Math.abs(Math.sin(t * 0.3)) * 400)),
-      '1',
       '0',
       warm ? '1' : '0',
       hot ? '1' : '0',
