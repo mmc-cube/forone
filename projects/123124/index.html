@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>生命体征监护与远程告警系统</title>
+<style>
+:root{
+  --bg:#F5F5F5;
+  --card:#FFFFFF;
+  --primary:#2196F3;
+  --alarm:#F44336;
+  --ok:#4CAF50;
+  --warn:#FF9800;
+  --text:#212121;
+  --sub:#757575;
+  --line:#E0E0E0;
+  --shadow:0 2px 8px rgba(0,0,0,.08);
+  --radius:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{
+  height:100%;
+  overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-tap-highlight-color:transparent;
+}
+body{
+  display:flex;
+  flex-direction:column;
+  max-width:420px;
+  margin:0 auto;
+}
+
+/* ---------- 顶部标题 / 连接状态 ---------- */
+.app-header{
+  height:46px;
+  flex-shrink:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 12px;
+  background:var(--card);
+  border-bottom:1px solid var(--line);
+}
+.app-title{font-size:15px;font-weight:600;letter-spacing:.2px;}
+.conn{display:flex;align-items:center;font-size:13px;color:var(--sub);}
+.dot{width:8px;height:8px;border-radius:50%;margin-right:5px;background:var(--alarm);}
+.dot.on{background:var(--ok);}
+
+/* ---------- Tab 内容区 ---------- */
+.tab-content{
+  display:none;
+  flex:1;
+  overflow-y:auto;
+  padding:12px;
+  -webkit-overflow-scrolling:touch;
+}
+.tab-content.active{display:block;}
+
+/* ---------- 卡片 ---------- */
+.card{
+  background:var(--card);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:14px;
+  margin-bottom:12px;
+}
+.card-title{
+  font-size:14px;
+  font-weight:600;
+  color:var(--sub);
+  margin-bottom:10px;
+  letter-spacing:.3px;
+}
+
+/* ---------- 实时数据 ---------- */
+.metric{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  padding:10px 0;
+  border-bottom:1px solid #F0F0F0;
+}
+.metric:last-child{border-bottom:none;padding-bottom:0;}
+.metric-name{font-size:15px;color:var(--text);}
+.metric-val{display:flex;align-items:baseline;}
+.metric-num{font-size:28px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;}
+.metric-unit{font-size:14px;color:var(--sub);margin-left:4px;}
+.metric.alarm .metric-num,.metric.alarm .metric-unit{color:var(--alarm);}
+.metric.invalid .metric-num,.metric.invalid .metric-unit{color:#BDBDBD;}
+
+/* ---------- 报警卡 ---------- */
+.alarm-ok{
+  display:flex;align-items:center;
+  font-size:15px;font-weight:600;color:var(--ok);
+}
+.alarm-ok .dot{background:var(--ok);}
+.alarm-item{
+  display:flex;align-items:flex-start;
+  background:var(--alarm);
+  color:#fff;
+  font-size:14px;
+  line-height:1.35;
+  padding:10px 12px;
+  border-radius:8px;
+  margin-bottom:8px;
+}
+.alarm-item:last-child{margin-bottom:0;}
+.alarm-item.muted{background:#EFEFEF;color:var(--sub);}
+.alarm-silent{
+  display:flex;align-items:center;
+  font-size:15px;font-weight:600;color:var(--warn);
+  margin-bottom:10px;
+}
+.alarm-silent .dot{background:var(--warn);}
+
+/* ---------- 按钮 ---------- */
+.btn{
+  display:block;
+  width:100%;
+  min-height:48px;
+  border:none;
+  border-radius:8px;
+  background:var(--primary);
+  color:#fff;
+  font-size:16px;
+  font-weight:600;
+  font-family:inherit;
+  cursor:pointer;
+  transition:filter .12s,transform .06s;
+}
+.btn:active{filter:brightness(.88);transform:scale(.99);}
+.btn.alarm-btn{background:var(--alarm);}
+
+/* ---------- 阈值设置 ---------- */
+.thr-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 0;
+  border-bottom:1px solid #F0F0F0;
+}
+.thr-row:last-child{border-bottom:none;padding-bottom:0;}
+.thr-label{font-size:15px;color:var(--text);}
+.thr-right{display:flex;align-items:center;}
+.thr-input{
+  width:80px;
+  height:40px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  text-align:center;
+  font-size:16px;
+  font-family:inherit;
+  color:var(--text);
+  background:#FAFAFA;
+  outline:none;
+}
+.thr-input:focus{border-color:var(--primary);background:#fff;}
+.thr-send{
+  width:64px;
+  height:40px;
+  margin-left:8px;
+  border:none;
+  border-radius:8px;
+  background:var(--primary);
+  color:#fff;
+  font-size:14px;
+  font-weight:600;
+  font-family:inherit;
+  cursor:pointer;
+}
+.thr-send:active{filter:brightness(.88);}
+.thr-unit{font-size:14px;color:var(--sub);margin-left:6px;min-width:26px;}
+
+/* ---------- 日志 ---------- */
+.log-item{
+  font-size:13px;
+  font-family:Consolas,Menlo,monospace;
+  color:var(--text);
+  line-height:1.5;
+  padding:7px 0;
+  border-bottom:1px dashed #EFEFEF;
+  word-break:break-all;
+}
+.log-item:first-child{color:var(--primary);font-weight:600;}
+.log-item:last-child{border-bottom:none;}
+.log-time{color:var(--sub);font-size:12px;margin-right:6px;}
+.log-empty{font-size:14px;color:var(--sub);}
+
+/* ---------- 底部 Tab 栏 ---------- */
+.tab-bar{
+  display:flex;
+  height:56px;
+  background:#FFFFFF;
+  border-top:1px solid var(--line);
+  flex-shrink:0;
+}
+.tab-item{
+  flex:1;
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  color:#666;
+  font-size:14px;
+  font-weight:500;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  position:relative;
+}
+.tab-item.active{color:var(--primary);font-weight:600;}
+
+/* Tab 图标（纯 CSS，不用 emoji） */
+.ico{width:18px;height:18px;display:inline-block;position:relative;margin-right:5px;flex-shrink:0;}
+.ico-data::before{
+  content:'';position:absolute;left:1px;top:7px;width:6px;height:10px;
+  border-radius:2px;background:currentColor;opacity:.45;
+}
+.ico-data::after{
+  content:'';position:absolute;left:10px;top:2px;width:6px;height:15px;
+  border-radius:2px;background:currentColor;
+}
+.ico-ctrl::before{
+  content:'';position:absolute;left:1px;top:5px;width:16px;height:2px;
+  background:currentColor;box-shadow:0 6px 0 currentColor;
+}
+.ico-ctrl::after{
+  content:'';position:absolute;left:4px;top:2px;width:6px;height:8px;
+  border-radius:4px;background:currentColor;box-shadow:6px 6px 0 -1px currentColor;
+}
+.ico-log::before{
+  content:'';position:absolute;left:1px;top:4px;width:16px;height:2px;
+  background:currentColor;box-shadow:0 5px 0 currentColor,0 10px 0 currentColor;
+}
+
+/* Tab 报警角标 */
+.badge{
+  position:absolute;
+  top:8px;
+  left:calc(50% + 14px);
+  min-width:16px;
+  height:16px;
+  padding:0 4px;
+  border-radius:8px;
+  background:var(--alarm);
+  color:#fff;
+  font-size:11px;
+  font-weight:700;
+  line-height:16px;
+  text-align:center;
+  display:none;
+}
+.badge.show{display:block;}
+</style>
+</head>
+<body>
+
+  <!-- 顶部：系统名 + MQTT 连接状态 -->
+  <div class="app-header">
+    <span class="app-title">生命体征监护与远程告警</span>
+    <span class="conn"><span class="dot" id="conn-dot"></span><span id="conn-text">连接中…</span></span>
+  </div>
+
+  <!-- ========== Tab：数据 ========== -->
+  <section class="tab-content active" id="tab-data">
+    <div class="card">
+      <div class="card-title">实时数据</div>
+      <div class="metric" id="m-hr">
+        <span class="metric-name">心率</span>
+        <span class="metric-val"><span class="metric-num" id="v-hr">--</span><span class="metric-unit">bpm</span></span>
+      </div>
+      <div class="metric" id="m-spo2">
+        <span class="metric-name">血氧</span>
+        <span class="metric-val"><span class="metric-num" id="v-spo2">--</span><span class="metric-unit">%</span></span>
+      </div>
+      <div class="metric" id="m-temp">
+        <span class="metric-name">体温</span>
+        <span class="metric-val"><span class="metric-num" id="v-temp">--</span><span class="metric-unit">℃</span></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">报警状态</div>
+      <div id="alarm-box">
+        <div class="alarm-ok"><span class="dot"></span>运行正常</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Tab：控制 ========== -->
+  <section class="tab-content" id="tab-ctrl">
+    <div class="card">
+      <div class="card-title">远程控制</div>
+      <button class="btn alarm-btn" id="btn-silence">消警（LED 灭 · 静默）</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">阈值设置</div>
+      <div class="thr-row">
+        <span class="thr-label">心率上限</span>
+        <span class="thr-right">
+          <input class="thr-input" id="in-hrHigh" type="number" inputmode="numeric" step="1" />
+          <span class="thr-unit">bpm</span>
+          <button class="thr-send" data-code="02">发送</button>
+        </span>
+      </div>
+      <div class="thr-row">
+        <span class="thr-label">心率下限</span>
+        <span class="thr-right">
+          <input class="thr-input" id="in-hrLow" type="number" inputmode="numeric" step="1" />
+          <span class="thr-unit">bpm</span>
+          <button class="thr-send" data-code="03">发送</button>
+        </span>
+      </div>
+      <div class="thr-row">
+        <span class="thr-label">体温上限</span>
+        <span class="thr-right">
+          <input class="thr-input" id="in-tempHigh" type="number" inputmode="decimal" step="0.5" />
+          <span class="thr-unit">℃</span>
+          <button class="thr-send" data-code="04">发送</button>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Tab：日志 ========== -->
+  <section class="tab-content" id="tab-log">
+    <div class="card">
+      <div class="card-title">数据日志（最近 20 条）</div>
+      <div id="log-box"><div class="log-empty">等待数据…</div></div>
+    </div>
+  </section>
+
+  <!-- 底部 Tab 栏 -->
+  <nav class="tab-bar">
+    <div class="tab-item active" data-tab="data">
+      <span class="ico ico-data"></span><span>数据</span>
+      <span class="badge" id="alarm-badge">0</span>
+    </div>
+    <div class="tab-item" data-tab="ctrl">
+      <span class="ico ico-ctrl"></span><span>控制</span>
+    </div>
+    <div class="tab-item" data-tab="log">
+      <span class="ico ico-log"></span><span>日志</span>
+    </div>
+  </nav>
+
+<script src="mqtt.min.js"></script>
+<script>
+/* ================= 通信常量（按 PRD 锁定，硬编码） ================= */
+var UPLOAD_TOPIC = '123124/234235/smtzjhycgjxt/upload';
+var CMD_TOPIC    = '123124/234235/smtzjhycgjxt/cmd';
+var BROKER_URL   = 'wss://broker.emqx.io:8084/mqtt';
+
+/* ================= 状态 ================= */
+var cur = {
+  heartRate: 0,
+  spo2: 0,
+  bodyTemp: 0,
+  hrHigh: 100,
+  hrLow: 50,
+  tempHigh: 38.0
+};
+// 阈值乐观更新：等待下位机同步确认
+var wait = { hrHigh: false, hrLow: false, tempHigh: false };
+// 本地消警（静默）标志
+var silenced = false;
+// 阈值输入框是否已被下位机数据初始化过
+var thrInit = false;
+// 是否已收到过数据
+var hasData = false;
+
+/* ================= Tab 切换 ================= */
+document.querySelectorAll('.tab-item').forEach(function (item) {
+  item.addEventListener('click', function () {
+    var tab = item.dataset.tab;
+    document.querySelectorAll('.tab-item').forEach(function (i) { i.classList.remove('active'); });
+    item.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(function (c) { c.classList.remove('active'); });
+    document.getElementById('tab-' + tab).classList.add('active');
+  });
+});
+
+/* ================= 报警角标 ================= */
+function updateAlarmBadge(count) {
+  var badge = document.getElementById('alarm-badge');
+  if (count > 0) {
+    badge.textContent = count;
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+}
+
+/* ================= 连接状态 ================= */
+function setConn(ok) {
+  document.getElementById('conn-dot').className = 'dot' + (ok ? ' on' : '');
+  document.getElementById('conn-text').textContent = ok ? '已连接' : '未连接';
+}
+
+/* ================= 数值渲染 ================= */
+function renderValues() {
+  var hrValid = cur.heartRate > 0;
+  var tValid  = cur.bodyTemp >= 20 && cur.bodyTemp <= 90;
+
+  var hrAlarm = hrValid && (cur.heartRate > cur.hrHigh || cur.heartRate < cur.hrLow);
+  var tAlarm  = tValid  && (cur.bodyTemp > cur.tempHigh);
+
+  var eHr = document.getElementById('m-hr');
+  var eSpo2 = document.getElementById('m-spo2');
+  var eTemp = document.getElementById('m-temp');
+
+  document.getElementById('v-hr').textContent = hasData ? cur.heartRate : '--';
+  document.getElementById('v-spo2').textContent = hasData ? cur.spo2 : '--';
+  document.getElementById('v-temp').textContent = hasData ? cur.bodyTemp.toFixed(1) : '--';
+
+  eHr.className = 'metric' + (hrAlarm ? ' alarm' : (hasData && !hrValid ? ' invalid' : ''));
+  eTemp.className = 'metric' + (tAlarm ? ' alarm' : (hasData && !tValid ? ' invalid' : ''));
+  eSpo2.className = 'metric' + (hasData && cur.spo2 === 0 ? ' invalid' : '');
+}
+
+/* ================= 报警渲染 ================= */
+function renderAlarms(list) {
+  var box = document.getElementById('alarm-box');
+  if (list.length === 0) {
+    silenced = false;   // 数值全部回到正常 → 静默自动清零
+    box.innerHTML = '<div class="alarm-ok"><span class="dot"></span>运行正常</div>';
+    updateAlarmBadge(0);
+    return;
+  }
+  var html = '';
+  if (silenced) {
+    html += '<div class="alarm-silent"><span class="dot"></span>已消警 · 静默中（数值回正常后自动恢复）</div>';
+  }
+  list.forEach(function (t) {
+    html += '<div class="alarm-item' + (silenced ? ' muted' : '') + '">' + t + '</div>';
+  });
+  box.innerHTML = html;
+  updateAlarmBadge(silenced ? 0 : list.length);
+}
+
+/* ================= 报警判断（按 PRD 第四层） ================= */
+function checkAlarms() {
+  var list = [];
+  var hrValid = cur.heartRate > 0;
+  var tValid  = cur.bodyTemp >= 20 && cur.bodyTemp <= 90;
+
+  if (hrValid && cur.heartRate > cur.hrHigh) {
+    list.push('心率超上限：' + cur.heartRate + ' bpm（上限 ' + cur.hrHigh + '）');
+  }
+  if (hrValid && cur.heartRate < cur.hrLow) {
+    list.push('心率低于下限：' + cur.heartRate + ' bpm（下限 ' + cur.hrLow + '）');
+  }
+  if (tValid && cur.bodyTemp > cur.tempHigh) {
+    list.push('体温超上限：' + cur.bodyTemp.toFixed(1) + ' ℃（上限 ' + cur.tempHigh.toFixed(1) + '）');
+  }
+  renderAlarms(list);
+}
+
+/* ================= 阈值输入框同步 ================= */
+function syncThrInputs() {
+  var map = {
+    'in-hrHigh': cur.hrHigh,
+    'in-hrLow': cur.hrLow,
+    'in-tempHigh': cur.tempHigh.toFixed(1)
+  };
+  Object.keys(map).forEach(function (id) {
+    var el = document.getElementById(id);
+    if (document.activeElement === el) return;   // 用户正在输入，不覆盖
+    if (wait.hrHigh && id === 'in-hrHigh') return;
+    if (wait.hrLow && id === 'in-hrLow') return;
+    if (wait.tempHigh && id === 'in-tempHigh') return;
+    el.value = map[id];
+  });
+}
+
+/* ================= 数据解析 ================= */
+function parseAndUpdate(msg) {
+  var p = msg.split(',');
+  if (p.length < 6) return;
+
+  var v = {
+    heartRate: parseInt(p[0], 10) || 0,
+    spo2: parseInt(p[1], 10) || 0,
+    bodyTemp: parseFloat(p[2]) || 0,
+    hrHigh: parseInt(p[3], 10) || 0,
+    hrLow: parseInt(p[4], 10) || 0,
+    tempHigh: parseFloat(p[5]) || 0
+  };
+
+  // 传感器值：始终实时更新
+  hasData = true;
+  cur.heartRate = v.heartRate;
+  cur.spo2 = v.spo2;
+  cur.bodyTemp = v.bodyTemp;
+
+  // 阈值：等待确认期间冻结本地值，收到匹配值即视为同步完成
+  var keys = { hrHigh: 1, hrLow: 1, tempHigh: 1 };
+  Object.keys(keys).forEach(function (k) {
+    if (wait[k] && Math.abs(v[k] - cur[k]) < 0.05) wait[k] = false;
+    if (!wait[k]) cur[k] = v[k];
+  });
+
+  renderValues();
+  if (!thrInit) { thrInit = true; }
+  syncThrInputs();
+
+  // 关键：等待确认期间不重算报警，保持用户操作后的预测状态
+  if (!wait.hrHigh && !wait.hrLow && !wait.tempHigh) checkAlarms();
+
+  pushLog(msg);
+}
+
+/* ================= 日志 ================= */
+var MAX_LOG = 20;
+function pushLog(msg) {
+  var box = document.getElementById('log-box');
+  var empty = box.querySelector('.log-empty');
+  if (empty) box.innerHTML = '';
+
+  var d = new Date();
+  var t = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+
+  var div = document.createElement('div');
+  div.className = 'log-item';
+  div.innerHTML = '<span class="log-time">' + t + '</span>' + msg;
+  box.insertBefore(div, box.firstChild);
+
+  while (box.children.length > MAX_LOG) box.removeChild(box.lastChild);
+}
+
+/* ================= MQTT 连接 ================= */
+var client = null;
+try {
+  client = mqtt.connect(BROKER_URL, {
+    clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+    reconnectPeriod: 3000,
+    connectTimeout: 10000,
+    clean: true
+  });
+
+  client.on('connect', function () {
+    setConn(true);
+    client.subscribe(UPLOAD_TOPIC, { qos: 0 });
+  });
+  client.on('reconnect', function () { setConn(false); });
+  client.on('close', function () { setConn(false); });
+  client.on('offline', function () { setConn(false); });
+  client.on('error', function () { setConn(false); });
+
+  client.on('message', function (topic, payload) {
+    if (topic !== UPLOAD_TOPIC) return;
+    parseAndUpdate(payload.toString());
+  });
+} catch (e) {
+  setConn(false);
+}
+
+/* ================= 下行发送 ================= */
+function sendCmd(cmd) {
+  if (!client || !client.connected) {
+    alert('MQTT 未连接，无法下发指令');
+    return false;
+  }
+  client.publish(CMD_TOPIC, cmd, { qos: 0 });
+  return true;
+}
+
+/* ---- 消警 ---- */
+document.getElementById('btn-silence').addEventListener('click', function () {
+  if (!sendCmd('01')) return;
+  silenced = true;
+  checkAlarms();     // 立即进入静默显示（乐观更新）
+});
+
+/* ---- 阈值发送 ---- */
+document.querySelectorAll('.thr-send').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var code = btn.dataset.code;
+    var key = { '02': 'hrHigh', '03': 'hrLow', '04': 'tempHigh' }[code];
+    var el = document.getElementById('in-' + key);
+    var raw = el.value.trim();
+    if (raw === '') { alert('请先输入数值'); return; }
+
+    var val = (key === 'tempHigh') ? parseFloat(raw) : parseInt(raw, 10);
+    if (isNaN(val)) { alert('请输入有效数值'); return; }
+
+    if (!sendCmd(code + ',' + val)) return;
+
+    // 立即预测：本地阈值生效 + 标记等待同步
+    cur[key] = val;
+    wait[key] = true;
+
+    renderValues();
+    checkAlarms();     // 立即反馈
+    syncThrInputs();
+  });
+});
+
+/* ================= 初始化渲染 ================= */
+renderValues();
+syncThrInputs();
+setConn(false);
+</script>
+</body>
+</html>
