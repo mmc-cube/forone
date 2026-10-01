@@ -175,6 +175,37 @@ body{
 .thr-send:active{filter:brightness(.88);}
 .thr-unit{font-size:14px;color:var(--sub);margin-left:6px;min-width:26px;}
 
+/* ---------- 报警记录 ---------- */
+.rec-item{
+  border-left:3px solid var(--alarm);
+  background:#FAFAFA;
+  padding:9px 10px;
+  border-radius:0 8px 8px 0;
+  margin-bottom:8px;
+}
+.rec-item:last-child{margin-bottom:0;}
+.rec-head{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:14px;font-weight:600;
+}
+.rec-tag{
+  font-size:11px;font-weight:700;line-height:16px;
+  padding:0 6px;border-radius:8px;
+  background:#EEEEEE;color:var(--sub);
+  flex-shrink:0;margin-left:8px;
+}
+.rec-line{
+  font-size:13px;color:var(--sub);
+  margin-top:5px;line-height:1.45;
+  font-variant-numeric:tabular-nums;
+}
+.rec-line b{color:var(--text);font-weight:600;}
+.rec-empty{font-size:14px;color:var(--sub);}
+.rec-running{
+  font-size:13px;font-weight:600;color:var(--alarm);
+  margin-bottom:8px;
+}
+
 /* ---------- 日志 ---------- */
 .log-item{
   font-size:13px;
@@ -330,6 +361,10 @@ body{
   <!-- ========== Tab：日志 ========== -->
   <section class="tab-content" id="tab-log">
     <div class="card">
+      <div class="card-title">报警记录</div>
+      <div id="rec-box"><div class="rec-empty">暂无报警</div></div>
+    </div>
+    <div class="card">
       <div class="card-title">数据日志（最近 20 条）</div>
       <div id="log-box"><div class="log-empty">等待数据…</div></div>
     </div>
@@ -443,19 +478,115 @@ function renderAlarms(list) {
   updateAlarmBadge(silenced ? 0 : list.length);
 }
 
-/* ================= 报警判断（按 PRD 第四层） ================= */
-function checkAlarms() {
-  var list = [];
+/* ================= 超标判定（按 PRD 第四层） ================= */
+var ALARM_TYPES = [
+  { key: 'hrHigh',   label: '心率超上限' },
+  { key: 'hrLow',    label: '心率低于下限' },
+  { key: 'tempHigh', label: '体温超上限' }
+];
+
+function evaluate() {
   var hrValid = cur.heartRate > 0;
   var tValid  = cur.bodyTemp >= 20 && cur.bodyTemp <= 90;
+  return {
+    hrHigh:   (hrValid && cur.heartRate > cur.hrHigh)  ? cur.heartRate : null,
+    hrLow:    (hrValid && cur.heartRate < cur.hrLow)   ? cur.heartRate : null,
+    tempHigh: (tValid  && cur.bodyTemp > cur.tempHigh) ? cur.bodyTemp : null
+  };
+}
 
-  if (hrValid && cur.heartRate > cur.hrHigh) {
+/* ================= 报警记录（时间 + 触发值 + 持续时长） ================= */
+var MAX_REC = 50;
+var alarmRecords = [];                                    // 最新在最前
+var activeRec = { hrHigh: null, hrLow: null, tempHigh: null };
+
+function updateRecords(res) {
+  var now = Date.now();
+  var changed = false;
+  ALARM_TYPES.forEach(function (t) {
+    var v = res[t.key];
+    if (v !== null) {
+      if (!activeRec[t.key]) {
+        // 报警开始 → 只内部起计时，不生成记录
+        activeRec[t.key] = {
+          key: t.key,
+          label: t.label,
+          value: v,          // 触发值：首次触发时的读数，全程不覆盖
+          start: now,
+          end: null
+        };
+        changed = true;
+      }
+      // 持续期间不写记录：只要没跌回正常，就一直算这一次
+    } else if (activeRec[t.key]) {
+      // 报警结束（回到正常）→ 此刻才写入一条报警记录
+      var rec = activeRec[t.key];
+      rec.end = now;
+      alarmRecords.unshift(rec);
+      while (alarmRecords.length > MAX_REC) alarmRecords.pop();
+      activeRec[t.key] = null;
+      changed = true;
+    }
+  });
+  if (changed) renderRecords();
+}
+
+function fmtClock(ts) {
+  var d = new Date(ts);
+  return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+}
+
+function fmtDur(ms) {
+  var s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return s + 's';
+  var m = Math.floor(s / 60);
+  return m + '分' + ('0' + (s % 60)).slice(-2) + '秒';
+}
+
+function fmtRecVal(r) {
+  var isTemp = (r.key === 'tempHigh');
+  return (isTemp ? r.value.toFixed(1) : Math.round(r.value)) + ' ' + (isTemp ? '℃' : 'bpm');
+}
+
+function renderRecords() {
+  var box = document.getElementById('rec-box');
+  var running = 0;
+  ALARM_TYPES.forEach(function (t) { if (activeRec[t.key]) running++; });
+
+  var html = '';
+  if (running > 0) {
+    html += '<div class="rec-running">' + running + ' 条报警进行中，回到正常后记入</div>';
+  }
+  if (alarmRecords.length === 0) {
+    if (running === 0) html += '<div class="rec-empty">暂无报警</div>';
+    box.innerHTML = html;
+    return;
+  }
+  alarmRecords.forEach(function (r) {
+    var dur = r.end - r.start;
+    html += '<div class="rec-item">'
+         +  '<div class="rec-head"><span>' + r.label + '</span>'
+         +  '<span class="rec-tag">' + fmtDur(dur) + '</span></div>'
+         +  '<div class="rec-line">' + fmtClock(r.start) + ' ~ ' + fmtClock(r.end) + '</div>'
+         +  '<div class="rec-line">触发值 <b>' + fmtRecVal(r) + '</b></div>'
+         +  '</div>';
+  });
+  box.innerHTML = html;
+}
+
+/* ================= 报警判断 + 汇总 ================= */
+function checkAlarms() {
+  var res = evaluate();
+  updateRecords(res);
+
+  var list = [];
+  if (res.hrHigh !== null) {
     list.push('心率超上限：' + cur.heartRate + ' bpm（上限 ' + cur.hrHigh + '）');
   }
-  if (hrValid && cur.heartRate < cur.hrLow) {
+  if (res.hrLow !== null) {
     list.push('心率低于下限：' + cur.heartRate + ' bpm（下限 ' + cur.hrLow + '）');
   }
-  if (tValid && cur.bodyTemp > cur.tempHigh) {
+  if (res.tempHigh !== null) {
     list.push('体温超上限：' + cur.bodyTemp.toFixed(1) + ' ℃（上限 ' + cur.tempHigh.toFixed(1) + '）');
   }
   renderAlarms(list);
@@ -604,6 +735,7 @@ document.querySelectorAll('.thr-send').forEach(function (btn) {
 /* ================= 初始化渲染 ================= */
 renderValues();
 syncThrInputs();
+renderRecords();
 setConn(false);
 </script>
 </body>
