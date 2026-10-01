@@ -237,6 +237,21 @@
             color: #bbb;
         }
 
+        .threshold-btn {
+            flex: 0 0 76px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .threshold-btn:active {
+            background: #1976D2;
+        }
+
         select.threshold-input {
             background: white;
         }
@@ -344,26 +359,50 @@
                 </div>
             </div>
 
-            <!-- 阈值卡（当前值 + 远程修改） -->
+            <!-- 当前阈值卡（只读，自动跟随设备生效值） -->
             <div class="card">
-                <div class="card-title">当前阈值（可远程修改）</div>
+                <div class="card-title">当前阈值<span id="thrSync" style="font-size:12px;color:var(--primary)"></span></div>
+                <div class="data-row">
+                    <span class="data-label">温度下限</span>
+                    <div><span class="data-value" id="dv-temp">--</span><span class="data-unit">℃</span></div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">湿度上限</span>
+                    <div><span class="data-value" id="dv-humi">--</span><span class="data-unit">%</span></div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">烟雾上限</span>
+                    <div><span class="data-value" id="dv-smoke">--</span><span class="data-unit">/100</span></div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">光照下限</span>
+                    <div><span class="data-value" id="dv-lux">--</span></div>
+                </div>
+            </div>
+
+            <!-- 阈值设置卡（每行独立下发） -->
+            <div class="card">
+                <div class="card-title">阈值设置</div>
                 <div class="threshold-row">
                     <span class="threshold-label">温度下限 ℃</span>
                     <input class="threshold-input" id="in-temp" type="number" min="-10" max="80" step="1">
+                    <button class="threshold-btn" id="bt-temp">发送</button>
                 </div>
                 <div class="threshold-row">
                     <span class="threshold-label">湿度上限 %</span>
                     <input class="threshold-input" id="in-humi" type="number" min="0" max="100" step="1">
+                    <button class="threshold-btn" id="bt-humi">发送</button>
                 </div>
                 <div class="threshold-row">
                     <span class="threshold-label">烟雾上限</span>
                     <input class="threshold-input" id="in-smoke" type="number" min="0" max="250" step="1">
+                    <button class="threshold-btn" id="bt-smoke">发送</button>
                 </div>
                 <div class="threshold-row">
                     <span class="threshold-label">光照下限</span>
                     <input class="threshold-input" id="in-lux" type="number" min="0" max="4095" step="50">
+                    <button class="threshold-btn" id="bt-lux">发送</button>
                 </div>
-                <button class="btn" id="btn-set">下发设置</button>
             </div>
 
             <!-- 控制卡 -->
@@ -432,32 +471,66 @@
             if (t === "his" && lastPts) drawChart();
         }
 
-        /* ================== 实时数据 ================== */
-        let D = {};   // identifier -> value
-        async function pollOnce(){
-            try{
-                const r = await fetch(`${BASE}/thingmodel/query-device-property?product_id=${PID}&device_name=${DEV}`,
-                                      {headers:hdr()}).then(x=>x.json());
-                if(r.code!==0) throw r.msg;
-                const now = Date.now(); let newest = 0;
-                // 该接口的 data 直接就是数组(不是 {list:[...]})
-                const items = Array.isArray(r.data) ? r.data : ((r.data && r.data.list) || []);
-                items.forEach(it=>{
-                    if(it.time){ const t=new Date(it.time).getTime(); if(t>newest) newest=t; }
-                    if(it.value!==null && it.value!==undefined) D[it.identifier]=it.value;
-                });
-                render(newest);
-            }catch(e){
-                $("statusDot").className = "status-dot disconnected";
-                $("statusText").textContent = "连接失败";
-            }
+/* ================== 实时数据 ================== */
+let D = {};   // identifier -> value
+
+/* ================== 阈值双组管理（预测-同步-接管） ==================
+   读取组 thrDisplay: 设备当前生效值。非保护状态下随上报自动刷新。
+   下发组: 输入框里用户填的值, 只在点"下发设置"时发送, 平时不动。
+   保护机制: 下发成功 → 读取组乐观更新为下发值并冻结(防止设备旧值回灌覆盖),
+             设备回报值与下发值一致(±1)即解除保护; 90s 未确认也自动解除兜底。 */
+const THR_KEYS = ["ThrTempLower","ThrHumiUpper","ThrNh3Upper","LuxMin"];
+let thrDisplay = {};   // 读取组（生效值）
+let thrProtect = {};   // 保护中: key -> 已下发的期望值
+let thrProtAt  = {};   // 保护开始时刻
+const effThr = k => (thrDisplay[k] !== undefined ? thrDisplay[k] : D[k]);
+
+async function pollOnce(){
+  try{
+    const r = await fetch(`${BASE}/thingmodel/query-device-property?product_id=${PID}&device_name=${DEV}`,
+                          {headers:hdr()}).then(x=>x.json());
+    if(r.code!==0) throw r.msg;
+    const now = Date.now(); let newest = 0;
+    // 该接口的 data 直接就是数组(不是 {list:[...]})
+    const items = Array.isArray(r.data) ? r.data : ((r.data && r.data.list) || []);
+    items.forEach(it=>{
+      if(it.time){ const t=new Date(it.time).getTime(); if(t>newest) newest=t; }
+      if(it.value!==null && it.value!==undefined){
+        D[it.identifier]=it.value;
+        // 阈值: 保护期间比对回显, 确认后接管; 非保护期间直接刷新读取组
+        if(THR_KEYS.includes(it.identifier)){
+          const k = it.identifier;
+          if(thrProtect[k] !== undefined && Math.abs(it.value - thrProtect[k]) <= 1){
+            delete thrProtect[k];                 // 设备回报了下发值 → 解除保护
+          }
+          if(thrProtect[k] === undefined) thrDisplay[k] = it.value;
         }
-        function render(newest){
-            const T=+D.Temperature, H=+D.Humidity, S=+D.Smoke, L=+D.LightLux;
-            const tT=+D.ThrTempLower, tH=+D.ThrHumiUpper, tS=+D.ThrNh3Upper, tL=+D.LuxMin;
-            const ok = v => !isNaN(v);
-            const set = (id,v,dec) => $(id).textContent = ok(v) ? (dec? v.toFixed(1) : Math.round(v)) : "--";
-            set("v-temp",T,1); set("v-humi",H,0); set("v-smoke",S,1); set("v-lux",L,0);
+      }
+    });
+    // 90s 未等到设备确认 → 自动解除保护, 以设备值为准
+    for(const k of THR_KEYS){
+      if(thrProtect[k] !== undefined && now - (thrProtAt[k]||0) > 90000) delete thrProtect[k];
+    }
+    render(newest);
+  }catch(e){
+    $("statusDot").className = "status-dot disconnected";
+    $("statusText").textContent = "连接失败";
+  }
+}
+function render(newest){
+    const T=+D.Temperature, H=+D.Humidity, S=+D.Smoke, L=+D.LightLux;
+    // 阈值统一用"读取组"(生效值), 保护期间显示乐观值
+    const tT=+effThr("ThrTempLower"), tH=+effThr("ThrHumiUpper"), tS=+effThr("ThrNh3Upper"), tL=+effThr("LuxMin");
+    const ok = v => !isNaN(v);
+    const set = (id,v,dec) => $(id).textContent = ok(v) ? (dec? v.toFixed(1) : Math.round(v)) : "--";
+    set("v-temp",T,1); set("v-humi",H,0); set("v-smoke",S,1); set("v-lux",L,0);
+    // 阈值输入框 placeholder 持续跟随读取组(设备改了/App 改了都会同步显示)
+    const ph = (id,k) => { const v = effThr(k); if(v!==undefined) $(id).placeholder = v; };
+    ph("in-temp","ThrTempLower"); ph("in-humi","ThrHumiUpper");
+    ph("in-smoke","ThrNh3Upper"); ph("in-lux","LuxMin");
+    // 当前阈值区: 显示读取组
+    set("dv-temp",tT,0); set("dv-humi",tH,0); set("dv-smoke",tS,0); set("dv-lux",tL,0);
+    $("thrSync").textContent = Object.keys(thrProtect).length ? "同步中…" : "";
             // 超限标红（与固件判断一致）
             $("v-temp").classList.toggle("alarm", ok(T)&&ok(tT)&&T<tT);
             $("v-humi").classList.toggle("alarm", ok(H)&&ok(tH)&&H>tH);
@@ -492,25 +565,37 @@
             }
         }
 
-        /* ================== 属性下发 ================== */
-        async function setProps(params){
-            try{
-                const r = await fetch(`${BASE}/thingmodel/set-device-property`,{
-                    method:"POST", headers:{...hdr(),"Content-Type":"application/json"},
-                    body:JSON.stringify({product_id:PID,device_name:DEV,params})
-                }).then(x=>x.json());
-                toast(r.code===0?"✅ 下发成功":`❌ ${r.code} ${r.msg||""}`);
-            }catch(e){ toast("❌ 请求失败"); }
-        }
-        $("btn-clear").onclick = ()=>setProps({AlarmClear:true});
-        $("btn-set").onclick = ()=>{
-            const p={};
-            const t=$("in-temp").value, h=$("in-humi").value, s=$("in-smoke").value, l=$("in-lux").value;
-            if(t!=="") p.ThrTempLower=+t;   if(h!=="") p.ThrHumiUpper=+h;
-            if(s!=="") p.ThrNh3Upper=+s;    if(l!=="") p.LuxMin=+l;
-            if(!Object.keys(p).length){ toast("请先填写要修改的项"); return; }
-            setProps(p);
-        };
+/* ================== 属性下发 ================== */
+async function setProps(params){
+  try{
+    const r = await fetch(`${BASE}/thingmodel/set-device-property`,{
+      method:"POST", headers:{...hdr(),"Content-Type":"application/json"},
+      body:JSON.stringify({product_id:PID,device_name:DEV,params})
+    }).then(x=>x.json());
+    toast(r.code===0?"✅ 下发成功":`❌ ${r.code} ${r.msg||""}`);
+    return r;
+  }catch(e){ toast("❌ 请求失败"); return null; }
+}
+$("btn-clear").onclick = ()=>setProps({AlarmClear:true});
+
+/* 每行独立下发: 只发本行输入框的值; 成功后乐观更新+保护, 回显一致自动解除 */
+async function sendThreshold(key, inputId){
+  const v = $(inputId).value;
+  if(v === ""){ toast("请先输入数值"); return; }
+  const p = {}; p[key] = +v;
+  const r = await setProps(p);
+  if(r && r.code===0){
+    thrDisplay[key] = +v;            // 读取组乐观更新
+    thrProtect[key] = +v;            // 进入保护
+    thrProtAt[key]  = Date.now();
+    $(inputId).value = "";           // 清空下发组
+    render(Date.now());
+  }
+}
+$("bt-temp").onclick = ()=>sendThreshold("ThrTempLower","in-temp");
+$("bt-humi").onclick = ()=>sendThreshold("ThrHumiUpper","in-humi");
+$("bt-smoke").onclick = ()=>sendThreshold("ThrNh3Upper","in-smoke");
+$("bt-lux").onclick = ()=>sendThreshold("LuxMin","in-lux");
 
         /* ================== 历史查询（按天，自动翻页拉全） ================== */
         async function fetchHistory(ident, startMs, endMs, onProg){
@@ -620,14 +705,10 @@
         $("h-date").value = new Date().toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"});
         window.addEventListener("resize",()=>{ if(lastPts) drawChart(); });
 
-        /* ================== 启动 ================== */
-        pollOnce().then(()=>{
-            if(D.ThrTempLower!=null) $("in-temp").placeholder=D.ThrTempLower;
-            if(D.ThrHumiUpper!=null) $("in-humi").placeholder=D.ThrHumiUpper;
-            if(D.ThrNh3Upper!=null)  $("in-smoke").placeholder=D.ThrNh3Upper;
-            if(D.LuxMin!=null)       $("in-lux").placeholder=D.LuxMin;
-            setInterval(pollOnce, POLL_MS);
-        });
+/* ================== 启动 ================== */
+pollOnce().then(()=>{
+  setInterval(pollOnce, POLL_MS);
+});
     </script>
 </body>
 </html>
