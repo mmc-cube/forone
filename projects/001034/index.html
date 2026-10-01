@@ -415,7 +415,7 @@
         <!-- ==================== 页 2：历史数据 ==================== -->
         <div class="page" id="page-his">
             <div class="card">
-                <div class="card-title">按天查询（数据每 1 分钟上报一次）</div>
+                <div class="card-title">按天查询（数据每 1 秒上报一次 · 查全天约需 1~3 分钟）</div>
                 <div class="threshold-row">
                     <select class="threshold-input" id="h-ident">
                         <option value="Temperature">温度</option>
@@ -452,7 +452,7 @@
         const TOKEN = "version=2018-10-31&res=products%2FK6WNT1O5e0&et=1924833600&method=md5&sign=mACoUHwqz6r%2FPK5wjQkJHg%3D%3D";
         const BASE = "https://iot-api.heclouds.com";
         const POLL_MS = 1000;   // 页面每 1 秒同步一次平台最新值
-        const UPLOAD_S = 60;   // 固件固定 1 分钟上报一次
+        const UPLOAD_S = 1;     // 固件固定 1 秒上报一次
 
         const $ = id => document.getElementById(id);
         const toast = m => { const t=$("toast"); t.textContent=m; t.style.display="block";
@@ -608,7 +608,7 @@ $("bt-lux").onclick = ()=>sendThreshold("LuxMin","in-lux");
                 const list=(r.data&&r.data.list)||[];
                 all=all.concat(list);
                 onProg(`已拉取 ${all.length} 条…`);
-                if(list.length<100 || all.length>30000) break;   // 尾页 / 安全上限
+                if(list.length<100 || all.length>90000) break;   // 尾页 / 安全上限(1s上报全天约864页)
                 offset+=100; await sleep(120);
             }
             return all;
