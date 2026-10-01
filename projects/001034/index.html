@@ -240,6 +240,32 @@
         select.threshold-input {
             background: white;
         }
+
+        /* 当日统计框 */
+        .stats-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .stat {
+            flex: 1;
+            text-align: center;
+            background: #F5F7FA;
+            border-radius: 8px;
+            padding: 10px 4px;
+        }
+
+        .stat-lab {
+            font-size: 12px;
+            color: var(--sub);
+        }
+
+        .stat-val {
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--primary);
+            margin-top: 2px;
+        }
     </style>
 </head>
 <body>
@@ -366,6 +392,14 @@
                 <div class="card-title"><span id="hmsg">选择日期后点"查询"</span></div>
                 <canvas id="chart" style="width:100%;height:300px;display:block"></canvas>
             </div>
+            <div class="card" id="statsCard" style="display:none">
+                <div class="card-title">当日统计（按原始数据计算）</div>
+                <div class="stats-row">
+                    <div class="stat"><div class="stat-lab">日最高</div><div class="stat-val" id="st-max">--</div></div>
+                    <div class="stat"><div class="stat-lab">日最低</div><div class="stat-val" id="st-min">--</div></div>
+                    <div class="stat"><div class="stat-lab">日平均</div><div class="stat-val" id="st-avg">--</div></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -378,7 +412,7 @@
         const DEV  = "stm32";
         const TOKEN = "version=2018-10-31&res=products%2FK6WNT1O5e0&et=1924833600&method=md5&sign=mACoUHwqz6r%2FPK5wjQkJHg%3D%3D";
         const BASE = "https://iot-api.heclouds.com";
-        const POLL_MS = 3000;
+        const POLL_MS = 1000;   // 页面每 1 秒同步一次平台最新值
         const UPLOAD_S = 60;   // 固件固定 1 分钟上报一次
 
         const $ = id => document.getElementById(id);
@@ -497,6 +531,18 @@
 
         /* ================== 原生 canvas 曲线（零依赖） ================== */
         let lastPts=null, lastRange=null;
+        // 按小时聚合: 每小时取均值 → 一天最多 24 个点
+        function aggregateHourly(pts, dayStart){
+            const buckets = new Map();
+            pts.forEach(p=>{
+                const h = Math.floor((p[0]-dayStart)/3600000);
+                if(!buckets.has(h)) buckets.set(h, []);
+                buckets.get(h).push(p[1]);
+            });
+            return [...buckets.entries()].sort((a,b)=>a[0]-b[0])
+                .map(([h,arr])=>[dayStart + h*3600000 + 1800000,
+                                 arr.reduce((a,b)=>a+b,0)/arr.length]);
+        }
         function drawChart(){
             const cv=$("chart"), dpr=window.devicePixelRatio||1;
             const W=cv.clientWidth||380, H=300;
@@ -541,9 +587,18 @@
             $("btn-hist").disabled=true; $("hmsg").textContent="查询中…";
             try{
                 const list=await fetchHistory(ident,start,end,m=>$("hmsg").textContent=m);
-                $("hmsg").textContent=`共 ${list.length} 条（${date}）`;
-                lastPts=list.map(it=>[+new Date(it.time), +it.value]).sort((a,b)=>a[0]-b[0]);
+                // 统计框: 用原始数据算 日最高/最低/平均
+                const vals=list.map(it=>+it.value);
+                if(vals.length){
+                    $("st-max").textContent=Math.max(...vals).toFixed(1);
+                    $("st-min").textContent=Math.min(...vals).toFixed(1);
+                    $("st-avg").textContent=(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+                }
+                $("statsCard").style.display = vals.length ? "block" : "none";
+                // 曲线折叠: 按小时聚合, 一天 24 个点连线
+                lastPts=aggregateHourly(list.map(it=>[+new Date(it.time), +it.value]), start);
                 lastRange=[start,end];
+                $("hmsg").textContent=`共 ${list.length} 条原始数据 · 折叠为 ${lastPts.length} 个小时点（${date}）`;
                 drawChart();
             }catch(e){ $("hmsg").textContent="查询失败："+e; }
             $("btn-hist").disabled=false;
