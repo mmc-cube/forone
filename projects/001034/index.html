@@ -531,7 +531,7 @@
 
         /* ================== 原生 canvas 曲线（零依赖） ================== */
         let lastPts=null, lastRange=null;
-        // 按小时聚合: 每小时取均值 → 一天最多 24 个点
+        // 按小时聚合: 每小时取最高值(与"日最高"口径一致) → 一天最多 24 个点
         function aggregateHourly(pts, dayStart){
             const buckets = new Map();
             pts.forEach(p=>{
@@ -540,8 +540,7 @@
                 buckets.get(h).push(p[1]);
             });
             return [...buckets.entries()].sort((a,b)=>a[0]-b[0])
-                .map(([h,arr])=>[dayStart + h*3600000 + 1800000,
-                                 arr.reduce((a,b)=>a+b,0)/arr.length]);
+                .map(([h,arr])=>[dayStart + h*3600000 + 1800000, Math.max(...arr)]);
         }
         function drawChart(){
             const cv=$("chart"), dpr=window.devicePixelRatio||1;
@@ -572,13 +571,28 @@
                 ctx.fillText(String(h).padStart(2,"0")+":00", Math.min(x,W-R-26), H-8);
                 ctx.beginPath(); ctx.moveTo(x,T+ph); ctx.lineTo(x,T+ph+4); ctx.stroke();
             }
-            ctx.beginPath();
-            lastPts.forEach((p,i)=>{ const x=X(p[0]),y=Y(p[1]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
-            ctx.strokeStyle="#2196F3"; ctx.lineWidth=2; ctx.lineJoin="round"; ctx.stroke();
-            ctx.lineTo(X(lastPts[lastPts.length-1][0]),T+ph);
-            ctx.lineTo(X(lastPts[0][0]),T+ph); ctx.closePath();
-            ctx.fillStyle="rgba(33,150,243,.10)"; ctx.fill();
-        }
+  // 断线绘制: 聚合后相邻小时点正常间隔 1h, 间隔超过 1.5h 说明缺了整段数据 → 断开不连线
+  const GAP_MS = 90*60*1000;
+  const runs = []; let cur = [lastPts[0]];
+  for(let i=1;i<lastPts.length;i++){
+      if(lastPts[i][0]-lastPts[i-1][0] <= GAP_MS) cur.push(lastPts[i]);
+      else { runs.push(cur); cur=[lastPts[i]]; }
+  }
+  runs.push(cur);
+  runs.forEach(run=>{
+      ctx.beginPath();
+      run.forEach((p,i)=>{ const x=X(p[0]),y=Y(p[1]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+      if(run.length===1){                       // 孤立单点: 画圆点, 不硬拉线
+          ctx.fillStyle="#2196F3";
+          ctx.arc(X(run[0][0]), Y(run[0][1]), 3, 0, Math.PI*2); ctx.fill();
+          return;
+      }
+      ctx.strokeStyle="#2196F3"; ctx.lineWidth=2; ctx.lineJoin="round"; ctx.stroke();
+      ctx.lineTo(X(run[run.length-1][0]),T+ph);
+      ctx.lineTo(X(run[0][0]),T+ph); ctx.closePath();
+      ctx.fillStyle="rgba(33,150,243,.10)"; ctx.fill();
+  });
+}
         $("btn-hist").onclick = async ()=>{
             const ident=$("h-ident").value, date=$("h-date").value;
             if(!date){ toast("请选择日期"); return; }
@@ -598,7 +612,7 @@
                 // 曲线折叠: 按小时聚合, 一天 24 个点连线
                 lastPts=aggregateHourly(list.map(it=>[+new Date(it.time), +it.value]), start);
                 lastRange=[start,end];
-                $("hmsg").textContent=`共 ${list.length} 条原始数据 · 折叠为 ${lastPts.length} 个小时点（${date}）`;
+                $("hmsg").textContent=`共 ${list.length} 条原始数据 · 折叠为 ${lastPts.length} 个小时点·每小时取最高（${date}）`;
                 drawChart();
             }catch(e){ $("hmsg").textContent="查询失败："+e; }
             $("btn-hist").disabled=false;
