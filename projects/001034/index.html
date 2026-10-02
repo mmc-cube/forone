@@ -415,7 +415,7 @@
         <!-- ==================== 页 2：历史数据 ==================== -->
         <div class="page" id="page-his">
             <div class="card">
-                <div class="card-title">按天查询（数据每 1 秒上报一次 · 查全天约需 1~3 分钟）</div>
+                <div class="card-title">按天查询（数据变动即上报 · 静默时 60 秒心跳）</div>
                 <div class="threshold-row">
                     <select class="threshold-input" id="h-ident">
                         <option value="Temperature">温度</option>
@@ -452,7 +452,7 @@
         const TOKEN = "version=2018-10-31&res=products%2FK6WNT1O5e0&et=1924833600&method=md5&sign=mACoUHwqz6r%2FPK5wjQkJHg%3D%3D";
         const BASE = "https://iot-api.heclouds.com";
         const POLL_MS = 1000;   // 页面每 1 秒同步一次平台最新值
-        const UPLOAD_S = 1;     // 固件固定 1 秒上报一次
+        const UPLOAD_S = 60;    // 固件变动上报(COV)+60 秒心跳, 在线判定窗口按此放宽
 
         const $ = id => document.getElementById(id);
         const toast = m => { const t=$("toast"); t.textContent=m; t.style.display="block";
