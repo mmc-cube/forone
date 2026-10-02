@@ -319,10 +319,10 @@
                     </div>
                 </div>
                 <div class="data-row">
-                    <span class="data-label">烟雾指数</span>
+                    <span class="data-label">氨气 (MQ-135)</span>
                     <div>
                         <span class="data-value" id="v-smoke">--</span>
-                        <span class="data-unit">/100</span>
+                        <span class="data-unit">ppm</span>
                     </div>
                 </div>
                 <div class="data-row">
@@ -371,8 +371,8 @@
                     <div><span class="data-value" id="dv-humi">--</span><span class="data-unit">%</span></div>
                 </div>
                 <div class="data-row">
-                    <span class="data-label">烟雾上限</span>
-                    <div><span class="data-value" id="dv-smoke">--</span><span class="data-unit">/100</span></div>
+                    <span class="data-label">氨气上限 ppm</span>
+                    <div><span class="data-value" id="dv-smoke">--</span><span class="data-unit">ppm</span></div>
                 </div>
                 <div class="data-row">
                     <span class="data-label">光照下限</span>
@@ -394,8 +394,8 @@
                     <button class="threshold-btn" id="bt-humi">发送</button>
                 </div>
                 <div class="threshold-row">
-                    <span class="threshold-label">烟雾上限</span>
-                    <input class="threshold-input" id="in-smoke" type="number" min="0" max="250" step="1">
+                    <span class="threshold-label">氨气上限 ppm</span>
+                    <input class="threshold-input" id="in-smoke" type="number" min="0" max="500" step="1">
                     <button class="threshold-btn" id="bt-smoke">发送</button>
                 </div>
                 <div class="threshold-row">
@@ -420,7 +420,7 @@
                     <select class="threshold-input" id="h-ident">
                         <option value="Temperature">温度</option>
                         <option value="Humidity">湿度</option>
-                        <option value="Smoke">烟雾指数</option>
+                        <option value="Smoke">氨气</option>
                         <option value="LightLux">光照</option>
                     </select>
                     <input class="threshold-input" id="h-date" type="date">
@@ -549,7 +549,7 @@ function render(newest){
             const alarms = [];
             if (l2) alarms.push("温度过低");
             if (ok(H)&&ok(tH)&&H>tH) alarms.push("湿度超标");
-            if (ok(S)&&ok(tS)&&S>tS) alarms.push("烟雾超标");
+            if (ok(S)&&ok(tS)&&S>tS) alarms.push("氨气超标");
             if (l1) alarms.push("光照不足");
             $("alarmContent").innerHTML = alarms.length
                 ? alarms.map(a=>`<div class="alarm-item">${a}</div>`).join("")
