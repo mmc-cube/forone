@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>智能坐姿矫正台灯系统</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #F5F5F5;
+  --card: #FFFFFF;
+  --primary: #2196F3;
+  --alarm: #F44336;
+  --ok: #4CAF50;
+  --text: #212121;
+  --sub: #757575;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --radius: 12px;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 12px;
+  padding-top: 56px;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: var(--primary);
+  color: white;
+  padding: 14px 16px;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  z-index: 100;
+}
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+.card h3 {
+  font-size: 15px;
+  color: var(--sub);
+  margin-bottom: 12px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+/* Connection Card */
+.connect-card { border-left: 4px solid #FF9800; }
+.bt-status-row { margin: 10px 0; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.status-label { color: var(--sub); }
+.status-text { font-weight: bold; }
+.status-connected { color: var(--ok); }
+.status-disconnected { color: var(--alarm); }
+.device-select {
+  width: 100%; padding: 10px; margin: 8px 0;
+  border-radius: 6px; border: 1px solid #ddd; font-size: 14px;
+}
+.bt-btn {
+  width: 100%; height: 48px; margin-top: 8px;
+  border-radius: 8px; border: none;
+  background: var(--primary); color: white;
+  font-size: 14px; font-weight: bold; cursor: pointer;
+}
+.bt-btn:active { opacity: 0.7; }
+.bt-btn.disconnect { background: #FF5722; }
+/* Status bar */
+.status-bar {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px;
+}
+.status-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--alarm);
+}
+.status-dot.connected { background: var(--ok); }
+/* Real-time data */
+.data-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.data-row:last-child { border-bottom: none; }
+.data-label { font-size: 14px; color: var(--sub); }
+.data-value { font-size: 28px; font-weight: bold; }
+.data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+.data-value.alarm { color: var(--alarm); }
+/* Alarm card */
+.alarm-ok { color: var(--ok); font-size: 15px; font-weight: bold; }
+.alarm-item {
+  background: #FFEBEE; color: var(--alarm);
+  padding: 10px 12px; border-radius: 8px;
+  margin-bottom: 6px; font-size: 14px; font-weight: bold;
+}
+.alarm-item:last-child { margin-bottom: 0; }
+/* Control card */
+.ctrl-btn {
+  width: 100%; height: 48px; margin-bottom: 8px;
+  border-radius: 8px; border: none;
+  background: var(--primary); color: white;
+  font-size: 15px; font-weight: bold; cursor: pointer;
+}
+.ctrl-btn:active { opacity: 0.7; }
+.ctrl-btn:last-child { margin-bottom: 0; }
+.ctrl-btn.muted { background: var(--ok); }
+/* Threshold cards */
+.thr-display-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid #f0f0f0;
+}
+.thr-display-row:last-child { border-bottom: none; }
+.thr-label { font-size: 14px; color: var(--sub); }
+.thr-value { font-size: 18px; font-weight: bold; }
+.thr-set-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 0;
+}
+.thr-set-row label { font-size: 14px; flex: 1; }
+.thr-input {
+  width: 80px; padding: 8px; border-radius: 6px;
+  border: 1px solid #ddd; font-size: 14px; text-align: center;
+}
+.thr-send-btn {
+  padding: 8px 16px; border-radius: 6px; border: none;
+  background: var(--primary); color: white;
+  font-size: 14px; cursor: pointer; height: 40px;
+}
+.thr-send-btn:active { opacity: 0.7; }
+/* Log card */
+.log-toggle {
+  cursor: pointer; user-select: none;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.log-toggle::after { content: '▼'; font-size: 12px; transition: transform 0.2s; }
+.log-toggle.collapsed::after { transform: rotate(-90deg); }
+.log-content { max-height: 300px; overflow-y: auto; margin-top: 8px; }
+.log-content.hidden { display: none; }
+.log-entry {
+  font-size: 12px; font-family: monospace;
+  padding: 4px 0; border-bottom: 1px solid #f5f5f5;
+  color: var(--sub);
+}
+/* Mode badge */
+.mode-badge {
+  display: inline-block; padding: 4px 10px;
+  border-radius: 12px; font-size: 13px; font-weight: bold;
+}
+.mode-auto { background: #E3F2FD; color: #1565C0; }
+.mode-manual { background: #FFF3E0; color: #E65100; }
+</style>
+</head>
+<body>
+
+<div class="topbar">智能坐姿矫正台灯系统</div>
+
+<!-- 蓝牙连接卡 -->
+<div class="card connect-card" id="connectCard">
+  <h3>蓝牙连接</h3>
+  <div class="bt-status-row">
+    <span class="status-label">状态：</span>
+    <span id="btStatus" class="status-text status-disconnected">未连接</span>
+  </div>
+  <button id="btnScan" class="bt-btn" onclick="scanDevices()">扫描设备</button>
+  <select id="deviceList" class="device-select"><option value="">-- 请选择设备 --</option></select>
+  <button id="btnConnect" class="bt-btn" onclick="connectSelected()">连接</button>
+  <button id="btnDisconnect" class="bt-btn disconnect" onclick="disconnectBt()" style="display:none">断开</button>
+</div>
+
+<!-- 状态栏 -->
+<div class="card">
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">未连接</span>
+    <span id="modeBadge" class="mode-badge mode-auto" style="display:none">AUTO</span>
+  </div>
+</div>
+
+<!-- 实时数据卡 -->
+<div class="card">
+  <h3>实时数据</h3>
+  <div class="data-row">
+    <span class="data-label">光照</span>
+    <div><span class="data-value" id="light">--</span><span class="data-unit">%</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">距离</span>
+    <div><span class="data-value" id="dist">--</span><span class="data-unit">cm</span></div>
+  </div>
+  <div class="data-row">
+    <span class="data-label">亮度</span>
+    <div><span class="data-value" id="brightness">--</span><span class="data-unit">%</span></div>
+  </div>
+</div>
+
+<!-- 报警状态卡 -->
+<div class="card" id="alarmCard">
+  <h3>报警状态</h3>
+  <div id="alarmContent">
+    <span class="alarm-ok">运行正常 &#x2713;</span>
+  </div>
+</div>
+
+<!-- 控制卡 -->
+<div class="card">
+  <h3>控制</h3>
+  <button class="ctrl-btn" onclick="sendCmd('06')">切换 AUTO 模式</button>
+  <button class="ctrl-btn" onclick="sendCmd('07')">切换 MANUAL 模式</button>
+  <button class="ctrl-btn muted" onclick="sendCmd('01')">消警</button>
+</div>
+
+<!-- 阈值显示卡 -->
+<div class="card" id="thrDisplayCard">
+  <h3>当前阈值</h3>
+  <div class="thr-display-row">
+    <span class="thr-label">目标光照</span>
+    <span class="thr-value" id="target_display">-- %</span>
+  </div>
+  <div class="thr-display-row">
+    <span class="thr-label">距离阈值</span>
+    <span class="thr-value" id="dist_threshold_display">-- cm</span>
+  </div>
+  <div class="thr-display-row">
+    <span class="thr-label">亮度上限</span>
+    <span class="thr-value" id="brightness_limit_display">-- %</span>
+  </div>
+</div>
+
+<!-- 阈值设置卡 -->
+<div class="card" id="thrSetCard">
+  <h3>阈值设置</h3>
+  <div class="thr-set-row">
+    <label>目标光照 (%)</label>
+    <input type="number" id="target_input" class="thr-input" min="0" max="100">
+    <button class="thr-send-btn" onclick="setThreshold('target','02')">发送</button>
+  </div>
+  <div class="thr-set-row">
+    <label>距离阈值 (cm)</label>
+    <input type="number" id="dist_threshold_input" class="thr-input" min="0" max="200">
+    <button class="thr-send-btn" onclick="setThreshold('dist_threshold','03')">发送</button>
+  </div>
+  <div class="thr-set-row">
+    <label>亮度上限 (%)</label>
+    <input type="number" id="brightness_limit_input" class="thr-input" min="0" max="100">
+    <button class="thr-send-btn" onclick="setThreshold('brightness_limit','04')">发送</button>
+  </div>
+</div>
+
+<!-- 日志卡（默认折叠） -->
+<div class="card">
+  <h3 class="log-toggle" id="logToggle" onclick="toggleLog()">日志</h3>
+  <div class="log-content hidden" id="logContent"></div>
+</div>
+
+<script>
+// ==================== 蓝牙通信状态 ====================
+let isBtConnected = false;
+let currentData = {
+  light: null, dist: null, brightness: null, mode: null,
+  target: null, dist_threshold: null, brightness_limit: null
+};
+let logEntries = [];
+
+// ==================== 同步保护状态 ====================
+let waitingSync = { target: false, dist_threshold: false, brightness_limit: false };
+let pendingValue = { target: null, dist_threshold: null, brightness_limit: null };
+let syncTimeoutTimer = { target: null, dist_threshold: null, brightness_limit: null };
+let lastUserSetTime = { target: 0, dist_threshold: 0, brightness_limit: 0 };
+const DEBOUNCE_MS = 500;
+const SYNC_TIMEOUT_MS = 5000;
+
+// ==================== 蓝牙控制函数 ====================
+function scanDevices() {
+  if (window.BluetoothBridge) {
+    window.BluetoothBridge.getPairedDevices();
+  } else {
+    alert('请在 Android WebView 环境中运行');
+  }
+}
+
+function connectSelected() {
+  const addr = document.getElementById('deviceList').value;
+  if (!addr) { alert('请先选择设备'); return; }
+  window.BluetoothBridge.connect(addr);
+}
+
+function disconnectBt() {
+  window.BluetoothBridge.disconnect();
+}
+
+function sendViaBt(cmd) {
+  if (!isBtConnected) { alert('蓝牙未连接，请先连接设备'); return; }
+  window.BluetoothBridge.send(cmd + '\n');
+}
+
+function sendCmd(cmd) {
+  sendViaBt(cmd);
+  addLog('发送: ' + cmd);
+}
+
+// ==================== 回调函数 ====================
+window.onBtDeviceList = function(deviceArray) {
+  const select = document.getElementById('deviceList');
+  select.innerHTML = '';
+  deviceArray.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.address;
+    opt.textContent = d.name + ' (' + d.address + ')';
+    select.appendChild(opt);
+  });
+};
+
+window.onBtConnected = function(address) {
+  isBtConnected = true;
+  document.getElementById('btStatus').textContent = '已连接';
+  document.getElementById('btStatus').className = 'status-text status-connected';
+  document.getElementById('btnScan').style.display = 'none';
+  document.getElementById('deviceList').disabled = true;
+  document.getElementById('btnConnect').style.display = 'none';
+  document.getElementById('btnDisconnect').style.display = 'block';
+  document.getElementById('statusDot').classList.add('connected');
+  document.getElementById('statusText').textContent = '已连接';
+};
+
+window.onBtDisconnected = function() {
+  isBtConnected = false;
+  document.getElementById('btStatus').textContent = '未连接';
+  document.getElementById('btStatus').className = 'status-text status-disconnected';
+  document.getElementById('btnScan').style.display = 'block';
+  document.getElementById('deviceList').disabled = false;
+  document.getElementById('btnConnect').style.display = 'block';
+  document.getElementById('btnDisconnect').style.display = 'none';
+  document.getElementById('statusDot').classList.remove('connected');
+  document.getElementById('statusText').textContent = '未连接';
+};
+
+window.onBtError = function(errMsg) {
+  isBtConnected = false;
+  window.onBtDisconnected();
+};
+
+window.onBtData = function(line) {
+  parseAndUpdate(line.trim());
+};
+
+// ==================== 数据解析 ====================
+function parseAndUpdate(message) {
+  const parts = message.split(',');
+  if (parts.length < 7) return;
+
+  const newData = {
+    light: parseFloat(parts[0]) || 0,
+    dist: parseFloat(parts[1]) || 0,
+    brightness: parseFloat(parts[2]) || 0,
+    mode: parts[3],
+    target: parseFloat(parts[4]) || 0,
+    dist_threshold: parseFloat(parts[5]) || 0,
+    brightness_limit: parseFloat(parts[6]) || 0
+  };
+
+  // 传感器值始终更新
+  currentData.light = newData.light;
+  currentData.dist = newData.dist;
+  currentData.brightness = newData.brightness;
+  currentData.mode = newData.mode;
+
+  // 检查是否有正在等待同步的阈值
+  let hasPendingSync = false;
+  const syncKeys = ['target', 'dist_threshold', 'brightness_limit'];
+  for (const key of syncKeys) {
+    if (waitingSync[key]) {
+      hasPendingSync = true;
+      const expected = pendingValue[key];
+      const received = newData[key];
+      if (expected !== null && Math.abs(received - expected) < 0.5) {
+        if (syncTimeoutTimer[key]) {
+          clearTimeout(syncTimeoutTimer[key]);
+          syncTimeoutTimer[key] = null;
+        }
+        waitingSync[key] = false;
+        pendingValue[key] = null;
+        lastUserSetTime[key] = 0;
+      }
+    }
+  }
+
+  // 阈值更新逻辑（三重保护）
+  const now = Date.now();
+  for (const key of syncKeys) {
+    if (!lastUserSetTime[key] || (now - lastUserSetTime[key]) >= DEBOUNCE_MS) {
+      if (!waitingSync[key]) {
+        currentData[key] = newData[key];
+      }
+    }
+  }
+
+  updateUI();
+
+  if (hasPendingSync) {
+    checkAlarmsWithPending();
+  } else {
+    checkAlarms();
+  }
+
+  addLog('收到: ' + message);
+}
+
+// ==================== UI 更新 ====================
+function updateUI() {
+  if (currentData.light !== null) {
+    document.getElementById('light').textContent = currentData.light;
+  }
+  if (currentData.dist !== null) {
+    const distEl = document.getElementById('dist');
+    distEl.textContent = currentData.dist;
+    if (currentData.dist_threshold !== null && currentData.dist < currentData.dist_threshold) {
+      distEl.classList.add('alarm');
+    } else {
+      distEl.classList.remove('alarm');
+    }
+  }
+  if (currentData.brightness !== null) {
+    document.getElementById('brightness').textContent = currentData.brightness;
+  }
+
+  // 模式显示
+  const badge = document.getElementById('modeBadge');
+  if (currentData.mode) {
+    badge.style.display = 'inline-block';
+    badge.textContent = currentData.mode;
+    badge.className = 'mode-badge ' + (currentData.mode === 'AUTO' ? 'mode-auto' : 'mode-manual');
+  }
+
+  // 阈值显示（等待期间显示预测值）
+  const targetVal = waitingSync.target ? pendingValue.target : currentData.target;
+  const distThrVal = waitingSync.dist_threshold ? pendingValue.dist_threshold : currentData.dist_threshold;
+  const brightLimVal = waitingSync.brightness_limit ? pendingValue.brightness_limit : currentData.brightness_limit;
+
+  if (targetVal !== null) document.getElementById('target_display').textContent = targetVal + ' %';
+  if (distThrVal !== null) document.getElementById('dist_threshold_display').textContent = distThrVal + ' cm';
+  if (brightLimVal !== null) document.getElementById('brightness_limit_display').textContent = brightLimVal + ' %';
+}
+
+// ==================== 阈值设置（带同步保护） ====================
+function setThreshold(type, cmdCode) {
+  const inputId = type + '_input';
+  const value = document.getElementById(inputId).value;
+  if (!value || value === '') { alert('请输入阈值'); return; }
+  const numValue = parseFloat(value);
+  if (isNaN(numValue)) { alert('请输入有效数字'); return; }
+  if (waitingSync[type]) { return; }
+
+  waitingSync[type] = true;
+  pendingValue[type] = numValue;
+  sendCmd(cmdCode + ',' + numValue);
+  lastUserSetTime[type] = Date.now();
+  currentData[type] = numValue;
+  updateUI();
+  checkAlarmsWithPending();
+
+  syncTimeoutTimer[type] = setTimeout(() => {
+    if (waitingSync[type]) {
+      waitingSync[type] = false;
+      pendingValue[type] = null;
+      syncTimeoutTimer[type] = null;
+    }
+  }, SYNC_TIMEOUT_MS);
+
+  document.getElementById(inputId).blur();
+}
+
+// ==================== 报警判断 ====================
+function checkAlarms() {
+  const alarms = [];
+  if (currentData.dist !== null && currentData.dist_threshold !== null &&
+      currentData.dist < currentData.dist_threshold) {
+    alarms.push('坐姿异常！');
+  }
+  renderAlarms(alarms);
+}
+
+function checkAlarmsWithPending() {
+  const alarms = [];
+  const distThr = waitingSync.dist_threshold ? pendingValue.dist_threshold : currentData.dist_threshold;
+  if (currentData.dist !== null && distThr !== null && currentData.dist < distThr) {
+    alarms.push('坐姿异常！');
+  }
+  renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+  const container = document.getElementById('alarmContent');
+  if (alarms.length === 0) {
+    container.innerHTML = '<span class="alarm-ok">运行正常 &#x2713;</span>';
+  } else {
+    container.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+  }
+}
+
+// ==================== 日志 ====================
+function addLog(msg) {
+  const now = new Date();
+  const time = now.toLocaleTimeString();
+  logEntries.unshift('[' + time + '] ' + msg);
+  if (logEntries.length > 20) logEntries.pop();
+  renderLog();
+}
+
+function renderLog() {
+  const el = document.getElementById('logContent');
+  el.innerHTML = logEntries.map(e => '<div class="log-entry">' + e + '</div>').join('');
+}
+
+function toggleLog() {
+  const content = document.getElementById('logContent');
+  const toggle = document.getElementById('logToggle');
+  if (content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    toggle.classList.remove('collapsed');
+  } else {
+    content.classList.add('hidden');
+    toggle.classList.add('collapsed');
+  }
+}
+</script>
+</body>
+</html>
