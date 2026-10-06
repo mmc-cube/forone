@@ -680,6 +680,24 @@ function startDebugFeed() {
 }
 
 log('页面已加载。点击"扫描配对设备"开始。');
+
+/* ════════════════════════════════════════════════
+   iframe 镜像修复（强制，勿删）
+   webpage_on 入口页用 iframe 嵌项目页，壳子的 evaluateJavascript
+   只注入顶层窗口，不镜像的话 onBt* 回调全部静默丢失
+   ════════════════════════════════════════════════ */
+try {
+  if (window.top && window.top !== window) {
+    window.top.onBtDeviceList   = window.onBtDeviceList;
+    window.top.onBtConnected    = window.onBtConnected;
+    window.top.onBtDisconnected = window.onBtDisconnected;
+    window.top.onBtError        = window.onBtError;
+    window.top.onBtData         = window.onBtData;
+    log('iframe 环境：蓝牙回调已镜像到顶层窗口');
+  }
+} catch (e) {
+  log('iframe 镜像失败: ' + e.message);
+}
 </script>
 </body>
 </html>
