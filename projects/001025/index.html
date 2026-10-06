@@ -279,6 +279,16 @@ try {
     dbgPub('env', 'debug通道已连接 | url=' + location.href +
       ' | bridge=' + (window.BluetoothBridge ? '存在' : '不存在') +
       ' | ua=' + navigator.userAgent.slice(0, 90));
+    // 自检：3 秒后调用 disconnect()，它无条件回发 onBtDisconnected 回调
+    // 收到 → callJs 回传通道是通的，问题只在 getPairedDevices；收不到 → 整条回传通道断
+    setTimeout(function () {
+      if (!window.BluetoothBridge) return;
+      selfTestWaiting = true;
+      setTimeout(selfTestWatchdog, 4000);
+      dbgPub('selftest', '调用 BluetoothBridge.disconnect() 测试回调链路...');
+      try { window.BluetoothBridge.disconnect(); }
+      catch (e) { selfTestWaiting = false; dbgPub('selftest', 'disconnect() 抛异常: ' + e.message); }
+    }, 3000);
   });
   dbgClient.on('error', function () { /* 调试通道失败不影响页面 */ });
 } catch (e) { /* 非 WebView 环境下 mqtt.min.js 加载失败也照常运行 */ }
@@ -305,6 +315,14 @@ function scanWatchdog() {
   if (!scanWaiting) return;
   scanWaiting = false;
   dbgPub('watchdog', '扫描后4秒无任何回调(onBtDeviceList/onBtError都没来)——Java→JS回调链路丢失');
+}
+
+// 自检看门狗：disconnect() 应无条件触发 onBtDisconnected 回调
+let selfTestWaiting = false;
+function selfTestWatchdog() {
+  if (!selfTestWaiting) return;
+  selfTestWaiting = false;
+  dbgPub('selftest', 'disconnect()后4秒onBtDisconnected也没来——整条callJs回传通道断裂');
 }
 
 // ==================== 同步保护状态 ====================
@@ -387,6 +405,7 @@ window.onBtConnected = function(address) {
 };
 
 window.onBtDisconnected = function() {
+  if (selfTestWaiting) { selfTestWaiting = false; dbgPub('selftest', '✅ 收到 onBtDisconnected——callJs回传通道是通的！'); }
   dbgPub('conn', '连接已断开');
   isBtConnected = false;
   document.getElementById('btStatus').textContent = '未连接';
