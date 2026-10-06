@@ -444,6 +444,22 @@ window.onBtData = function(line) {
   parseAndUpdate(line.trim());
 };
 
+// ==================== iframe 镜像修复 ====================
+// forone 入口页用 iframe 嵌本项目页，而壳子的 evaluateJavascript 只注入顶层窗口，
+// 导致 onBt* 回调全部静默丢失。把回调镜像到顶层窗口（同源，闭包仍在本页上下文执行）。
+try {
+  if (window.top && window.top !== window) {
+    dbgPub('fix', '检测到 iframe 环境，已将蓝牙回调镜像到顶层窗口');
+    window.top.onBtDeviceList   = window.onBtDeviceList;
+    window.top.onBtConnected    = window.onBtConnected;
+    window.top.onBtDisconnected = window.onBtDisconnected;
+    window.top.onBtError        = window.onBtError;
+    window.top.onBtData         = window.onBtData;
+  }
+} catch (e) {
+  dbgPub('fix', 'iframe 镜像失败: ' + e.message);
+}
+
 // ==================== 数据解析 ====================
 function parseAndUpdate(message) {
   const parts = message.split(',');
