@@ -294,6 +294,19 @@ function dbgPub(tag, msg) {
   } catch (e) {}
 }
 
+// JS 运行时错误也上报（含壳子 evaluateJavascript 注入的回调执行错误）
+window.addEventListener('error', function (e) {
+  dbgPub('jserr', (e.message || '未知错误') + ' @ ' + (e.filename || '').split('/').pop() + ':' + e.lineno);
+});
+
+// 扫描看门狗：4 秒内既没有设备列表也没有错误回调 → 回调链路丢失实锤
+let scanWaiting = false;
+function scanWatchdog() {
+  if (!scanWaiting) return;
+  scanWaiting = false;
+  dbgPub('watchdog', '扫描后4秒无任何回调(onBtDeviceList/onBtError都没来)——Java→JS回调链路丢失');
+}
+
 // ==================== 同步保护状态 ====================
 let waitingSync = { target: false, dist_threshold: false, brightness_limit: false };
 let pendingValue = { target: null, dist_threshold: null, brightness_limit: null };
@@ -306,6 +319,8 @@ const SYNC_TIMEOUT_MS = 5000;
 function scanDevices() {
   dbgPub('scan', '点击扫描 | BluetoothBridge=' + (window.BluetoothBridge ? '存在' : '不存在'));
   if (window.BluetoothBridge) {
+    scanWaiting = true;
+    setTimeout(scanWatchdog, 4000);
     window.BluetoothBridge.getPairedDevices();
   } else {
     alert('请在 Android WebView 环境中运行');
@@ -336,6 +351,7 @@ function sendCmd(cmd) {
 
 // ==================== 回调函数 ====================
 window.onBtDeviceList = function(deviceArray) {
+  scanWaiting = false;
   const select = document.getElementById('deviceList');
   select.innerHTML = '';
   if (!deviceArray || deviceArray.length === 0) {
@@ -384,6 +400,7 @@ window.onBtDisconnected = function() {
 };
 
 window.onBtError = function(errMsg) {
+  scanWaiting = false;
   dbgPub('error', '蓝牙错误: ' + errMsg);
   isBtConnected = false;
   addLog('蓝牙错误: ' + errMsg);
