@@ -307,6 +307,16 @@ function sendCmd(cmd) {
 window.onBtDeviceList = function(deviceArray) {
   const select = document.getElementById('deviceList');
   select.innerHTML = '';
+  if (!deviceArray || deviceArray.length === 0) {
+    addLog('蓝牙错误: 未找到已配对设备，请先在系统蓝牙设置中配对');
+    alert('未找到已配对设备\n\n请先打开系统蓝牙，并在蓝牙设置里配对设备后再扫描');
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '-- 无已配对设备 --';
+    select.appendChild(opt);
+    return;
+  }
+  addLog('扫描到 ' + deviceArray.length + ' 个已配对设备');
   deviceArray.forEach(d => {
     const opt = document.createElement('option');
     opt.value = d.address;
@@ -341,6 +351,8 @@ window.onBtDisconnected = function() {
 
 window.onBtError = function(errMsg) {
   isBtConnected = false;
+  addLog('蓝牙错误: ' + errMsg);
+  alert('蓝牙错误：' + errMsg);
   window.onBtDisconnected();
 };
 
