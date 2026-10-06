@@ -276,6 +276,13 @@ try {
     reconnectPeriod: 3000
   });
   dbgClient.on('connect', function () {
+    let ver = '读取失败';
+    try {
+      ver = window.BluetoothBridge && window.BluetoothBridge.shellVersion
+        ? window.BluetoothBridge.shellVersion()
+        : '无shellVersion方法——运行的还是旧壳子APK';
+    } catch (e) { ver = 'shellVersion调用异常: ' + e.message; }
+    dbgPub('ver', '壳子版本: ' + ver);
     dbgPub('env', 'debug通道已连接 | url=' + location.href +
       ' | bridge=' + (window.BluetoothBridge ? '存在' : '不存在') +
       ' | ua=' + navigator.userAgent.slice(0, 90));
