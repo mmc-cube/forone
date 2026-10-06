@@ -867,6 +867,26 @@ greyActuators();
 setModeHint('未连接蓝牙，请先在"数据"页扫描并连接设备');
 log('页面已加载，请先连接蓝牙设备');
 setTimeout(checkBridge, 600);          /* 桥可能晚于页面加载注入，延迟检测 */
+
+/* ════════════════════════════════════════════════
+   iframe 镜像修复（强制，勿删）
+   webpage_on 入口页用 iframe 嵌项目页，而壳子的 evaluateJavascript
+   只注入顶层窗口，不镜像的话 onBt* 回调会全部静默丢失
+   （表现为点扫描没反应、蓝牙报错也看不见）。
+   同源镜像到顶层窗口，函数闭包仍在本页上下文执行，无副作用。
+   ════════════════════════════════════════════════ */
+try {
+  if (window.top && window.top !== window) {
+    window.top.onBtDeviceList   = window.onBtDeviceList;
+    window.top.onBtConnected    = window.onBtConnected;
+    window.top.onBtDisconnected = window.onBtDisconnected;
+    window.top.onBtError        = window.onBtError;
+    window.top.onBtData         = window.onBtData;
+    log('iframe 环境：蓝牙回调已镜像到顶层窗口');
+  }
+} catch (e) {
+  log('iframe 镜像失败: ' + e.message);
+}
 </script>
 </body>
 </html>
