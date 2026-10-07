@@ -588,12 +588,12 @@
 
         // 清空记录
         function clearRecords() {
-            if (confirm('确定要清空所有开锁记录吗？此操作不可恢复。')) {
+            uiConfirm('确定要清空所有开锁记录吗？此操作不可恢复。', function() {
                 unlockRecords = [];
                 saveUnlockRecords();
                 renderUnlockRecords();
                 updateRecordStats();
-            }
+            });
         }
 
         // 切换开锁记录显示（旧函数，保留兼容性）
@@ -927,7 +927,7 @@
                 client.publish(CMD_TOPIC, cmd);
                 console.log('Send cmd:', cmd);
             } else {
-                alert('MQTT 未连接');
+                uiToast('MQTT 未连接');
             }
         }
 
@@ -936,13 +936,13 @@
             const value = document.getElementById(inputId).value;
 
             if (!value || value === '') {
-                alert('请输入阈值');
+                uiToast('请输入阈值');
                 return;
             }
 
             const numValue = parseFloat(value);
             if (isNaN(numValue)) {
-                alert('请输入有效数字');
+                uiToast('请输入有效数字');
                 return;
             }
 
@@ -1054,6 +1054,36 @@
 
         // 默认显示主页面
         showPage('main');
+
+        // ==================== 自定义弹窗（替代原生 confirm/alert，避免原生对话框标题暴露页面来源网址） ====================
+        (function() {
+            var style = document.createElement('style');
+            style.textContent = '.uimask{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:999}.uimask.show{display:flex}.uibox{width:80%;max-width:320px;background:#FFFFFF;border-radius:12px;padding:20px;text-align:center}.uimsg{font-size:15px;color:#212121;margin-bottom:18px;line-height:1.5}.uibtns{display:flex;gap:10px}.uibtn{flex:1;height:42px;border-radius:8px;border:none;font-size:15px;font-weight:600;cursor:pointer}.uibtn.ok{background:#2196F3;color:#fff}.uibtn.cancel{background:#EEEEEE;color:#757575}.uitoast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(16px);background:rgba(0,0,0,0.78);color:#fff;padding:10px 18px;border-radius:8px;font-size:14px;opacity:0;transition:all .25s;pointer-events:none;z-index:1000;max-width:80%}.uitoast.show{opacity:1;transform:translateX(-50%) translateY(0)}';
+            document.head.appendChild(style);
+
+            var mask = document.createElement('div');
+            mask.className = 'uimask';
+            mask.innerHTML = '<div class="uibox"><div class="uimsg"></div><div class="uibtns"><button class="uibtn cancel">取消</button><button class="uibtn ok">确定</button></div></div>';
+            document.body.appendChild(mask);
+
+            var toast = document.createElement('div');
+            toast.className = 'uitoast';
+            document.body.appendChild(toast);
+
+            window.uiConfirm = function(msg, onOk) {
+                mask.querySelector('.uimsg').textContent = msg;
+                mask.classList.add('show');
+                mask.querySelector('.ok').onclick = function() { mask.classList.remove('show'); if (onOk) onOk(); };
+                mask.querySelector('.cancel').onclick = function() { mask.classList.remove('show'); };
+            };
+            var toastTimer = null;
+            window.uiToast = function(msg) {
+                toast.textContent = msg;
+                toast.classList.add('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 2000);
+            };
+        })();
     </script>
 </body>
 </html>
