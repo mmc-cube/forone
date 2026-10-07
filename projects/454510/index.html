@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能环境监控与解锁柜</title>
+    <script src="mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 12px;
+            color: var(--text);
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+        .status-dot.connected { background: var(--ok); }
+        .status-dot.disconnected { background: var(--alarm); }
+        .status-text { font-size: 14px; color: var(--sub); }
+        /* 实时数据 */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 14px; color: var(--sub); }
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        .data-unit { font-size: 14px; color: var(--sub); margin-left: 4px; }
+        .data-value.alarm { color: var(--alarm); }
+        /* 报警状态 */
+        .alarm-item {
+            background: var(--alarm);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .alarm-item:last-child { margin-bottom: 0; }
+        .status-normal {
+            color: var(--ok);
+            font-size: 14px;
+            text-align: center;
+            padding: 8px 0;
+        }
+        /* 控制按钮 */
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .btn {
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn:active { opacity: 0.8; }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #11998e, #38ef7d);
+            color: white;
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #eb3349, #f45c43);
+            color: white;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+        .btn-outline.active {
+            background: var(--primary);
+            color: white;
+        }
+        .btn.active {
+            background: var(--primary);
+            color: white;
+        }
+        /* 阈值设置 */
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            gap: 12px;
+        }
+        .threshold-label {
+            font-size: 14px;
+            color: var(--sub);
+            flex: 1;
+        }
+        .threshold-input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .threshold-btn {
+            width: 60px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        /* 日志 */
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s;
+        }
+        .log-content.show {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-item {
+            font-size: 12px;
+            color: var(--sub);
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .log-item:last-child { border-bottom: none; }
+        /* 阈值显示卡 */
+        .threshold-display-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .threshold-display-row:last-child { border-bottom: none; }
+        .threshold-display-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        /* 记录页面样式 */
+        .stats-row {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+        }
+        .stat-item {
+            text-align: center;
+            flex: 1;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        .stat-label {
+            font-size: 12px;
+            color: var(--sub);
+            margin-top: 4px;
+        }
+        .record-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+        .record-item:last-child { border-bottom: none; }
+        .record-header {
+            font-weight: 600;
+            color: var(--sub);
+            background: #f9f9f9;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .record-time {
+            flex: 1;
+            color: var(--text);
+        }
+        .record-uid {
+            flex: 1;
+            text-align: right;
+            font-family: monospace;
+            color: var(--primary);
+        }
+        .records-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <!-- 状态栏 -->
+    <div class="card status-bar">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-text" id="statusText">未连接</span>
+    </div>
+
+    <!-- 顶部操作栏 -->
+    <div class="card">
+        <div class="control-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <button class="btn btn-outline" onclick="showPage('main')" id="btnMainPage">📊 监控页</button>
+            <button class="btn btn-outline" onclick="showPage('records')" id="btnRecordsPage">🔑 开锁记录</button>
+        </div>
+    </div>
+
+    <!-- 主页面：监控页 -->
+    <div id="mainPage">
+
+    <!-- 实时数据卡 -->
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-label">温度</span>
+            <div>
+                <span class="data-value" id="temp">--</span>
+                <span class="data-unit">°C</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">湿度</span>
+            <div>
+                <span class="data-value" id="humi">--</span>
+                <span class="data-unit">%RH</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">空气质量</span>
+            <div>
+                <span class="data-value" id="air">--</span>
+                <span class="data-unit"></span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">烟雾浓度</span>
+            <div>
+                <span class="data-value" id="smoke">--</span>
+                <span class="data-unit"></span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">震动</span>
+            <div>
+                <span class="data-value" id="vibrate">--</span>
+                <span class="data-unit"></span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">光照</span>
+            <div>
+                <span class="data-value" id="light">--</span>
+                <span class="data-unit">lux</span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">风扇</span>
+            <div>
+                <span class="data-value" id="fan_state">--</span>
+                <span class="data-unit"></span>
+            </div>
+        </div>
+        <div class="data-row">
+            <span class="data-label">门锁</span>
+            <div>
+                <span class="data-value" id="lock_state">--</span>
+                <span class="data-unit"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 报警状态卡 -->
+    <div class="card" id="alarmCard">
+        <div class="card-title">报警状态</div>
+        <div id="alarmContent">
+            <div class="status-normal">运行正常 ✓</div>
+        </div>
+    </div>
+
+    <!-- 阈值显示卡 -->
+    <div class="card">
+        <div class="card-title">当前阈值</div>
+        <div class="threshold-display-row">
+            <span class="threshold-label">温度阈值</span>
+            <span class="threshold-display-value" id="temp_th_display">--</span>
+        </div>
+        <div class="threshold-display-row">
+            <span class="threshold-label">湿度阈值</span>
+            <span class="threshold-display-value" id="humi_th_display">--</span>
+        </div>
+        <div class="threshold-display-row">
+            <span class="threshold-label">空气阈值</span>
+            <span class="threshold-display-value" id="air_th_display">--</span>
+        </div>
+        <div class="threshold-display-row">
+            <span class="threshold-label">烟雾阈值</span>
+            <span class="threshold-display-value" id="smoke_th_display">--</span>
+        </div>
+    </div>
+
+    <!-- 阈值设置卡 -->
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="threshold-row">
+            <span class="threshold-label">温度阈值</span>
+            <input type="number" class="threshold-input" id="temp_th_input" placeholder="°C">
+            <button class="threshold-btn" onclick="setThreshold('temp', '02')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">湿度阈值</span>
+            <input type="number" class="threshold-input" id="humi_th_input" placeholder="%RH">
+            <button class="threshold-btn" onclick="setThreshold('humi', '03')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">空气阈值</span>
+            <input type="number" class="threshold-input" id="air_th_input" placeholder="">
+            <button class="threshold-btn" onclick="setThreshold('air', '04')">发送</button>
+        </div>
+        <div class="threshold-row">
+            <span class="threshold-label">烟雾阈值</span>
+            <input type="number" class="threshold-input" id="smoke_th_input" placeholder="">
+            <button class="threshold-btn" onclick="setThreshold('smoke', '05')">发送</button>
+        </div>
+    </div>
+
+    <!-- 风扇控制卡 -->
+    <div class="card">
+        <div class="card-title">风扇控制</div>
+        <div class="control-grid">
+            <button class="btn btn-success" onclick="fanOn()">风扇 开</button>
+            <button class="btn btn-danger" onclick="fanOff()">风扇 关</button>
+        </div>
+    </div>
+
+    <!-- 日志卡 -->
+    <div class="card">
+        <div class="log-header" onclick="toggleLog()">
+            <div class="card-title" style="margin:0;">数据日志</div>
+            <span id="logArrow">▼</span>
+        </div>
+        <div class="log-content" id="logContent">
+            <div id="logList"></div>
+        </div>
+    </div>
+    </div>
+
+    <!-- 开锁记录页面 -->
+    <div id="recordsPage" style="display: none;">
+        <!-- 记录统计卡 -->
+        <div class="card">
+            <div class="card-title">记录统计</div>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalRecords">0</div>
+                    <div class="stat-label">总记录数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="todayRecords">0</div>
+                    <div class="stat-label">今日开锁</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="uniqueCards">0</div>
+                    <div class="stat-label">不同卡片</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作按钮卡 -->
+        <div class="card">
+            <div class="control-grid" style="grid-template-columns: 1fr;">
+                <button class="btn btn-danger" onclick="clearRecords()">🗑️ 清空记录</button>
+            </div>
+        </div>
+
+        <!-- 记录列表卡 -->
+        <div class="card">
+            <div class="card-title">开锁记录列表</div>
+            <div id="recordsListContainer">
+                <div class="record-item record-header">
+                    <div class="record-time">时间</div>
+                    <div class="record-uid">UID</div>
+                </div>
+                <div id="recordsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 配置 ====================
+        const UPLOAD_TOPIC = '454510/792782/zhinenghuanjingjiankongyujiesuogui/upload';
+        const CMD_TOPIC = '454510/792782/zhinenghuanjingjiankongyujiesuogui/cmd';
+
+        // ==================== 同步保护状态 ====================
+        let waitingSync = {
+            temp: false,
+            humi: false,
+            air: false,
+            smoke: false
+        };
+        let pendingValue = {
+            temp: null,
+            humi: null,
+            air: null,
+            smoke: null
+        };
+        let syncTimeoutTimer = {
+            temp: null,
+            humi: null,
+            air: null,
+            smoke: null
+        };
+
+        // 防抖动保护
+        let lastUserSetTime = {
+            temp_th: 0,
+            humi_th: 0,
+            air_th: 0,
+            smoke_th: 0
+        };
+
+        const DEBOUNCE_MS = 500;
+        const SYNC_TIMEOUT_MS = 5000;
+
+        // ==================== 数据状态 ====================
+        let currentData = {
+            temp: null,
+            humi: null,
+            air: null,
+            smoke: null,
+            vibrate: null,
+            light: null,
+            fan_state: null,
+            lock_state: null,
+            temp_th: null,
+            humi_th: null,
+            air_th: null,
+            smoke_th: null
+        };
+
+        let logs = [];
+        let isFanOn = false;
+
+        // ==================== 开锁记录 ====================
+        let unlockRecords = [];
+        const MAX_RECORDS = 50;  // 最多保存 50 条记录
+
+        // 从 localStorage 加载历史记录
+        function loadUnlockRecords() {
+            try {
+                const saved = localStorage.getItem('unlockRecords');
+                if (saved) {
+                    unlockRecords = JSON.parse(saved);
+                }
+            } catch (e) {
+                console.error('Failed to load unlock records:', e);
+                unlockRecords = [];
+            }
+        }
+
+        // 保存记录到 localStorage
+        function saveUnlockRecords() {
+            try {
+                localStorage.setItem('unlockRecords', JSON.stringify(unlockRecords));
+            } catch (e) {
+                console.error('Failed to save unlock records:', e);
+            }
+        }
+
+        // 添加开锁记录
+        function addUnlockRecord(uid) {
+            const now = new Date();
+            const timeStr = now.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+
+            unlockRecords.unshift({
+                time: timeStr,
+                uid: uid,
+                timestamp: now.getTime()
+            });
+
+            // 限制记录数量
+            if (unlockRecords.length > MAX_RECORDS) {
+                unlockRecords.pop();
+            }
+
+            saveUnlockRecords();
+            renderUnlockRecords();
+            updateRecordStats();
+        }
+
+        // 渲染开锁记录列表
+        function renderUnlockRecords() {
+            const list = document.getElementById('recordsList');
+            if (unlockRecords.length === 0) {
+                list.innerHTML = '<div class="record-item"><div class="record-time" style="text-align:center;width:100%;color:var(--sub);">暂无开锁记录</div></div>';
+            } else {
+                list.innerHTML = unlockRecords.map(record =>
+                    `<div class="record-item">
+                        <div class="record-time">${record.time}</div>
+                        <div class="record-uid">${record.uid}</div>
+                    </div>`
+                ).join('');
+            }
+        }
+
+        // 更新记录统计
+        function updateRecordStats() {
+            // 总记录数
+            document.getElementById('totalRecords').textContent = unlockRecords.length;
+
+            // 今日开锁
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const todayCount = unlockRecords.filter(r => r.timestamp >= todayStart).length;
+            document.getElementById('todayRecords').textContent = todayCount;
+
+            // 不同卡片
+            const uniqueUids = new Set(unlockRecords.map(r => r.uid));
+            document.getElementById('uniqueCards').textContent = uniqueUids.size;
+        }
+
+        // 清空记录
+        function clearRecords() {
+            if (confirm('确定要清空所有开锁记录吗？此操作不可恢复。')) {
+                unlockRecords = [];
+                saveUnlockRecords();
+                renderUnlockRecords();
+                updateRecordStats();
+            }
+        }
+
+        // 切换开锁记录显示（旧函数，保留兼容性）
+        function toggleUnlockRecords() {
+            showPage('records');
+        }
+
+        // 页面切换
+        function showPage(pageName) {
+            const mainPage = document.getElementById('mainPage');
+            const recordsPage = document.getElementById('recordsPage');
+            const btnMain = document.getElementById('btnMainPage');
+            const btnRecords = document.getElementById('btnRecordsPage');
+
+            if (pageName === 'records') {
+                mainPage.style.display = 'none';
+                recordsPage.style.display = 'block';
+                btnMain.classList.remove('active');
+                btnRecords.classList.add('active');
+                renderUnlockRecords();
+                updateRecordStats();
+            } else {
+                mainPage.style.display = 'block';
+                recordsPage.style.display = 'none';
+                btnRecords.classList.remove('active');
+                btnMain.classList.add('active');
+            }
+        }
+
+        // ==================== MQTT 连接 ====================
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'web_' + Math.random().toString(36).substr(2, 6),
+            reconnectPeriod: 3000,
+            clean: true
+        });
+
+        client.on('connect', () => {
+            console.log('MQTT Connected');
+            document.getElementById('statusDot').className = 'status-dot connected';
+            document.getElementById('statusText').textContent = '已连接';
+            client.subscribe(UPLOAD_TOPIC);
+        });
+
+        client.on('disconnect', () => {
+            console.log('MQTT Disconnected');
+            document.getElementById('statusDot').className = 'status-dot disconnected';
+            document.getElementById('statusText').textContent = '未连接';
+        });
+
+        client.on('message', (topic, payload) => {
+            if (topic === UPLOAD_TOPIC) {
+                const message = payload.toString();
+                parseMessage(message);
+            }
+        });
+
+        // ==================== 消息解析 ====================
+        function parseMessage(message) {
+            // 检查是否是开锁记录
+            if (message.startsWith('card_unlock,')) {
+                const uid = message.substring(12);  // 去掉 "card_unlock," 前缀
+                addUnlockRecord(uid);
+                addLog(message);  // 同时也记录到日志
+                return;
+            }
+
+            const parts = message.split(',');
+            if (parts.length < 12) return;
+
+            const newData = {
+                temp: parseFloat(parts[0]),
+                humi: parseFloat(parts[1]),
+                air: parseFloat(parts[2]),
+                smoke: parseFloat(parts[3]),
+                vibrate: parseInt(parts[4]),
+                light: parseFloat(parts[5]),
+                fan_state: parseInt(parts[6]),
+                lock_state: parseInt(parts[7]),
+                temp_th: parseInt(parts[8]),
+                humi_th: parseInt(parts[9]),
+                air_th: parseInt(parts[10]),
+                smoke_th: parseInt(parts[11])
+            };
+
+            // 传感器值始终更新
+            currentData.temp = newData.temp;
+            currentData.humi = newData.humi;
+            currentData.air = newData.air;
+            currentData.smoke = newData.smoke;
+            currentData.vibrate = newData.vibrate;
+            currentData.light = newData.light;
+            currentData.fan_state = newData.fan_state;
+            currentData.lock_state = newData.lock_state;
+
+            // 检查是否有正在等待同步的阈值
+            let hasPendingSync = false;
+            const thresholds = ['temp', 'humi', 'air', 'smoke'];
+
+            for (const key of thresholds) {
+                if (waitingSync[key]) {
+                    hasPendingSync = true;
+                    const expectedValue = pendingValue[key];
+                    const receivedValue = newData[key + '_th'];
+
+                    // 检查下位机是否确认了新值（允许小范围误差）
+                    if (expectedValue !== null && Math.abs(receivedValue - expectedValue) < 0.5) {
+                        console.log(`Sync confirmed for ${key}: ${receivedValue}`);
+
+                        // 同步成功，清除定时器
+                        if (syncTimeoutTimer[key]) {
+                            clearTimeout(syncTimeoutTimer[key]);
+                            syncTimeoutTimer[key] = null;
+                        }
+
+                        // 释放保护状态
+                        waitingSync[key] = false;
+                        pendingValue[key] = null;
+                        lastUserSetTime[key + '_th'] = 0;
+                    }
+                }
+            }
+
+            // 阈值更新逻辑（三重保护）
+            const now = Date.now();
+            for (const key of thresholds) {
+                const threshKey = key + '_th';
+                if (!lastUserSetTime[threshKey] || (now - lastUserSetTime[threshKey]) >= DEBOUNCE_MS) {
+                    if (!waitingSync[key]) {
+                        currentData[threshKey] = newData[threshKey];
+                    }
+                }
+            }
+
+            updateUI();
+
+            // 等待确认期间使用预测值进行报警判断
+            if (hasPendingSync) {
+                checkAlarmsWithPending();
+            } else {
+                checkAlarms();
+            }
+
+            // 添加日志
+            addLog(message);
+        }
+
+        // ==================== UI 更新 ====================
+        function updateUI() {
+            // 传感器数值
+            if (currentData.temp !== null) {
+                document.getElementById('temp').textContent = currentData.temp.toFixed(1);
+            }
+            if (currentData.humi !== null) {
+                document.getElementById('humi').textContent = currentData.humi;
+            }
+            if (currentData.air !== null) {
+                document.getElementById('air').textContent = currentData.air;
+            }
+            if (currentData.smoke !== null) {
+                document.getElementById('smoke').textContent = currentData.smoke;
+            }
+            if (currentData.vibrate !== null) {
+                document.getElementById('vibrate').textContent = currentData.vibrate === 0 ? '正常' : '震动';
+            }
+            if (currentData.light !== null) {
+                document.getElementById('light').textContent = Math.round(currentData.light);
+            }
+            if (currentData.fan_state !== null) {
+                document.getElementById('fan_state').textContent = currentData.fan_state === 0 ? 'OFF' : 'ON';
+                isFanOn = currentData.fan_state === 1;
+                updateFanButton();
+            }
+            if (currentData.lock_state !== null) {
+                document.getElementById('lock_state').textContent = currentData.lock_state === 0 ? 'LOCKED' : 'UNLOCKED';
+            }
+
+            // 阈值显示（等待期间显示预测值）
+            if (currentData.temp_th !== null) {
+                document.getElementById('temp_th_display').textContent =
+                    waitingSync.temp ? pendingValue.temp : currentData.temp_th;
+            }
+            if (currentData.humi_th !== null) {
+                document.getElementById('humi_th_display').textContent =
+                    waitingSync.humi ? pendingValue.humi : currentData.humi_th;
+            }
+            if (currentData.air_th !== null) {
+                document.getElementById('air_th_display').textContent =
+                    waitingSync.air ? pendingValue.air : currentData.air_th;
+            }
+            if (currentData.smoke_th !== null) {
+                document.getElementById('smoke_th_display').textContent =
+                    waitingSync.smoke ? pendingValue.smoke : currentData.smoke_th;
+            }
+
+            // 报警状态标记
+            updateAlarmIndicators();
+        }
+
+        function updateAlarmIndicators() {
+            // 温度
+            const tempEl = document.getElementById('temp');
+            if (currentData.temp !== null && currentData.temp_th !== null) {
+                if (currentData.temp > currentData.temp_th) {
+                    tempEl.classList.add('alarm');
+                } else {
+                    tempEl.classList.remove('alarm');
+                }
+            }
+            // 湿度
+            const humiEl = document.getElementById('humi');
+            if (currentData.humi !== null && currentData.humi_th !== null) {
+                if (currentData.humi > currentData.humi_th) {
+                    humiEl.classList.add('alarm');
+                } else {
+                    humiEl.classList.remove('alarm');
+                }
+            }
+            // 空气
+            const airEl = document.getElementById('air');
+            if (currentData.air !== null && currentData.air_th !== null) {
+                if (currentData.air > currentData.air_th) {
+                    airEl.classList.add('alarm');
+                } else {
+                    airEl.classList.remove('alarm');
+                }
+            }
+            // 烟雾
+            const smokeEl = document.getElementById('smoke');
+            if (currentData.smoke !== null && currentData.smoke_th !== null) {
+                if (currentData.smoke > currentData.smoke_th) {
+                    smokeEl.classList.add('alarm');
+                } else {
+                    smokeEl.classList.remove('alarm');
+                }
+            }
+        }
+
+        // ==================== 报警判断 ====================
+        function checkAlarms() {
+            const alarms = [];
+
+            if (currentData.temp !== null && currentData.temp_th !== null &&
+                currentData.temp > currentData.temp_th) {
+                alarms.push('温度超标！');
+            }
+            if (currentData.humi !== null && currentData.humi_th !== null &&
+                currentData.humi > currentData.humi_th) {
+                alarms.push('湿度超标！');
+            }
+            if (currentData.air !== null && currentData.air_th !== null &&
+                currentData.air > currentData.air_th) {
+                alarms.push('空气质量超标！');
+            }
+            if (currentData.smoke !== null && currentData.smoke_th !== null &&
+                currentData.smoke > currentData.smoke_th) {
+                alarms.push('烟雾浓度超标！');
+            }
+
+            renderAlarms(alarms);
+
+            if (alarms.length > 0) {
+                sendAlarmToNative({
+                    which: 'multi',
+                    temp: currentData.temp,
+                    temp_th: currentData.temp_th,
+                    humi: currentData.humi,
+                    humi_th: currentData.humi_th,
+                    air: currentData.air,
+                    air_th: currentData.air_th,
+                    smoke: currentData.smoke,
+                    smoke_th: currentData.smoke_th
+                });
+            }
+        }
+
+        function checkAlarmsWithPending() {
+            const alarms = [];
+
+            // 使用预测值（如果正在等待同步）或当前值
+            const tempTh = waitingSync.temp ? pendingValue.temp : currentData.temp_th;
+            const humiTh = waitingSync.humi ? pendingValue.humi : currentData.humi_th;
+            const airTh = waitingSync.air ? pendingValue.air : currentData.air_th;
+            const smokeTh = waitingSync.smoke ? pendingValue.smoke : currentData.smoke_th;
+
+            if (currentData.temp !== null && tempTh !== null &&
+                currentData.temp > tempTh) {
+                alarms.push('温度超标！');
+            }
+            if (currentData.humi !== null && humiTh !== null &&
+                currentData.humi > humiTh) {
+                alarms.push('湿度超标！');
+            }
+            if (currentData.air !== null && airTh !== null &&
+                currentData.air > airTh) {
+                alarms.push('空气质量超标！');
+            }
+            if (currentData.smoke !== null && smokeTh !== null &&
+                currentData.smoke > smokeTh) {
+                alarms.push('烟雾浓度超标！');
+            }
+
+            renderAlarms(alarms);
+
+            if (alarms.length > 0) {
+                sendAlarmToNative({
+                    which: 'multi',
+                    temp: currentData.temp,
+                    temp_th: tempTh,
+                    humi: currentData.humi,
+                    humi_th: humiTh,
+                    air: currentData.air,
+                    air_th: airTh,
+                    smoke: currentData.smoke,
+                    smoke_th: smokeTh
+                });
+            }
+        }
+
+        function renderAlarms(alarms) {
+            const container = document.getElementById('alarmContent');
+            if (alarms.length === 0) {
+                container.innerHTML = '<div class="status-normal">运行正常 ✓</div>';
+            } else {
+                container.innerHTML = alarms.map(a => `<div class="alarm-item">${a}</div>`).join('');
+            }
+        }
+
+        // ==================== 发送指令 ====================
+        function sendCmd(cmd) {
+            if (client.connected) {
+                client.publish(CMD_TOPIC, cmd);
+                console.log('Send cmd:', cmd);
+            } else {
+                alert('MQTT 未连接');
+            }
+        }
+
+        function setThreshold(type, cmdCode) {
+            const inputId = type + '_th_input';
+            const value = document.getElementById(inputId).value;
+
+            if (!value || value === '') {
+                alert('请输入阈值');
+                return;
+            }
+
+            const numValue = parseFloat(value);
+            if (isNaN(numValue)) {
+                alert('请输入有效数字');
+                return;
+            }
+
+            // 检查是否正在等待同步
+            if (waitingSync[type]) {
+                console.log(`Already waiting sync for ${type}`);
+                return;
+            }
+
+            // 1. 设置等待同步状态
+            waitingSync[type] = true;
+            pendingValue[type] = numValue;
+
+            // 2. 发送指令
+            sendCmd(`${cmdCode},${numValue}`);
+
+            // 3. 记录用户操作时间（防抖）
+            lastUserSetTime[type + '_th'] = Date.now();
+
+            // 4. 立即更新显示（预测状态）
+            currentData[type + '_th'] = numValue;
+            updateUI();
+
+            // 5. 立即检查报警（即时反馈）
+            checkAlarmsWithPending();
+
+            // 6. 设置超时保护
+            syncTimeoutTimer[type] = setTimeout(() => {
+                if (waitingSync[type]) {
+                    console.warn(`Sync timeout for ${type}, releasing protection`);
+                    waitingSync[type] = false;
+                    pendingValue[type] = null;
+                    syncTimeoutTimer[type] = null;
+                }
+            }, SYNC_TIMEOUT_MS);
+
+            // 清空输入框
+            document.getElementById(inputId).value = '';
+        }
+
+        function fanOn() {
+            sendCmd('07,1');
+            isFanOn = true;
+            updateFanButton();
+        }
+
+        function fanOff() {
+            sendCmd('07,0');
+            isFanOn = false;
+            updateFanButton();
+        }
+
+        function updateFanButton() {
+            const fanOnBtn = document.querySelector('.btn-success');
+            const fanOffBtn = document.querySelector('.btn-danger');
+            if (fanOnBtn && fanOffBtn) {
+                if (isFanOn) {
+                    fanOnBtn.classList.add('active');
+                    fanOffBtn.classList.remove('active');
+                } else {
+                    fanOnBtn.classList.remove('active');
+                    fanOffBtn.classList.add('active');
+                }
+            }
+        }
+
+        // ==================== 日志 ====================
+        function addLog(message) {
+            logs.unshift({
+                time: new Date().toLocaleTimeString(),
+                data: message
+            });
+            if (logs.length > 20) logs.pop();
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const list = document.getElementById('logList');
+            list.innerHTML = logs.map(log =>
+                `<div class="log-item">[${log.time}] ${log.data}</div>`
+            ).join('');
+        }
+
+        function toggleLog() {
+            const content = document.getElementById('logContent');
+            const arrow = document.getElementById('logArrow');
+            content.classList.toggle('show');
+            arrow.textContent = content.classList.contains('show') ? '▲' : '▼';
+        }
+
+        // ==================== JS Bridge ====================
+        function sendAlarmToNative(data) {
+            if (window.Android) {
+                window.Android.onAlarm(JSON.stringify(data));
+            } else if (window.Notification && Notification.permission === 'granted') {
+                new Notification('告警', { body: JSON.stringify(data) });
+            }
+        }
+
+        // 请求通知权限
+        if (window.Notification && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // 加载开锁记录
+        loadUnlockRecords();
+        renderUnlockRecords();
+        updateRecordStats();
+
+        // 默认显示主页面
+        showPage('main');
+    </script>
+</body>
+</html>
