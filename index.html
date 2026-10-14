@@ -355,6 +355,10 @@
                     <input type="checkbox" id="recordModeToggle" onchange="toggleRecordingMode(this.checked)">
                     <span>拍摄模式</span>
                 </label>
+                <label class="record-toggle">
+                    <input type="checkbox" id="showHiddenToggle" onchange="toggleShowHidden(this.checked)">
+                    <span>变体码</span>
+                </label>
                 <button class="admin-logout" onclick="adminLogout()">退出管理</button>
             </div>
         </div>
@@ -538,6 +542,7 @@
         let currentDate = 'all';
         let currentKeyword = '';
         let recordingMode = false;
+        let showHidden = localStorage.getItem('admin_show_hidden') === '1';
 
         function toggleRecordingMode(enabled) {
             recordingMode = Boolean(enabled);
@@ -548,7 +553,10 @@
             document.getElementById('loginWrap').style.display = 'none';
             const panel = document.getElementById('adminPanel');
             panel.classList.add('show');
-            document.getElementById('totalBadge').textContent = PROJECTS.length + ' 个';
+            document.getElementById('totalBadge').textContent =
+                PROJECTS.filter(p => !p.hidden || showHidden).length + ' 个';
+            const hToggle = document.getElementById('showHiddenToggle');
+            if (hToggle) hToggle.checked = showHidden;
             buildCategoryTabs();
             buildDateTabs();
             renderList();
@@ -556,7 +564,7 @@
 
         function buildCategoryTabs() {
             const counts = {};
-            PROJECTS.forEach(p => {
+            PROJECTS.filter(p => !p.hidden || showHidden).forEach(p => {
                 const cat = getCategory(p.name);
                 counts[cat.key] = (counts[cat.key] || 0) + 1;
             });
@@ -585,7 +593,7 @@
         function buildDateTabs() {
             // 收集所有月份（去重、倒序）
             const monthSet = new Set();
-            PROJECTS.forEach(p => { if (p.date) monthSet.add(p.date); });
+            PROJECTS.filter(p => !p.hidden || showHidden).forEach(p => { if (p.date) monthSet.add(p.date); });
             const months = [...monthSet].sort().reverse();  // 最新在前
 
             const tabs = document.getElementById('dateTabs');
@@ -601,7 +609,7 @@
             months.forEach(m => {
                 const [y, mo] = m.split('-');
                 const label = `${y}年${parseInt(mo)}月`;
-                const cnt = PROJECTS.filter(p => p.date === m).length;
+                const cnt = PROJECTS.filter(p => p.date === m && (!p.hidden || showHidden)).length;
                 const btn = document.createElement('button');
                 btn.className = 'cat-tab date-tab';
                 btn.dataset.date = m;
@@ -639,11 +647,19 @@
             document.getElementById('searchInput').focus();
         }
 
+        function toggleShowHidden(v) {
+            showHidden = v;
+            localStorage.setItem('admin_show_hidden', v ? '1' : '0');
+            buildCategoryTabs();
+            buildDateTabs();
+            renderList();
+        }
+
         function renderList() {
             const kw = currentKeyword.toLowerCase();
 
             let filtered = PROJECTS.filter(p => {
-                if (p.hidden) return false;
+                if (p.hidden && !showHidden) return false;
                 if (currentCat !== 'all') {
                     const cat = getCategory(p.name);
                     if (cat.key !== currentCat) return false;
@@ -694,6 +710,7 @@
                         <div class="proj-meta">
                             <span class="proj-id">${p.id}</span>
                             <span class="proj-cat ${cat.cls}">${cat.label}</span>
+                            ${p.hidden ? '<span class="proj-cat cat-other">变体</span>' : ''}
                         </div>
                     </div>
                     <span class="proj-arrow">›</span>
