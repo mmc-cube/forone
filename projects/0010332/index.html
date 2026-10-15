@@ -320,6 +320,12 @@
             <div id="alarmContent">
                 <div class="ok-text">运行正常 ✓</div>
             </div>
+            <div class="data-row" style="margin-top:10px;">
+                <span class="data-label">蜂鸣器（设备回传）</span>
+                <div>
+                    <span class="data-value" id="buzzerState">--</span>
+                </div>
+            </div>
         </div>
 
         <!-- 控制卡 -->
@@ -358,7 +364,8 @@
             thr_temp: 0,
             thr_humi: 0,
             thr_nh3: 0,
-            thr_lux: 0
+            thr_lux: 0,
+            alarm: -1        // 设备蜂鸣器状态：1=报警中 0=正常/已消警 -1=未收到（旧固件）
         };
 
         // 日志数组
@@ -448,6 +455,7 @@
             data.thr_humi = parseFloat(parts[5]);
             data.thr_nh3 = parseFloat(parts[6]);
             data.thr_lux = parseFloat(parts[7]);
+            data.alarm = (parts.length > 8) ? (parseInt(parts[8]) || 0) : -1;
 
             updateUI();
             checkAlarms();
@@ -471,6 +479,12 @@
             document.getElementById('humiValue').classList.toggle('alarm', data.humi > data.thr_humi);
             document.getElementById('nh3Value').classList.toggle('alarm', data.nh3 > data.thr_nh3);
             document.getElementById('luxValue').classList.toggle('alarm', data.lux < data.thr_lux);
+
+            // 设备蜂鸣器真实状态（第 9 字段，随每条上报刷新 → 按消警后 ≤1s 内可见变化）
+            const bz = document.getElementById('buzzerState');
+            if (data.alarm === 1)      { bz.textContent = '报警中';     bz.style.color = '#e53935'; }
+            else if (data.alarm === 0) { bz.textContent = '正常/已消警'; bz.style.color = '#43a047'; }
+            else                       { bz.textContent = '--';         bz.style.color = ''; }
         }
 
         // 报警判断
