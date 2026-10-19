@@ -174,11 +174,7 @@
     </div>
     <div class="data-row">
         <span class="data-label">剩余时间</span>
-        <span><span class="data-value" id="time-remain">--</span><span class="data-unit">min</span></span>
-    </div>
-    <div class="data-row">
-        <span class="data-label">总时长</span>
-        <span><span class="data-value" id="time-total">--</span><span class="data-unit">min</span></span>
+        <span><span class="data-value" id="time-remain">--</span><span class="data-unit">s</span></span>
     </div>
     <div class="data-row">
         <span class="data-label">运行状态</span>
@@ -334,7 +330,6 @@ function updateUI(parts) {
 
     // 序号5-6: 时间
     document.getElementById('time-remain').textContent = parseInt(parts[5]);
-    document.getElementById('time-total').textContent = parseInt(parts[6]);
 
     // 序号7-8: 震动
     document.getElementById('vibrate-level-text').textContent = VIBRATE_NAMES[parseInt(parts[7])] || '--';
