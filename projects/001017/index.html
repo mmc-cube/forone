@@ -70,6 +70,21 @@
         .btn-danger { background: #F44336; color: white; }
         .btn-danger:active { background: #D32F2F; }
         .btn-secondary { background: #E0E0E0; color: #212121; }
+        .btn-send {
+            width: auto;
+            height: 36px;
+            padding: 0 14px;
+            margin: 0 0 0 auto;
+            flex-shrink: 0;
+            border: none;
+            border-radius: 8px;
+            background: #2196F3;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .btn-send:active { background: #1976D2; }
         .btn-secondary:active { background: #BDBDBD; }
         .mode-btns {
             display: flex;
@@ -216,11 +231,8 @@
     </div>
 </div>
 
-<!-- 报警状态 -->
-<div class="card" id="alarm-card" style="display:none">
-    <div class="card-title" style="color:#F44336">报警状态</div>
-    <div id="alarm-list"></div>
-</div>
+<!-- 报警状态卡已按用户要求移除（2026-10-18） -->
+
 
 <!-- 设备控制 -->
 <div class="card">
@@ -239,26 +251,28 @@
     </div>
 </div>
 
-<!-- 参数下发 -->
+<!-- 参数下发（每行独立发送，2026-10-18 方案B：单参数指令 05/06/07，无范围限制） -->
 <div class="card">
     <div class="card-title">参数下发</div>
     <div class="param-row">
         <span class="param-label">目标温度</span>
-        <input type="number" class="param-input" id="param-temp" placeholder="45" min="30" max="60">
+        <input type="number" class="param-input" id="param-temp" placeholder="45">
         <span class="data-unit">°C</span>
+        <button class="btn-send" onclick="sendTemp()">发送</button>
     </div>
     <div class="param-row">
         <span class="param-label">液位阈值</span>
-        <input type="number" class="param-input" id="param-level" placeholder="8" min="1" max="20">
+        <input type="number" class="param-input" id="param-level" placeholder="8">
         <span class="data-unit">cm</span>
+        <button class="btn-send" onclick="sendLevel()">发送</button>
     </div>
     <div class="param-row">
         <span class="param-label">预约时间</span>
-        <input type="number" class="param-input" id="param-hour" placeholder="14" min="0" max="23" style="width:50px">
+        <input type="number" class="param-input" id="param-hour" placeholder="14" style="width:50px">
         <span class="data-unit">:</span>
-        <input type="number" class="param-input" id="param-min" placeholder="30" min="0" max="59" style="width:50px">
+        <input type="number" class="param-input" id="param-min" placeholder="30" style="width:50px">
+        <button class="btn-send" onclick="sendReserve()">发送</button>
     </div>
-    <button class="btn btn-secondary" onclick="sendParams()">下发参数</button>
 </div>
 
 <!-- 运行日志 -->
@@ -346,10 +360,6 @@ function updateUI(parts) {
     updateDeviceDot('heat-dot', parseInt(parts[11]));
     updateDeviceDot('cool-dot', parseInt(parts[12]));
     updateDeviceDot('motor-dot', parseInt(parts[13]));
-
-    // 序号14: 报警
-    const alarmCode = parseInt(parts[14]);
-    updateAlarm(alarmCode);
 }
 
 function updateDeviceDot(id, state) {
@@ -374,32 +384,24 @@ function updateModeButtons() {
     }
 }
 
-function updateAlarm(code) {
-    const card = document.getElementById('alarm-card');
-    const list = document.getElementById('alarm-list');
-
-    if (code === 0) {
-        card.style.display = 'none';
-    } else {
-        card.style.display = 'block';
-        let text = '';
-        if (code === 1) text = '低液位报警';
-        else if (code === 2) text = '温度异常';
-        else if (code === 3) text = '低液位 + 温度异常';
-        list.innerHTML = '<div class="alarm-bar">' + text + '</div>';
-    }
-}
-
 function sendCmd(cmd) {
     client.publish(CMD_TOPIC, cmd);
 }
 
-function sendParams() {
+function sendTemp() {
     const temp = document.getElementById('param-temp').value || 45;
+    sendCmd('05,' + temp);
+}
+
+function sendLevel() {
     const level = document.getElementById('param-level').value || 8;
+    sendCmd('06,' + level);
+}
+
+function sendReserve() {
     const hour = document.getElementById('param-hour').value || 0;
     const min = document.getElementById('param-min').value || 0;
-    sendCmd('04,' + temp + ',' + level + ',' + hour + ',' + min);
+    sendCmd('07,' + hour + ',' + min);
 }
 
 function addLog(msg) {
