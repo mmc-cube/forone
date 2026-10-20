@@ -164,6 +164,21 @@ body.bt-off .needs-bt .hint{display:block;}
   font-weight:600;
 }
 
+/* ---------- 时间设置 ---------- */
+.set-row{display:flex;align-items:center;gap:6px;margin-bottom:10px;}
+.set-row label{font-size:13px;color:var(--sub);flex-shrink:0;}
+.set-row input{
+  flex:1;
+  min-width:0;
+  height:40px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  text-align:center;
+  font-size:15px;
+  color:var(--text);
+  background:#fff;
+}
+
 /* ---------- 日志 ---------- */
 .log-list{font-size:12px;font-family:Consolas,Menlo,monospace;color:var(--sub);min-height:55vh;}
 .log-item{
@@ -315,8 +330,20 @@ body.bt-off .needs-bt .hint{display:block;}
   </div>
 
   <div class="card needs-bt">
-    <h3>时间同步</h3>
-    <button class="btn" onclick="syncTime()">同步手机时间</button>
+    <h3>时间设置</h3>
+    <div class="set-row">
+      <label>年</label><input type="number" id="inYear" min="2000" max="2099" value="2026">
+      <label>月</label><input type="number" id="inMonth" min="1" max="12" value="10">
+      <label>日</label><input type="number" id="inDay" min="1" max="31" value="20">
+    </div>
+    <div class="set-row">
+      <label>时</label><input type="number" id="inHour" min="0" max="23" value="14">
+      <label>分</label><input type="number" id="inMinute" min="0" max="59" value="30">
+      <label>秒</label><input type="number" id="inSecond" min="0" max="59" value="25">
+    </div>
+    <button class="btn" onclick="sendSetTime()">下发设置时间</button>
+    <button class="btn ghost" onclick="syncTime()">同步手机时间</button>
+    <div class="sub" style="margin-top:8px">可任意填写 2000~2099 的日期，用于校验公历转农历</div>
     <div class="hint">未连接设备</div>
   </div>
 
@@ -706,20 +733,63 @@ function toggleAlarm(){
   checkAlarms();
 }
 
+/* ================================================================
+ * 时间下发（05）：手动设置 / 同步手机时间
+ * ================================================================ */
+function daysInMonth(y, m){
+  if (m === 2) {
+    return ((y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0)) ? 29 : 28;
+  }
+  var md = [0,31,28,31,30,31,30,31,31,30,31,30,31];
+  return md[m] || 31;
+}
+
+function inputVal(id){
+  return parseInt(document.getElementById(id).value, 10);
+}
+
+/* 校验后发送 05,年,月,日,时,分,秒，并乐观刷新界面时间 */
+function sendTime6(y, mo, d, h, mi, s){
+  if (y < 2000 || y > 2099) { alert('年份范围 2000~2099'); return; }
+  if (mo < 1 || mo > 12)    { alert('月份范围 1~12'); return; }
+  if (d < 1 || d > daysInMonth(y, mo)) {
+    alert('该月日期范围 1~' + daysInMonth(y, mo));
+    return;
+  }
+  if (h < 0 || h > 23 || mi < 0 || mi > 59 || s < 0 || s > 59) {
+    alert('时分秒超出范围');
+    return;
+  }
+
+  if (!sendViaBt('05,' + y + ',' + mo + ',' + d + ',' + h + ',' + mi + ',' + s)) return;
+
+  /* 乐观刷新：界面立即显示下发的时间，设备回读后接管 */
+  state.year = y; state.month = mo; state.day = d;
+  state.hour = h; state.minute = mi; state.second = s;
+  updateUI();
+}
+
+/* 手动填写的时间 */
+function sendSetTime(){
+  var y  = inputVal('inYear');
+  var mo = inputVal('inMonth');
+  var d  = inputVal('inDay');
+  var h  = inputVal('inHour');
+  var mi = inputVal('inMinute');
+  var s  = inputVal('inSecond');
+
+  if (isNaN(y) || isNaN(mo) || isNaN(d) || isNaN(h) || isNaN(mi) || isNaN(s)) {
+    alert('请填写完整的时间');
+    return;
+  }
+  sendTime6(y, mo, d, h, mi, s);
+}
+
+/* 手机当前真实时间 */
 function syncTime(){
   var d = new Date();
-  var cmd = '05,' + d.getFullYear() + ',' + (d.getMonth() + 1) + ',' + d.getDate() +
-            ',' + d.getHours() + ',' + d.getMinutes() + ',' + d.getSeconds();
-  if (!sendViaBt(cmd)) return;
-
-  /* 预测：本地时间立即跳到手机时间，等设备回读确认 */
-  state.year = d.getFullYear();
-  state.month = d.getMonth() + 1;
-  state.day = d.getDate();
-  state.hour = d.getHours();
-  state.minute = d.getMinutes();
-  state.second = d.getSeconds();
-  updateUI();
+  sendTime6(d.getFullYear(), d.getMonth() + 1, d.getDate(),
+            d.getHours(), d.getMinutes(), d.getSeconds());
 }
 
 /* 等待设备确认，最多 4 秒；超时回退到设备最近一次上报值 */
@@ -745,6 +815,17 @@ function startWait(key){
  * 初始化
  * ================================================================ */
 document.body.classList.add('bt-off');
+
+/* 时间输入框默认填手机当前时间；之后不再被设备回读覆盖 */
+(function initTimeInputs(){
+  var d = new Date();
+  document.getElementById('inYear').value   = d.getFullYear();
+  document.getElementById('inMonth').value  = d.getMonth() + 1;
+  document.getElementById('inDay').value    = d.getDate();
+  document.getElementById('inHour').value   = d.getHours();
+  document.getElementById('inMinute').value = d.getMinutes();
+  document.getElementById('inSecond').value = d.getSeconds();
+})();
 
 /* ================================================================
  * iframe 镜像修复（强制，勿删）
