@@ -370,6 +370,13 @@ body{
 
 <!-- ==================== 日志 Tab ==================== -->
 <div class="tab-content" id="tab-log">
+
+  <div class="card">
+    <div class="card-title">时间校准</div>
+    <button class="btn" onclick="syncRtc()">一键校时（使用手机时间）</button>
+    <div class="hint" id="rtcSyncTip">把手机当前时间写入 DS1302，发送指令 05,HH:MM:SS。</div>
+  </div>
+
   <div class="card">
     <div class="card-title">通信日志（最近 20 条）</div>
     <div class="log-list" id="logList">
@@ -709,6 +716,24 @@ function sendTimer(){
   state.arm = 2;
   state.remain = m * 60;
   updateUI();
+}
+
+/* 一键校时：把手机当前时间写入 DS1302 */
+function syncRtc(){
+  if (!isBtConnected){
+    alert('蓝牙未连接，请先连接设备');
+    return;
+  }
+
+  var d = new Date();
+  var t = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+
+  if (!sendViaBt('05,' + t)) return;
+
+  state.time = t;
+  updateUI();
+
+  $('rtcSyncTip').textContent = '已发送校准时间：' + t + '（下位机写入 DS1302 后回显）';
 }
 
 /* ================================================================
