@@ -114,6 +114,10 @@ body.bt-off .needs-bt .hint{display:block;}
 .row .value{font-size:28px;font-weight:700;line-height:1.1;}
 .row .value small{font-size:13px;font-weight:400;color:var(--sub);margin-left:4px;}
 .row .value.red{color:var(--alarm);}
+.row-sm{padding:10px 0;}
+.row-sm .label{font-size:14px;color:var(--sub);}
+.rt-value{font-size:18px;font-weight:700;}
+.rt-unit{font-size:12px;font-weight:400;color:var(--sub);margin-left:3px;}
 
 /* ---------- 报警卡 ---------- */
 .alarm-ok{color:var(--ok);font-size:16px;font-weight:600;}
@@ -272,6 +276,24 @@ body.bt-off .needs-bt .hint{display:block;}
   </div>
 
   <div class="card needs-bt">
+    <h3>当前阈值（设备回读）</h3>
+    <div class="row row-sm">
+      <span class="label">温度上限</span>
+      <span class="rt-value" id="rtTemp">--</span>
+    </div>
+    <div class="row row-sm">
+      <span class="label">湿度上限</span>
+      <span class="rt-value" id="rtHumi">--</span>
+    </div>
+    <div class="row row-sm">
+      <span class="label">光照下限</span>
+      <span class="rt-value" id="rtLux">--</span>
+    </div>
+    <div class="sub" id="rtHint" style="margin-top:10px">等待设备数据…</div>
+    <div class="hint">未连接设备</div>
+  </div>
+
+  <div class="card needs-bt">
     <h3>阈值设置</h3>
     <div class="thr-row">
       <label>温度上限 (℃)</label>
@@ -288,6 +310,7 @@ body.bt-off .needs-bt .hint{display:block;}
       <input type="number" id="inLux" value="300" min="0" max="10000">
       <button onclick="sendThreshold(3,'inLux')">发送</button>
     </div>
+    <div class="sub" style="margin-top:8px">输入过程不会被回读数据覆盖</div>
     <div class="hint">未连接设备</div>
   </div>
 
@@ -332,6 +355,9 @@ var state = {
 /* 阈值/开关"预测-同步-接管"状态：等待下位机上报确认期间冻结本地值 */
 var waiting = { temp:false, humi:false, lux:false, alarm:false };
 var waitTimers = { temp:null, humi:null, lux:null, alarm:null };
+
+/* 设备最近一次上报的真实值：等待超时后回退到这里 */
+var reported = { tempThr:30, humiThr:70, luxThr:300, alarmEnable:1 };
 
 /* ================================================================
  * Tab 切换
@@ -454,6 +480,11 @@ window.onBtDisconnected = function(){
   document.getElementById('vHumi').innerHTML = '--<small>%RH</small>';
   document.getElementById('vLux').innerHTML = '--<small>lx</small>';
   document.getElementById('alarmBox').innerHTML = '<span class="alarm-off">—</span>';
+  document.getElementById('rtTemp').textContent = '--';
+  document.getElementById('rtHumi').textContent = '--';
+  document.getElementById('rtLux').textContent = '--';
+  document.getElementById('rtHint').textContent = '等待设备数据…';
+  document.getElementById('rtHint').style.color = '';
   updateAlarmBadge(0);
   addLog('连接已断开');
 };
@@ -495,6 +526,12 @@ function parseAndUpdate(message){
   state.hour = d.hour; state.minute = d.minute; state.second = d.second;
   state.temp = d.temp; state.humi = d.humi; state.lux = d.lux;
   state.hasData = true;
+
+  /* 设备真实值始终记录，供超时回退 */
+  reported.tempThr = d.tempThr;
+  reported.humiThr = d.humiThr;
+  reported.luxThr  = d.luxThr;
+  reported.alarmEnable = d.alarmEnable;
 
   /* 阈值/开关：等待确认期间保持本地预测值，确认后由设备接管 */
   if (waiting.temp && d.tempThr === state.tempThr) { waiting.temp = false; clearWait('temp'); }
@@ -558,10 +595,19 @@ function updateUI(){
   btn.textContent = state.alarmEnable ? '报警已开启（点击关闭）' : '报警已关闭（点击开启）';
   btn.className = state.alarmEnable ? 'btn' : 'btn ghost';
 
-  /* 阈值输入框 */
-  document.getElementById('inTemp').value = state.tempThr;
-  document.getElementById('inHumi').value = state.humiThr;
-  document.getElementById('inLux').value  = state.luxThr;
+  /* 阈值回读区（只显示，不回填输入框） */
+  document.getElementById('rtTemp').innerHTML = state.tempThr + '<span class="rt-unit">℃</span>';
+  document.getElementById('rtHumi').innerHTML = state.humiThr + '<span class="rt-unit">%RH</span>';
+  document.getElementById('rtLux').innerHTML  = state.luxThr  + '<span class="rt-unit">lx</span>';
+
+  var hint = document.getElementById('rtHint');
+  if (waiting.temp || waiting.humi || waiting.lux) {
+    hint.textContent = '已下发，等待设备确认…';
+    hint.style.color = '#FF9800';
+  } else {
+    hint.textContent = state.hasData ? '设备回读 · 每 500ms 刷新' : '等待设备数据…';
+    hint.style.color = '';
+  }
 }
 
 function weekName(y, m, d){
@@ -676,13 +722,21 @@ function syncTime(){
   updateUI();
 }
 
-/* 等待设备确认，最多 4 秒；超时则接受设备上报值 */
+/* 等待设备确认，最多 4 秒；超时回退到设备最近一次上报值 */
 function startWait(key){
   clearWait(key);
   waiting[key] = true;
   waitTimers[key] = setTimeout(function(){
     waiting[key] = false;
     waitTimers[key] = null;
+
+    /* 回退：设备没确认就以下位机真实值为准 */
+    if (key === 'temp')  state.tempThr = reported.tempThr;
+    if (key === 'humi')  state.humiThr = reported.humiThr;
+    if (key === 'lux')   state.luxThr  = reported.luxThr;
+    if (key === 'alarm') state.alarmEnable = reported.alarmEnable;
+
+    updateUI();
     checkAlarms();
   }, 4000);
 }
