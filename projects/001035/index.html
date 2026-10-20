@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>人体红外感应报警系统</title>
+<style>
+:root{
+  --bg:#F5F5F5;
+  --card:#FFFFFF;
+  --primary:#2196F3;
+  --alarm:#F44336;
+  --ok:#4CAF50;
+  --text:#212121;
+  --sub:#757575;
+  --line:#E0E0E0;
+  --shadow:0 2px 8px rgba(0,0,0,0.08);
+  --radius:12px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+html,body{
+  height:100%;
+  overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-tap-highlight-color:transparent;
+}
+
+body{
+  display:flex;
+  flex-direction:column;
+  max-width:420px;
+  margin:0 auto;
+}
+
+/* ---------- Tab 内容区 ---------- */
+.tab-content{
+  display:none;
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:12px;
+}
+.tab-content.active{display:block;}
+
+/* ---------- 卡片 ---------- */
+.card{
+  background:var(--card);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:16px;
+  margin-bottom:12px;
+}
+.card-title{
+  font-size:14px;
+  font-weight:600;
+  color:var(--sub);
+  margin-bottom:12px;
+  letter-spacing:0.5px;
+}
+
+/* ---------- 连接卡 ---------- */
+.connect-card{
+  border-left:4px solid #FF9800;
+}
+.bt-status-row{
+  display:flex;
+  align-items:center;
+  font-size:14px;
+  margin-bottom:10px;
+}
+.dot{
+  width:10px;height:10px;border-radius:50%;
+  background:var(--alarm);
+  margin-right:8px;
+  flex-shrink:0;
+}
+.dot.on{background:var(--ok);}
+.status-text{font-weight:600;color:var(--alarm);}
+.status-text.on{color:var(--ok);}
+
+.device-select{
+  width:100%;
+  height:44px;
+  padding:0 10px;
+  margin:8px 0;
+  border-radius:8px;
+  border:1px solid var(--line);
+  background:#fff;
+  color:var(--text);
+  font-size:14px;
+}
+
+.btn{
+  width:100%;
+  min-height:48px;
+  border:none;
+  border-radius:8px;
+  background:var(--primary);
+  color:#fff;
+  font-size:15px;
+  font-weight:600;
+  cursor:pointer;
+  transition:filter .15s, transform .05s;
+  margin-top:8px;
+}
+.btn:active{filter:brightness(.92);transform:scale(.995);}
+.btn.secondary{background:#607D8B;}
+.btn.danger{background:var(--alarm);}
+.btn.ghost{
+  background:#fff;
+  color:var(--primary);
+  border:1px solid var(--primary);
+}
+.btn:disabled{background:#BDBDBD;cursor:not-allowed;}
+
+.hint{
+  font-size:12px;
+  color:var(--sub);
+  line-height:1.6;
+  margin-top:8px;
+}
+
+/* ---------- 数据行 ---------- */
+.row{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  padding:10px 0;
+  border-bottom:1px solid #F0F0F0;
+}
+.row:last-child{border-bottom:none;}
+.row-label{font-size:13px;color:var(--sub);}
+.row-value{
+  font-size:28px;
+  font-weight:700;
+  line-height:1.1;
+  color:var(--text);
+}
+.row-value .unit{
+  font-size:13px;
+  font-weight:500;
+  color:var(--sub);
+  margin-left:4px;
+}
+.row-value.small{font-size:20px;}
+.row-value.alarm-value{color:var(--alarm);}
+.row-value.ok-value{color:var(--ok);}
+
+/* ---------- 布防状态卡 ---------- */
+.arm-line{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.arm-state{
+  font-size:24px;
+  font-weight:700;
+}
+.arm-state.on{color:var(--ok);}
+.arm-state.off{color:var(--sub);}
+.arm-remain{
+  font-size:24px;
+  font-weight:700;
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- 报警卡 ---------- */
+.alarm-card{
+  border-left:4px solid var(--ok);
+  transition:background .2s, border-color .2s;
+}
+.alarm-card.active{
+  background:#FFEBEE;
+  border-left-color:var(--alarm);
+}
+.alarm-text{
+  font-size:20px;
+  font-weight:700;
+  color:var(--ok);
+}
+.alarm-card.active .alarm-text{color:var(--alarm);}
+.alarm-sub{
+  font-size:12px;
+  color:var(--sub);
+  margin-top:6px;
+  line-height:1.5;
+}
+
+/* ---------- 控制卡 ---------- */
+.control-row{display:flex;gap:10px;}
+.control-row .btn{flex:1;margin-top:0;}
+.field-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.field-label{
+  font-size:14px;
+  color:var(--sub);
+  flex-shrink:0;
+}
+.num-input{
+  width:90px;
+  height:48px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  font-size:18px;
+  font-weight:600;
+  text-align:center;
+  color:var(--text);
+  background:#fff;
+}
+.field-unit{font-size:14px;color:var(--sub);}
+.field-row .btn{width:auto;flex:1;margin-top:0;}
+
+/* ---------- 日志 ---------- */
+.log-list{
+  max-height:100%;
+  overflow-y:auto;
+}
+.log-item{
+  font-size:12px;
+  font-family:Consolas,Menlo,monospace;
+  color:var(--text);
+  padding:8px 0;
+  border-bottom:1px dashed #EEEEEE;
+  word-break:break-all;
+  line-height:1.5;
+}
+.log-item:last-child{border-bottom:none;}
+.log-time{color:var(--sub);margin-right:6px;}
+.log-item.tx{color:var(--primary);}
+.log-empty{font-size:13px;color:var(--sub);text-align:center;padding:20px 0;}
+
+/* ---------- 底部 Tab 栏 ---------- */
+.tab-bar{
+  display:flex;
+  height:56px;
+  background:#FFFFFF;
+  border-top:1px solid var(--line);
+  flex-shrink:0;
+}
+.tab-item{
+  position:relative;
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:14px;
+  font-weight:500;
+  color:#666;
+  cursor:pointer;
+  user-select:none;
+}
+.tab-item.active{color:var(--primary);font-weight:700;}
+.badge{
+  position:absolute;
+  top:10px;
+  margin-left:28px;
+  min-width:16px;
+  height:16px;
+  padding:0 4px;
+  border-radius:8px;
+  background:var(--alarm);
+  color:#fff;
+  font-size:10px;
+  line-height:16px;
+  text-align:center;
+  display:none;
+}
+.badge.show{display:block;}
+</style>
+</head>
+<body>
+
+<!-- ==================== 数据 Tab ==================== -->
+<div class="tab-content active" id="tab-data">
+
+  <!-- 蓝牙连接卡 -->
+  <div class="card connect-card" id="connectCard">
+    <div class="card-title">蓝牙连接</div>
+    <div class="bt-status-row">
+      <span class="dot" id="btDot"></span>
+      <span class="status-text" id="btStatus">未连接</span>
+    </div>
+    <select id="deviceList" class="device-select">
+      <option value="">未扫描到已配对设备</option>
+    </select>
+    <button class="btn" id="btnScan" onclick="scanDevices()">扫描已配对设备</button>
+    <button class="btn" id="btnConnect" onclick="connectSelected()">连接</button>
+    <button class="btn danger" id="btnDisconnect" onclick="disconnectBt()" style="display:none">断开连接</button>
+    <div class="hint">请先在手机系统蓝牙中配对 JDY-31（PIN 常为 1234 / 0000），再到此页面连接。</div>
+  </div>
+
+  <!-- 布防状态卡 -->
+  <div class="card">
+    <div class="card-title">布防状态</div>
+    <div class="arm-line">
+      <span class="arm-state off" id="armState">撤防</span>
+      <span class="arm-remain" id="armRemain">--:--</span>
+    </div>
+  </div>
+
+  <!-- 实时数据卡 -->
+  <div class="card">
+    <div class="card-title">实时数据</div>
+    <div class="row">
+      <span class="row-label">人体状态</span>
+      <span class="row-value small" id="vPir">--</span>
+    </div>
+    <div class="row">
+      <span class="row-label">温度</span>
+      <span class="row-value"><span id="vTemp">--</span><span class="unit">℃</span></span>
+    </div>
+    <div class="row">
+      <span class="row-label">湿度</span>
+      <span class="row-value"><span id="vHumi">--</span><span class="unit">%RH</span></span>
+    </div>
+    <div class="row">
+      <span class="row-label">当前时间</span>
+      <span class="row-value small" id="vTime">--:--:--</span>
+    </div>
+    <div class="row">
+      <span class="row-label">触发次数</span>
+      <span class="row-value"><span id="vCount">0</span><span class="unit">次</span></span>
+    </div>
+  </div>
+
+  <!-- 报警提示卡 -->
+  <div class="card alarm-card" id="alarmCard">
+    <div class="alarm-text" id="alarmText">运行正常</div>
+    <div class="alarm-sub" id="alarmSub">布防状态下检测到人体时，此处变红并提示。</div>
+  </div>
+
+</div>
+
+<!-- ==================== 控制 Tab ==================== -->
+<div class="tab-content" id="tab-control">
+
+  <div class="card">
+    <div class="card-title">布防控制</div>
+    <div class="control-row">
+      <button class="btn" onclick="sendCmd('01')">布防</button>
+      <button class="btn secondary" onclick="sendCmd('02')">撤防</button>
+    </div>
+    <div class="hint">撤防会同时取消定时布防。</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">定时布防</div>
+    <div class="field-row">
+      <span class="field-label">时长</span>
+      <input class="num-input" id="timerMin" type="number" min="1" max="99" value="10">
+      <span class="field-unit">分钟</span>
+    </div>
+    <button class="btn" onclick="sendTimer()">启动定时布防</button>
+    <div class="hint">范围 1~99 分钟；启动后倒计时结束自动撤防。</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">检测计数</div>
+    <button class="btn ghost" onclick="sendCmd('04')">触发次数清零</button>
+  </div>
+
+</div>
+
+<!-- ==================== 日志 Tab ==================== -->
+<div class="tab-content" id="tab-log">
+  <div class="card">
+    <div class="card-title">通信日志（最近 20 条）</div>
+    <div class="log-list" id="logList">
+      <div class="log-empty" id="logEmpty">暂无数据</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 底部 Tab 栏 ==================== -->
+<div class="tab-bar">
+  <div class="tab-item active" data-tab="data">数据<span class="badge" id="alarmBadge"></span></div>
+  <div class="tab-item" data-tab="control">控制</div>
+  <div class="tab-item" data-tab="log">日志</div>
+</div>
+
+<script>
+/* ================================================================
+ * 状态
+ * ================================================================ */
+var isBtConnected = false;
+var lastAlarm = false;
+var audioCtx = null;
+
+var state = {
+  pir: 0,
+  temp: 0,
+  humi: 0,
+  arm: 0,
+  remain: 0,
+  count: 0,
+  time: '--:--:--'
+};
+
+function $(id){ return document.getElementById(id); }
+
+function pad2(n){
+  n = parseInt(n, 10) || 0;
+  return (n < 10 ? '0' : '') + n;
+}
+
+function fmtSecond(sec){
+  sec = Math.max(0, parseInt(sec, 10) || 0);
+  return pad2(Math.floor(sec / 60)) + ':' + pad2(sec % 60);
+}
+
+function nowText(){
+  var d = new Date();
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+}
+
+/* ================================================================
+ * Tab 切换
+ * ================================================================ */
+document.querySelectorAll('.tab-item').forEach(function(item){
+  item.addEventListener('click', function(){
+    var tab = item.dataset.tab;
+    document.querySelectorAll('.tab-item').forEach(function(i){ i.classList.remove('active'); });
+    item.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
+    $('tab-' + tab).classList.add('active');
+  });
+});
+
+function updateAlarmBadge(active){
+  var badge = $('alarmBadge');
+  if (active){
+    badge.textContent = '!';
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+}
+
+/* ================================================================
+ * 日志
+ * ================================================================ */
+var logItems = [];
+
+function addLog(text, isTx){
+  var empty = $('logEmpty');
+  if (empty) empty.style.display = 'none';
+
+  var list = $('logList');
+  var item = document.createElement('div');
+  item.className = 'log-item' + (isTx ? ' tx' : '');
+
+  var t = document.createElement('span');
+  t.className = 'log-time';
+  t.textContent = nowText();
+
+  item.appendChild(t);
+  item.appendChild(document.createTextNode(text));
+
+  list.insertBefore(item, list.firstChild);
+  logItems.unshift(item);
+
+  while (logItems.length > 20){
+    var old = logItems.pop();
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+}
+
+/* ================================================================
+ * 蓝牙控制
+ * ================================================================ */
+function scanDevices(){
+  if (window.BluetoothBridge){
+    addLog('扫描已配对设备...');
+    window.BluetoothBridge.getPairedDevices();
+  } else {
+    alert('请在 Android WebView 壳中运行本页面');
+    addLog('错误：当前环境没有 BluetoothBridge');
+  }
+}
+
+function connectSelected(){
+  var addr = $('deviceList').value;
+  if (!addr){
+    alert('请先选择设备；若列表为空，请先在系统蓝牙中配对 JDY-31');
+    return;
+  }
+  if (window.BluetoothBridge){
+    addLog('正在连接 ' + addr);
+    window.BluetoothBridge.connect(addr);
+  } else {
+    alert('请在 Android WebView 壳中运行本页面');
+  }
+}
+
+function disconnectBt(){
+  if (window.BluetoothBridge) window.BluetoothBridge.disconnect();
+}
+
+function sendViaBt(cmd){
+  if (!isBtConnected || !window.BluetoothBridge){
+    alert('蓝牙未连接，请先连接设备');
+    addLog('发送失败：蓝牙未连接');
+    return false;
+  }
+  window.BluetoothBridge.send(cmd + '\n');
+  addLog('发送 ' + cmd, true);
+  return true;
+}
+
+/* ================================================================
+ * 回调（Android 端调用）
+ * ================================================================ */
+window.onBtDeviceList = function(deviceArray){
+  /* 兼容部分壳子传 JSON 字符串而不是数组 */
+  if (typeof deviceArray === 'string'){
+    try {
+      deviceArray = JSON.parse(deviceArray);
+    } catch (e) {
+      deviceArray = [];
+    }
+  }
+
+  var select = $('deviceList');
+  select.innerHTML = '';
+
+  if (!deviceArray || deviceArray.length === 0){
+    var opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '未找到已配对设备，请先在系统蓝牙中配对';
+    select.appendChild(opt);
+    addLog('扫描完成：没有已配对设备');
+    return;
+  }
+
+  deviceArray.forEach(function(d){
+    var o = document.createElement('option');
+    o.value = d.address;
+    o.textContent = (d.name || '未知设备') + ' (' + d.address + ')';
+    select.appendChild(o);
+  });
+  addLog('扫描完成：' + deviceArray.length + ' 个设备');
+};
+
+window.onBtConnected = function(address){
+  isBtConnected = true;
+  address = address || '设备';
+
+  $('btDot').classList.add('on');
+  $('btStatus').textContent = '已连接：' + address;
+  $('btStatus').classList.add('on');
+  $('btnScan').style.display = 'none';
+  $('deviceList').disabled = true;
+  $('btnConnect').style.display = 'none';
+  $('btnDisconnect').style.display = 'block';
+
+  addLog('已连接 ' + address, true);
+};
+
+window.onBtDisconnected = function(){
+  isBtConnected = false;
+
+  $('btDot').classList.remove('on');
+  $('btStatus').textContent = '未连接';
+  $('btStatus').classList.remove('on');
+  $('btnScan').style.display = 'block';
+  $('deviceList').disabled = false;
+  $('btnConnect').style.display = 'block';
+  $('btnDisconnect').style.display = 'none';
+
+  addLog('蓝牙已断开');
+};
+
+window.onBtError = function(errMsg){
+  isBtConnected = false;
+  addLog('蓝牙错误：' + errMsg);
+  alert('蓝牙错误：' + errMsg);
+  window.onBtDisconnected();
+};
+
+window.onBtData = function(line){
+  line = (line || '').trim();
+  if (!line) return;
+  addLog('收到 ' + line);
+  parseAndUpdate(line);
+};
+
+/* ================================================================
+ * iframe 镜像（部署到 webpage_on 时必须保留）
+ * ================================================================ */
+try {
+  if (window.top && window.top !== window){
+    window.top.onBtDeviceList   = window.onBtDeviceList;
+    window.top.onBtConnected    = window.onBtConnected;
+    window.top.onBtDisconnected = window.onBtDisconnected;
+    window.top.onBtError        = window.onBtError;
+    window.top.onBtData         = window.onBtData;
+  }
+} catch (e) {
+  addLog('iframe 镜像失败: ' + e.message);
+}
+
+/* ================================================================
+ * 数据解析与渲染
+ * 帧格式：pir,temp,humi,arm,remain,count,HH:MM:SS
+ * ================================================================ */
+function parseAndUpdate(line){
+  var p = line.split(',');
+  if (p.length < 7){
+    addLog('帧格式异常，已忽略');
+    return;
+  }
+
+  var pir  = parseInt(p[0], 10);
+  var temp = parseFloat(p[1]);
+  var humi = parseInt(p[2], 10);
+  var arm  = parseInt(p[3], 10);
+  var rem  = parseInt(p[4], 10);
+  var cnt  = parseInt(p[5], 10);
+
+  state.pir   = isNaN(pir) ? 0 : (pir ? 1 : 0);
+  state.temp  = isNaN(temp) ? 0 : temp;
+  state.humi  = isNaN(humi) ? 0 : humi;
+  state.arm   = (arm === 1 || arm === 2) ? arm : 0;
+  state.remain = isNaN(rem) ? 0 : rem;
+  state.count = isNaN(cnt) ? 0 : cnt;
+  state.time  = p[6] || '--:--:--';
+
+  updateUI();
+}
+
+function updateUI(){
+  /* 人体状态 */
+  var pirEl = $('vPir');
+  pirEl.textContent = state.pir ? '有人' : '无人';
+  pirEl.className = 'row-value small' + (state.pir ? ' alarm-value' : ' ok-value');
+
+  /* 温湿度 */
+  $('vTemp').textContent = isFinite(state.temp) ? state.temp.toFixed(1) : '--';
+  $('vHumi').textContent = isFinite(state.humi) ? state.humi : '--';
+
+  /* 时间与次数 */
+  $('vTime').textContent = state.time;
+  $('vCount').textContent = state.count;
+
+  /* 布防状态 */
+  var armNames = ['撤防', '布防', '定时布防'];
+  var armEl = $('armState');
+  armEl.textContent = armNames[state.arm] || '未知';
+  armEl.className = 'arm-state ' + (state.arm ? 'on' : 'off');
+  $('armRemain').textContent = (state.arm === 2) ? fmtSecond(state.remain) : '--:--';
+
+  /* 报警：pir==1 且 arm!=0 */
+  var alarm = (state.pir === 1 && state.arm !== 0);
+  var card = $('alarmCard');
+
+  if (alarm){
+    card.classList.add('active');
+    $('alarmText').textContent = '检测到人体入侵！';
+    $('alarmSub').textContent = '报警条件：布防中且检测到人体；人离开或撤防后自动解除。';
+  } else {
+    card.classList.remove('active');
+    $('alarmText').textContent = '运行正常';
+    $('alarmSub').textContent = '布防状态下检测到人体时，此处变红并提示。';
+  }
+
+  updateAlarmBadge(alarm);
+
+  if (alarm && !lastAlarm) beep();
+  lastAlarm = alarm;
+}
+
+/* ================================================================
+ * 控制指令（乐观更新，硬件下一帧确认）
+ * ================================================================ */
+function sendCmd(cmd){
+  if (!sendViaBt(cmd)) return;
+
+  if (cmd === '01'){
+    state.arm = 1;
+    state.remain = 0;
+  } else if (cmd === '02'){
+    state.arm = 0;
+    state.remain = 0;
+  } else if (cmd === '04'){
+    state.count = 0;
+  }
+  updateUI();
+}
+
+function sendTimer(){
+  var input = $('timerMin');
+  var m = parseInt(input.value, 10);
+
+  if (isNaN(m) || m < 1 || m > 99){
+    alert('定时时长请输入 1~99 分钟');
+    input.focus();
+    return;
+  }
+
+  if (!sendViaBt('03,' + m)) return;
+
+  state.arm = 2;
+  state.remain = m * 60;
+  updateUI();
+}
+
+/* ================================================================
+ * 报警提示音（WebAudio，失败静默）
+ * ================================================================ */
+function beep(){
+  try {
+    if (!audioCtx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+
+    osc.type = 'square';
+    osc.frequency.value = 880;
+    gain.gain.value = 0.08;
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.25);
+  } catch (e) {
+    /* 提示音不可用时不影响主流程 */
+  }
+}
+</script>
+</body>
+</html>
