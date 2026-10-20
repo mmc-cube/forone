@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>万年历环境监测系统</title>
+<style>
+:root{
+  --bg:#F5F5F5;
+  --card:#FFFFFF;
+  --primary:#2196F3;
+  --alarm:#F44336;
+  --ok:#4CAF50;
+  --text:#212121;
+  --sub:#757575;
+  --line:#E0E0E0;
+  --shadow:0 2px 8px rgba(0,0,0,0.08);
+  --radius:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{
+  height:100%;
+  overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  font-size:14px;
+}
+body{
+  display:flex;
+  flex-direction:column;
+  max-width:420px;
+  margin:0 auto;
+}
+
+/* ---------- Tab 内容区 ---------- */
+.tab-content{
+  display:none;
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:12px;
+}
+.tab-content.active{display:block;}
+
+/* ---------- 卡片 ---------- */
+.card{
+  background:var(--card);
+  border-radius:var(--radius);
+  padding:16px;
+  margin-bottom:12px;
+  box-shadow:var(--shadow);
+}
+.card h3{
+  font-size:15px;
+  font-weight:600;
+  margin-bottom:12px;
+  color:var(--text);
+}
+.sub{font-size:13px;color:var(--sub);}
+.hint{display:none;font-size:13px;color:var(--alarm);margin-top:8px;}
+
+/* 未连接时卡片置灰 */
+body.bt-off .needs-bt{opacity:.55;}
+body.bt-off .needs-bt button,
+body.bt-off .needs-bt input{pointer-events:none;}
+body.bt-off .needs-bt .hint{display:block;}
+
+/* ---------- 蓝牙连接卡 ---------- */
+.connect-card{border-left:4px solid #FF9800;}
+.bt-status-row{display:flex;align-items:center;font-size:14px;margin-bottom:12px;}
+.dot{width:10px;height:10px;border-radius:50%;background:#BDBDBD;margin-right:8px;}
+.dot.on{background:var(--ok);}
+.dot.off{background:var(--alarm);}
+.device-select{
+  width:100%;
+  padding:10px;
+  border-radius:6px;
+  border:1px solid var(--line);
+  font-size:14px;
+  background:#fff;
+  margin-bottom:8px;
+}
+.btn{
+  width:100%;
+  min-height:48px;
+  border:none;
+  border-radius:8px;
+  background:var(--primary);
+  color:#fff;
+  font-size:15px;
+  font-weight:600;
+  cursor:pointer;
+}
+.btn:active{filter:brightness(.92);}
+.btn.danger{background:#FF5722;}
+.btn.ghost{background:#EEEEEE;color:var(--text);}
+.btn + .btn{margin-top:8px;}
+
+/* ---------- 时间卡 ---------- */
+.time-date{font-size:20px;font-weight:700;letter-spacing:.5px;}
+.time-clock{font-size:30px;font-weight:700;color:var(--primary);margin:6px 0 2px;}
+
+/* ---------- 数据行 ---------- */
+.row{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  padding:8px 0;
+  border-bottom:1px solid #F0F0F0;
+}
+.row:last-child{border-bottom:none;}
+.row .label{font-size:14px;color:var(--sub);}
+.row .value{font-size:28px;font-weight:700;line-height:1.1;}
+.row .value small{font-size:13px;font-weight:400;color:var(--sub);margin-left:4px;}
+.row .value.red{color:var(--alarm);}
+
+/* ---------- 报警卡 ---------- */
+.alarm-ok{color:var(--ok);font-size:16px;font-weight:600;}
+.alarm-off{color:var(--sub);font-size:15px;}
+.alarm-item{
+  background:#FFEBEE;
+  color:var(--alarm);
+  border-left:4px solid var(--alarm);
+  border-radius:6px;
+  padding:10px 12px;
+  font-size:14px;
+  font-weight:600;
+  margin-bottom:8px;
+}
+.alarm-item:last-child{margin-bottom:0;}
+
+/* ---------- 阈值行 ---------- */
+.thr-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:10px;
+}
+.thr-row:last-child{margin-bottom:0;}
+.thr-row label{flex:1;font-size:14px;}
+.thr-row input{
+  width:80px;
+  height:40px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  text-align:center;
+  font-size:15px;
+  color:var(--text);
+  background:#fff;
+}
+.thr-row button{
+  width:64px;
+  height:48px;
+  border:none;
+  border-radius:8px;
+  background:var(--primary);
+  color:#fff;
+  font-size:14px;
+  font-weight:600;
+}
+
+/* ---------- 日志 ---------- */
+.log-list{font-size:12px;font-family:Consolas,Menlo,monospace;color:var(--sub);min-height:55vh;}
+.log-item{
+  padding:6px 0;
+  border-bottom:1px dashed #EEE;
+  word-break:break-all;
+  line-height:1.5;
+}
+.log-item:last-child{border-bottom:none;}
+.log-time{color:#9E9E9E;margin-right:6px;}
+
+/* ---------- 底部 Tab 栏 ---------- */
+.tab-bar{
+  display:flex;
+  height:56px;
+  background:#FFFFFF;
+  border-top:1px solid var(--line);
+  flex-shrink:0;
+}
+.tab-item{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  cursor:pointer;
+  color:#666;
+  font-size:15px;
+  font-weight:500;
+  user-select:none;
+}
+.tab-item.active{color:var(--primary);font-weight:600;}
+.badge{
+  display:none;
+  position:absolute;
+  top:10px;
+  right:30%;
+  min-width:16px;
+  height:16px;
+  padding:0 4px;
+  border-radius:8px;
+  background:var(--alarm);
+  color:#fff;
+  font-size:11px;
+  line-height:16px;
+  text-align:center;
+}
+.badge.show{display:block;}
+</style>
+</head>
+<body>
+
+<!-- ==================== 数据 Tab ==================== -->
+<div class="tab-content active" id="tab-data">
+
+  <div class="card connect-card">
+    <h3>蓝牙连接</h3>
+    <div class="bt-status-row">
+      <span class="dot" id="btDot"></span>
+      <span id="btStatus">未连接</span>
+    </div>
+    <select class="device-select" id="deviceList">
+      <option value="">请先扫描设备</option>
+    </select>
+    <button class="btn" id="btnScan" onclick="scanDevices()">扫描设备</button>
+    <button class="btn" id="btnConnect" onclick="connectSelected()">连接</button>
+    <button class="btn danger" id="btnDisconnect" onclick="disconnectBt()" style="display:none">断开</button>
+  </div>
+
+  <div class="card needs-bt" id="cardTime">
+    <h3>时间</h3>
+    <div class="time-date" id="dateText">--</div>
+    <div class="time-clock" id="timeText">--:--:--</div>
+    <div class="sub" id="weekText">--</div>
+    <div class="hint">未连接设备</div>
+  </div>
+
+  <div class="card needs-bt" id="cardData">
+    <h3>实时数据</h3>
+    <div class="row">
+      <span class="label">温度</span>
+      <span class="value" id="vTemp">--<small>℃</small></span>
+    </div>
+    <div class="row">
+      <span class="label">湿度</span>
+      <span class="value" id="vHumi">--<small>%RH</small></span>
+    </div>
+    <div class="row">
+      <span class="label">光照</span>
+      <span class="value" id="vLux">--<small>lx</small></span>
+    </div>
+    <div class="hint">未连接设备</div>
+  </div>
+
+  <div class="card needs-bt" id="cardAlarm">
+    <h3>报警状态</h3>
+    <div id="alarmBox"><span class="alarm-off">—</span></div>
+    <div class="hint">未连接设备</div>
+  </div>
+
+</div>
+
+<!-- ==================== 控制 Tab ==================== -->
+<div class="tab-content" id="tab-control">
+
+  <div class="card needs-bt">
+    <h3>报警开关</h3>
+    <button class="btn" id="btnAlarm" onclick="toggleAlarm()">报警已开启</button>
+    <div class="hint">未连接设备</div>
+  </div>
+
+  <div class="card needs-bt">
+    <h3>阈值设置</h3>
+    <div class="thr-row">
+      <label>温度上限 (℃)</label>
+      <input type="number" id="inTemp" value="30" min="0" max="99">
+      <button onclick="sendThreshold(1,'inTemp')">发送</button>
+    </div>
+    <div class="thr-row">
+      <label>湿度上限 (%RH)</label>
+      <input type="number" id="inHumi" value="70" min="0" max="99">
+      <button onclick="sendThreshold(2,'inHumi')">发送</button>
+    </div>
+    <div class="thr-row">
+      <label>光照下限 (lx)</label>
+      <input type="number" id="inLux" value="300" min="0" max="10000">
+      <button onclick="sendThreshold(3,'inLux')">发送</button>
+    </div>
+    <div class="hint">未连接设备</div>
+  </div>
+
+  <div class="card needs-bt">
+    <h3>时间同步</h3>
+    <button class="btn" onclick="syncTime()">同步手机时间</button>
+    <div class="hint">未连接设备</div>
+  </div>
+
+</div>
+
+<!-- ==================== 日志 Tab ==================== -->
+<div class="tab-content" id="tab-log">
+  <div class="card">
+    <h3>通信日志</h3>
+    <div class="log-list" id="logList">
+      <div class="log-item"><span class="log-time">--:--:--</span>等待连接…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 底部 Tab 栏 ==================== -->
+<div class="tab-bar">
+  <div class="tab-item active" data-tab="data">数据<span class="badge" id="alarmBadge"></span></div>
+  <div class="tab-item" data-tab="control">控制</div>
+  <div class="tab-item" data-tab="log">日志</div>
+</div>
+
+<script>
+/* ================================================================
+ * 全局状态
+ * ================================================================ */
+var isBtConnected = false;
+
+var state = {
+  year:0, month:0, day:0, hour:0, minute:0, second:0,
+  temp:0, humi:0, lux:0,
+  alarmEnable:1, tempThr:30, humiThr:70, luxThr:300,
+  hasData:false
+};
+
+/* 阈值/开关"预测-同步-接管"状态：等待下位机上报确认期间冻结本地值 */
+var waiting = { temp:false, humi:false, lux:false, alarm:false };
+var waitTimers = { temp:null, humi:null, lux:null, alarm:null };
+
+/* ================================================================
+ * Tab 切换
+ * ================================================================ */
+document.querySelectorAll('.tab-item').forEach(function(item){
+  item.addEventListener('click', function(){
+    var tab = item.dataset.tab;
+    document.querySelectorAll('.tab-item').forEach(function(i){ i.classList.remove('active'); });
+    item.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
+    document.getElementById('tab-' + tab).classList.add('active');
+  });
+});
+
+/* ================================================================
+ * 日志
+ * ================================================================ */
+function addLog(text){
+  var list = document.getElementById('logList');
+  var d = new Date();
+  var hh = String(d.getHours()).padStart(2,'0');
+  var mm = String(d.getMinutes()).padStart(2,'0');
+  var ss = String(d.getSeconds()).padStart(2,'0');
+  var el = document.createElement('div');
+  el.className = 'log-item';
+  el.innerHTML = '<span class="log-time">' + hh + ':' + mm + ':' + ss + '</span>' +
+                 text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  list.insertBefore(el, list.firstChild);
+  while (list.children.length > 20) {
+    list.removeChild(list.lastChild);
+  }
+}
+
+/* ================================================================
+ * 蓝牙控制
+ * ================================================================ */
+function scanDevices(){
+  if (window.BluetoothBridge) {
+    window.BluetoothBridge.getPairedDevices();
+  } else {
+    alert('请在 Android WebView 环境中运行');
+  }
+}
+
+function connectSelected(){
+  var addr = document.getElementById('deviceList').value;
+  if (!addr) {
+    alert('请先选择设备');
+    return;
+  }
+  window.BluetoothBridge.connect(addr);
+}
+
+function disconnectBt(){
+  if (window.BluetoothBridge) window.BluetoothBridge.disconnect();
+}
+
+function sendViaBt(cmd){
+  if (!isBtConnected) {
+    alert('蓝牙未连接，请先连接设备');
+    return false;
+  }
+  window.BluetoothBridge.send(cmd + '\n');
+  addLog('→ ' + cmd);
+  return true;
+}
+
+/* ================================================================
+ * 蓝牙回调（Android 调用）
+ * ================================================================ */
+window.onBtDeviceList = function(deviceArray){
+  var select = document.getElementById('deviceList');
+  select.innerHTML = '';
+
+  if (!deviceArray || !deviceArray.length) {
+    var opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '未找到已配对设备，请先在系统蓝牙设置里配对 JDY-31';
+    select.appendChild(opt);
+    addLog('扫描完成：没有已配对设备');
+    return;
+  }
+
+  deviceArray.forEach(function(d){
+    var o = document.createElement('option');
+    o.value = d.address;
+    o.textContent = d.name + ' (' + d.address + ')';
+    select.appendChild(o);
+  });
+  addLog('扫描到 ' + deviceArray.length + ' 个设备');
+};
+
+window.onBtConnected = function(address){
+  isBtConnected = true;
+  document.body.classList.remove('bt-off');
+  document.getElementById('btDot').className = 'dot on';
+  document.getElementById('btStatus').textContent = '已连接：' + address;
+  document.getElementById('btnScan').style.display = 'none';
+  document.getElementById('deviceList').disabled = true;
+  document.getElementById('btnConnect').style.display = 'none';
+  document.getElementById('btnDisconnect').style.display = 'block';
+  addLog('已连接：' + address);
+};
+
+window.onBtDisconnected = function(){
+  isBtConnected = false;
+  state.hasData = false;
+  waiting = { temp:false, humi:false, lux:false, alarm:false };
+  document.body.classList.add('bt-off');
+  document.getElementById('btDot').className = 'dot off';
+  document.getElementById('btStatus').textContent = '未连接';
+  document.getElementById('btnScan').style.display = 'block';
+  document.getElementById('deviceList').disabled = false;
+  document.getElementById('btnConnect').style.display = 'block';
+  document.getElementById('btnDisconnect').style.display = 'none';
+  document.getElementById('dateText').textContent = '--';
+  document.getElementById('timeText').textContent = '--:--:--';
+  document.getElementById('weekText').textContent = '--';
+  document.getElementById('vTemp').innerHTML = '--<small>℃</small>';
+  document.getElementById('vHumi').innerHTML = '--<small>%RH</small>';
+  document.getElementById('vLux').innerHTML = '--<small>lx</small>';
+  document.getElementById('alarmBox').innerHTML = '<span class="alarm-off">—</span>';
+  updateAlarmBadge(0);
+  addLog('连接已断开');
+};
+
+window.onBtError = function(errMsg){
+  addLog('蓝牙错误：' + errMsg);
+  alert('蓝牙错误：' + errMsg);
+  window.onBtDisconnected();
+};
+
+window.onBtData = function(line){
+  line = (line || '').trim();
+  if (!line) return;
+  addLog('← ' + line);
+  parseAndUpdate(line);
+};
+
+/* ================================================================
+ * 数据解析：年,月,日,时,分,秒,温度,湿度,光照,报警开关,温度阈值,湿度阈值,光照阈值
+ * ================================================================ */
+function parseAndUpdate(message){
+  var p = message.split(',');
+  if (p.length < 13) return;
+
+  var d = {
+    year:+p[0], month:+p[1], day:+p[2],
+    hour:+p[3], minute:+p[4], second:+p[5],
+    temp:parseFloat(p[6]) || 0,
+    humi:parseInt(p[7], 10) || 0,
+    lux:parseInt(p[8], 10) || 0,
+    alarmEnable:parseInt(p[9], 10) ? 1 : 0,
+    tempThr:parseInt(p[10], 10) || 0,
+    humiThr:parseInt(p[11], 10) || 0,
+    luxThr:parseInt(p[12], 10) || 0
+  };
+
+  /* 传感器与时间始终实时更新 */
+  state.year = d.year; state.month = d.month; state.day = d.day;
+  state.hour = d.hour; state.minute = d.minute; state.second = d.second;
+  state.temp = d.temp; state.humi = d.humi; state.lux = d.lux;
+  state.hasData = true;
+
+  /* 阈值/开关：等待确认期间保持本地预测值，确认后由设备接管 */
+  if (waiting.temp && d.tempThr === state.tempThr) { waiting.temp = false; clearWait('temp'); }
+  if (waiting.humi && d.humiThr === state.humiThr) { waiting.humi = false; clearWait('humi'); }
+  if (waiting.lux  && d.luxThr  === state.luxThr ) { waiting.lux  = false; clearWait('lux');  }
+  if (waiting.alarm && d.alarmEnable === state.alarmEnable) { waiting.alarm = false; clearWait('alarm'); }
+
+  if (!waiting.temp) state.tempThr = d.tempThr;
+  if (!waiting.humi) state.humiThr = d.humiThr;
+  if (!waiting.lux)  state.luxThr  = d.luxThr;
+  if (!waiting.alarm) state.alarmEnable = d.alarmEnable;
+
+  updateUI();
+
+  if (!waiting.temp && !waiting.humi && !waiting.lux && !waiting.alarm) {
+    checkAlarms();
+  }
+}
+
+function clearWait(key){
+  if (waitTimers[key]) {
+    clearTimeout(waitTimers[key]);
+    waitTimers[key] = null;
+  }
+}
+
+/* ================================================================
+ * UI 刷新
+ * ================================================================ */
+function pad2(n){ return String(n).padStart(2, '0'); }
+
+function updateUI(){
+  /* 时间 */
+  if (state.month >= 1 && state.month <= 12) {
+    document.getElementById('dateText').textContent =
+      state.year + '-' + pad2(state.month) + '-' + pad2(state.day);
+    document.getElementById('timeText').textContent =
+      pad2(state.hour) + ':' + pad2(state.minute) + ':' + pad2(state.second);
+    document.getElementById('weekText').textContent = '星期' + weekName(state.year, state.month, state.day);
+  } else {
+    document.getElementById('dateText').textContent = '时间未同步';
+    document.getElementById('timeText').textContent = '--:--:--';
+    document.getElementById('weekText').textContent = '请在控制页同步手机时间';
+  }
+
+  /* 传感器 */
+  var vTemp = document.getElementById('vTemp');
+  var vHumi = document.getElementById('vHumi');
+  var vLux  = document.getElementById('vLux');
+
+  vTemp.innerHTML = state.temp.toFixed(1) + '<small>℃</small>';
+  vHumi.innerHTML = Math.round(state.humi) + '<small>%RH</small>';
+  vLux.innerHTML  = Math.round(state.lux) + '<small>lx</small>';
+
+  vTemp.classList.toggle('red', state.alarmEnable === 1 && state.temp > state.tempThr);
+  vHumi.classList.toggle('red', state.alarmEnable === 1 && state.humi > state.humiThr);
+  vLux.classList.toggle('red',  state.alarmEnable === 1 && state.lux  < state.luxThr);
+
+  /* 报警开关按钮 */
+  var btn = document.getElementById('btnAlarm');
+  btn.textContent = state.alarmEnable ? '报警已开启（点击关闭）' : '报警已关闭（点击开启）';
+  btn.className = state.alarmEnable ? 'btn' : 'btn ghost';
+
+  /* 阈值输入框 */
+  document.getElementById('inTemp').value = state.tempThr;
+  document.getElementById('inHumi').value = state.humiThr;
+  document.getElementById('inLux').value  = state.luxThr;
+}
+
+function weekName(y, m, d){
+  if (m < 1 || m > 12) return '—';
+  var t = [0,3,2,5,0,3,5,1,4,6,2,4];
+  var yy = y;
+  if (m < 3) yy -= 1;
+  var w = (yy + Math.floor(yy/4) - Math.floor(yy/100) + Math.floor(yy/400) + t[m-1] + d) % 7;
+  /* 0=周日 */
+  return ['日','一','二','三','四','五','六'][w];
+}
+
+/* ================================================================
+ * 报警判断（全在 APP 端，对照字段 7-9 与 11-13，受字段 10 控制）
+ * ================================================================ */
+function checkAlarms(){
+  var box = document.getElementById('alarmBox');
+  var items = [];
+
+  if (!state.hasData) {
+    box.innerHTML = '<span class="alarm-off">等待数据…</span>';
+    updateAlarmBadge(0);
+    return;
+  }
+
+  if (state.alarmEnable) {
+    if (state.temp > state.tempThr) {
+      items.push('温度超限：' + state.temp.toFixed(1) + '℃ > ' + state.tempThr + '℃');
+    }
+    if (state.humi > state.humiThr) {
+      items.push('湿度超限：' + Math.round(state.humi) + '%RH > ' + state.humiThr + '%RH');
+    }
+    if (state.lux < state.luxThr) {
+      items.push('光照不足：' + Math.round(state.lux) + 'lx < ' + state.luxThr + 'lx');
+    }
+  }
+
+  if (!state.alarmEnable) {
+    box.innerHTML = '<span class="alarm-off">报警已关闭</span>';
+    updateAlarmBadge(0);
+  } else if (!items.length) {
+    box.innerHTML = '<span class="alarm-ok">运行正常</span>';
+    updateAlarmBadge(0);
+  } else {
+    box.innerHTML = items.map(function(t){
+      return '<div class="alarm-item">' + t + '</div>';
+    }).join('');
+    updateAlarmBadge(items.length);
+  }
+}
+
+function updateAlarmBadge(count){
+  var badge = document.getElementById('alarmBadge');
+  if (count > 0) {
+    badge.textContent = count;
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+}
+
+/* ================================================================
+ * 下行指令
+ * ================================================================ */
+function sendThreshold(code, inputId){
+  var el = document.getElementById(inputId);
+  var v = parseInt(el.value, 10);
+
+  if (isNaN(v)) { alert('请输入有效数值'); return; }
+
+  var max = (code === 3) ? 10000 : 99;
+  if (v < 0 || v > max) {
+    alert('取值范围 0 ~ ' + max);
+    return;
+  }
+
+  if (!sendViaBt(code + ',' + v)) return;
+
+  /* 预测：立即生效并冻结，等设备上报确认后接管 */
+  if (code === 1) { state.tempThr = v; startWait('temp'); }
+  if (code === 2) { state.humiThr = v; startWait('humi'); }
+  if (code === 3) { state.luxThr  = v; startWait('lux');  }
+
+  updateUI();
+  checkAlarms();
+}
+
+function toggleAlarm(){
+  var next = state.alarmEnable ? 0 : 1;
+  if (!sendViaBt('04,' + next)) return;
+
+  state.alarmEnable = next;
+  startWait('alarm');
+
+  updateUI();
+  checkAlarms();
+}
+
+function syncTime(){
+  var d = new Date();
+  var cmd = '05,' + d.getFullYear() + ',' + (d.getMonth() + 1) + ',' + d.getDate() +
+            ',' + d.getHours() + ',' + d.getMinutes() + ',' + d.getSeconds();
+  if (!sendViaBt(cmd)) return;
+
+  /* 预测：本地时间立即跳到手机时间，等设备回读确认 */
+  state.year = d.getFullYear();
+  state.month = d.getMonth() + 1;
+  state.day = d.getDate();
+  state.hour = d.getHours();
+  state.minute = d.getMinutes();
+  state.second = d.getSeconds();
+  updateUI();
+}
+
+/* 等待设备确认，最多 4 秒；超时则接受设备上报值 */
+function startWait(key){
+  clearWait(key);
+  waiting[key] = true;
+  waitTimers[key] = setTimeout(function(){
+    waiting[key] = false;
+    waitTimers[key] = null;
+    checkAlarms();
+  }, 4000);
+}
+
+/* ================================================================
+ * 初始化
+ * ================================================================ */
+document.body.classList.add('bt-off');
+
+/* ================================================================
+ * iframe 镜像修复（强制，勿删）
+ * webpage_on 入口用 iframe 嵌项目页时，壳子只把回调注入顶层窗口，
+ * 不镜像会导致扫描/连接回调静默丢失。
+ * ================================================================ */
+try {
+  if (window.top && window.top !== window) {
+    window.top.onBtDeviceList   = window.onBtDeviceList;
+    window.top.onBtConnected    = window.onBtConnected;
+    window.top.onBtDisconnected = window.onBtDisconnected;
+    window.top.onBtError        = window.onBtError;
+    window.top.onBtData         = window.onBtData;
+  }
+} catch (e) {
+  addLog('iframe 镜像失败: ' + e.message);
+}
+</script>
+</body>
+</html>
