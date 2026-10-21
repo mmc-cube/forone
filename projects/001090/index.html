@@ -67,11 +67,16 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 .sync-status.ok{color:var(--ok);font-weight:600;}
 .sync-status.err{color:var(--alarm);font-weight:600;}
 
-.thr-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
-.thr-row label{font-size:13px;color:var(--sub);width:64px;flex-shrink:0;}
-.thr-row input,.thr-row select{flex:1;height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font-size:14px;color:var(--text);background:#fff;}
-.thr-row .unit{font-size:13px;color:var(--sub);}
-.thr-row .btn{height:40px;flex-shrink:0;}
+.thr-item{padding:12px 0;border-bottom:1px solid #F0F0F0;}
+.thr-item:last-of-type{border-bottom:none;padding-bottom:4px;}
+.thr-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;}
+.thr-name{font-size:14px;font-weight:600;color:var(--text);}
+.thr-cur{font-size:12px;color:var(--sub);}
+.thr-cur b{font-size:18px;font-weight:700;color:var(--primary);margin:0 2px;}
+.thr-set{display:flex;align-items:center;gap:8px;}
+.thr-set input,.thr-set select{flex:1;min-width:0;height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font-size:14px;color:var(--text);background:#fff;}
+.thr-set .unit{font-size:13px;color:var(--sub);flex-shrink:0;}
+.thr-set .btn{height:40px;flex-shrink:0;}
 .record-item{background:#FFF;border-radius:8px;padding:10px;margin-bottom:6px;box-shadow:0 1px 3px rgba(0,0,0,.06);font-size:12px;color:#37474F;line-height:1.6;}
 .record-item .rec-head{font-weight:700;color:var(--primary);margin-bottom:2px;}
 
@@ -151,43 +156,54 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 
   <div class="card">
     <div class="card-title">报警阈值</div>
-    <div class="thr-row">
-      <label>温度上限</label>
-      <input id="tMaxInput" type="number" min="20" max="50" value="35">
-      <span class="unit">℃</span>
-      <button class="btn" onclick="sendThreshold('T')">发送</button>
+
+    <div class="thr-item">
+      <div class="thr-head">
+        <span class="thr-name">温度阈值</span>
+        <span class="thr-cur"><b id="curT">--</b> ℃</span>
+      </div>
+      <div class="thr-set">
+        <input id="tMaxInput" type="number" min="20" max="50" value="35" oninput="markInputTouched('T')">
+        <span class="unit">℃</span>
+        <button class="btn" onclick="sendThreshold('T')">下发</button>
+      </div>
     </div>
-    <div class="thr-row">
-      <label>湿度上限</label>
-      <input id="hMaxInput" type="number" min="30" max="99" value="80">
-      <span class="unit">%</span>
-      <button class="btn" onclick="sendThreshold('H')">发送</button>
+
+    <div class="thr-item">
+      <div class="thr-head">
+        <span class="thr-name">湿度阈值</span>
+        <span class="thr-cur"><b id="curH">--</b> %RH</span>
+      </div>
+      <div class="thr-set">
+        <input id="hMaxInput" type="number" min="30" max="99" value="80" oninput="markInputTouched('H')">
+        <span class="unit">%</span>
+        <button class="btn" onclick="sendThreshold('H')">下发</button>
+      </div>
     </div>
+
     <div class="sync-status" id="thrStatus"></div>
-    <div class="ctrl-note">阈值写入下位机 RAM，断电恢复默认值 35℃ / 80%。</div>
+    <div class="ctrl-note">右上角是下位机实际生效的阈值（OLED 按键修改也会同步）；下方输入框是待下发的值，每个阈值单独下发。断电恢复默认 35℃ / 80%。</div>
   </div>
 
   <div class="card">
     <div class="card-title">记录周期</div>
-    <div class="thr-row">
-      <label>周期</label>
-      <select id="cycleSelect">
-        <option value="0">20 秒</option>
-        <option value="1">1 分钟</option>
-        <option value="2">5 分钟</option>
-        <option value="3">30 分钟</option>
-      </select>
-      <button class="btn" onclick="sendCycle()">发送</button>
+    <div class="thr-item">
+      <div class="thr-head">
+        <span class="thr-name">记录周期</span>
+        <span class="thr-cur"><b id="curC">--</b></span>
+      </div>
+      <div class="thr-set">
+        <select id="cycleSelect">
+          <option value="0">20 秒</option>
+          <option value="1">1 分钟</option>
+          <option value="2">5 分钟</option>
+          <option value="3">30 分钟</option>
+        </select>
+        <button class="btn" onclick="sendCycle()">下发</button>
+      </div>
     </div>
     <div class="sync-status" id="cycStatus"></div>
     <div class="ctrl-note">修改后立即生效，下位机按新周期写入最近 10 条记录。</div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">通信检测</div>
-    <div class="ctrl-note">发送 8，设备回复 OK:8 表示蓝牙链路正常。</div>
-    <button class="ctrl-btn secondary" id="btnPing" onclick="sendPing()">心跳测试</button>
-    <div class="sync-status" id="pingStatus"></div>
   </div>
 </section>
 
@@ -223,7 +239,25 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
  * ================================================================ */
 var isBtConnected = false;
 var syncTimer = null;
-var pingTimer = null;
+
+/* 阈值三份状态：
+   reported = 设备上报的实际值
+   shown    = 界面阈值显示值（下发后先显示新值，设备确认后接管）
+   pending  = 已下发、尚未被设备上报确认的值 */
+var reported = { Tmax: null, Hmax: null, Cyc: null };
+var shown    = { Tmax: null, Hmax: null, Cyc: null };
+var pending  = { Tmax: null, Hmax: null, Cyc: null };
+var pendingUntil = { Tmax: 0, Hmax: 0, Cyc: 0 };
+var PENDING_HOLD_MS = 2500;
+
+/* 输入框是“要下发的值”，由用户编辑，不用设备值反复覆盖 */
+var inputTouched = { T: false, H: false };
+var inputsSeeded = false;
+
+var CYCLE_NAME = ['20 秒', '1 分钟', '5 分钟', '30 分钟'];
+
+/* 最近一帧遥测，用于本地报警原因说明 */
+var currentData = { T: null, H: null, P: null, Rain: null, ALM: null };
 
 /* ================================================================
  * Tab 切换
@@ -293,8 +327,11 @@ function sendViaBt(cmd){
     alert('蓝牙未连接，请先在“数据”页连接设备');
     return false;
   }
-  window.BluetoothBridge.send(cmd);
-  addLog('→ ' + cmd.trim());
+  /* 下位机按 \r / \n 成行解析：不带行结束符时指令会一直留在接收缓冲里不执行，
+     表现就是“发了阈值但收不到 OK/CFG”。这里统一补 \r\n（Android 壳若也补，
+     多出的空行会被设备忽略，不影响）。 */
+  window.BluetoothBridge.send(cmd + '\r\n');
+  addLog('→ ' + cmd);
   return true;
 }
 
@@ -353,6 +390,20 @@ window.onBtDisconnected = function(){
   document.getElementById('vRain').textContent = '--';
   document.getElementById('alarmBox').innerHTML = '<span class="alarm-off">等待设备数据…</span>';
 
+  reported = { Tmax: null, Hmax: null, Cyc: null };
+  shown    = { Tmax: null, Hmax: null, Cyc: null };
+  pending  = { Tmax: null, Hmax: null, Cyc: null };
+  pendingUntil = { Tmax: 0, Hmax: 0, Cyc: 0 };
+  inputTouched = { T: false, H: false };
+  inputsSeeded = false;
+  currentData  = { T: null, H: null, P: null, Rain: null, ALM: null };
+  updateThresholdView();
+  setThrStatus('', '');
+  setCycStatus('', '');
+  ['vTemp', 'vHumi', 'vRain'].forEach(function(id){
+    document.getElementById(id).classList.remove('alarm');
+  });
+
   recordBuffer = [];
   recordCount = 0;
   recordReceived = 0;
@@ -367,18 +418,24 @@ window.onBtError = function(errMsg){
   addLog('蓝牙错误：' + errMsg);
 };
 
-window.onBtData = function(line){
-  line = String(line).replace(/[\r\n]+/g, '').trim();
-  if (!line) return;
+/* 蓝牙壳可能把多行拼在一次回调里（每秒上报 + 指令应答），
+   必须按行拆开逐条处理，否则应答会被粘到遥测行里丢掉。 */
+window.onBtData = function(payload){
+  String(payload).split(/[\r\n]+/).forEach(function(raw){
+    var line = raw.trim();
+    if (line) handleLine(line);
+  });
+};
 
+function handleLine(line){
   addLog(line);
 
-  if (line.indexOf('OK:1') === 0)  { setThrStatus('温度上限设置成功', 'ok'); return; }
-  if (line.indexOf('ERR:1') === 0) { setThrStatus('温度上限设置失败（20~50）', 'err'); return; }
-  if (line.indexOf('OK:2') === 0)  { setThrStatus('湿度上限设置成功', 'ok'); return; }
-  if (line.indexOf('ERR:2') === 0) { setThrStatus('湿度上限设置失败（30~99）', 'err'); return; }
-  if (line.indexOf('OK:3') === 0)  { setCycStatus('记录周期设置成功', 'ok'); return; }
-  if (line.indexOf('ERR:3') === 0) { setCycStatus('记录周期设置失败', 'err'); return; }
+  if (line.indexOf('OK:1') === 0)  { onThresholdAck('Tmax', line); return; }
+  if (line.indexOf('ERR:1') === 0) { onThresholdErr('Tmax', '温度阈值下发失败（20~50）'); return; }
+  if (line.indexOf('OK:2') === 0)  { onThresholdAck('Hmax', line); return; }
+  if (line.indexOf('ERR:2') === 0) { onThresholdErr('Hmax', '湿度阈值下发失败（30~99）'); return; }
+  if (line.indexOf('OK:3') === 0)  { onThresholdAck('Cyc', line); return; }
+  if (line.indexOf('ERR:3') === 0) { onThresholdErr('Cyc', '记录周期下发失败'); return; }
   if (line.indexOf('ERR:6') === 0) { setRecStatus('记录读取失败', 'err'); return; }
   if (line.indexOf('OK:7') === 0) {
     setSyncStatus('时间同步成功', 'ok');
@@ -388,11 +445,6 @@ window.onBtData = function(line){
   if (line.indexOf('ERR:7') === 0) {
     setSyncStatus('时间同步失败（格式/范围错误）', 'err');
     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
-    return;
-  }
-  if (line.indexOf('OK:8') === 0) {
-    setPingStatus('链路正常', 'ok');
-    if (pingTimer) { clearTimeout(pingTimer); pingTimer = null; }
     return;
   }
   if (line.indexOf('CFG:') === 0) { parseConfig(line); return; }
@@ -413,33 +465,72 @@ function parseTelemetry(line){
     if (i > 0) obj[seg.slice(0, i).trim()] = seg.slice(i + 1).trim();
   });
 
-  if (obj.D) {
-    var dt = obj.D.split(' ');
-    if (dt.length >= 2) {
-      document.getElementById('dateText').textContent = dt[0];
-      document.getElementById('timeText').textContent = dt[1];
-    } else {
-      document.getElementById('dateText').textContent = obj.D;
-    }
-  }
+  /* D/T/H 齐了才当遥测行处理，避免把模块日志误当数据 */
+  if (obj.D === undefined || obj.T === undefined || obj.H === undefined) return;
 
-  if (obj.T !== undefined) document.getElementById('vTemp').textContent = obj.T;
-  if (obj.H !== undefined) document.getElementById('vHumi').textContent = obj.H;
-  if (obj.P !== undefined) document.getElementById('vPress').textContent = obj.P;
-
-  var rain = parseInt(obj.Rain, 10);
-  var rainText = (rain === 2) ? '大雨' : (rain === 1) ? '小雨' : '无雨';
-  document.getElementById('vRain').textContent = rainText;
-
-  var alm = parseInt(obj.ALM, 10);
-  var box = document.getElementById('alarmBox');
-  if (alm === 1) {
-    box.innerHTML = '<div class="alarm-on">设备报警中：温度或湿度超限，或检测到降雨。</div>';
-    document.getElementById('vRain').classList.add('alarm');
+  var dt = obj.D.split(' ');
+  if (dt.length >= 2) {
+    document.getElementById('dateText').textContent = dt[0];
+    document.getElementById('timeText').textContent = dt[1];
   } else {
-    box.innerHTML = '<div class="alarm-ok">运行正常</div>';
-    document.getElementById('vRain').classList.remove('alarm');
+    document.getElementById('dateText').textContent = obj.D;
   }
+
+  currentData.T    = numOrNull(obj.T);
+  currentData.H    = numOrNull(obj.H);
+  currentData.P    = numOrNull(obj.P);
+  currentData.Rain = numOrNull(obj.Rain);
+  currentData.ALM  = numOrNull(obj.ALM);
+
+  /* 阈值随每秒上报一起来：OLED 按键改过的值也能看到 */
+  if (obj.Tmax !== undefined) applyReported('Tmax', numOrNull(obj.Tmax));
+  if (obj.Hmax !== undefined) applyReported('Hmax', numOrNull(obj.Hmax));
+  if (obj.Cyc !== undefined)  applyReported('Cyc',  numOrNull(obj.Cyc));
+
+  var vTemp  = document.getElementById('vTemp');
+  var vHumi  = document.getElementById('vHumi');
+  var vPress = document.getElementById('vPress');
+  var vRain  = document.getElementById('vRain');
+
+  vTemp.textContent = obj.T;
+  vHumi.textContent = obj.H;
+  vPress.textContent = (obj.P !== undefined) ? obj.P : '--';
+
+  var rainText = (currentData.Rain === 2) ? '大雨' : (currentData.Rain === 1) ? '小雨' : '无雨';
+  vRain.textContent = rainText;
+
+  /* 超限字段标红，与下方阈值回显对应 */
+  vTemp.classList.toggle('alarm',
+    shown.Tmax !== null && currentData.T !== null && currentData.T > shown.Tmax);
+  vHumi.classList.toggle('alarm',
+    shown.Hmax !== null && currentData.H !== null && currentData.H > shown.Hmax);
+  vRain.classList.toggle('alarm', currentData.Rain >= 1);
+
+  renderAlarm();
+}
+
+/* 报警卡：设备 ALM 为准，本地再用回传阈值说明是哪个条件触发 */
+function renderAlarm(){
+  var box = document.getElementById('alarmBox');
+
+  if (currentData.ALM !== 1) {
+    box.innerHTML = '<div class="alarm-ok">运行正常</div>';
+    return;
+  }
+
+  var reasons = [];
+  if (shown.Tmax !== null && currentData.T !== null && currentData.T > shown.Tmax) {
+    reasons.push('温度 ' + currentData.T.toFixed(1) + '℃ > 上限 ' + shown.Tmax + '℃');
+  }
+  if (shown.Hmax !== null && currentData.H !== null && currentData.H > shown.Hmax) {
+    reasons.push('湿度 ' + currentData.H.toFixed(1) + '% > 上限 ' + shown.Hmax + '%');
+  }
+  if (currentData.Rain >= 1) {
+    reasons.push(currentData.Rain >= 2 ? '检测到大雨' : '检测到小雨');
+  }
+
+  box.innerHTML = '<div class="alarm-on">设备报警中' +
+    (reasons.length ? '：' + reasons.join('；') : '') + '</div>';
 }
 
 /* ================================================================
@@ -472,48 +563,133 @@ function setSyncStatus(text, cls){
 }
 
 /* ================================================================
- * 心跳
+ * 设备阈值：显示与下发分离
+ * ----------------------------------------------------------------
+ *   - 每行右侧直接显示“阈值名 + 下位机实际生效值”
+ *   - 输入框是用户要下发的值，不被设备回传值覆盖
+ *   - 下发后界面立即显示新值，设备确认/上报后自然接管；
+ *     设备拒绝时回退到实际值，界面上不出现过程性文案
  * ================================================================ */
-function sendPing(){
-  if (!isBtConnected) { alert('请先连接蓝牙设备'); return; }
-  if (!sendViaBt('8')) return;
-
-  setPingStatus('已发送，等待设备回复…', '');
-  if (pingTimer) clearTimeout(pingTimer);
-  pingTimer = setTimeout(function(){
-    setPingStatus('超时，未收到 OK:8', 'err');
-    pingTimer = null;
-  }, 3000);
+function numOrNull(v){
+  var n = parseFloat(v);
+  return isNaN(n) ? null : n;
 }
 
-function setPingStatus(text, cls){
-  var el = document.getElementById('pingStatus');
-  el.textContent = text;
-  el.className = 'sync-status ' + (cls || '');
+function cycleText(v){
+  return (v === null || !CYCLE_NAME[v]) ? '--' : CYCLE_NAME[v];
+}
+
+function updateThresholdView(){
+  document.getElementById('curT').textContent = (shown.Tmax === null) ? '--' : shown.Tmax;
+  document.getElementById('curH').textContent = (shown.Hmax === null) ? '--' : shown.Hmax;
+  document.getElementById('curC').textContent = cycleText(shown.Cyc);
+}
+
+function markInputTouched(which){
+  inputTouched[which] = true;
+}
+
+/* 首次拿到设备阈值时初始化输入框；之后不再覆盖用户输入 */
+function seedInputsOnce(){
+  if (inputsSeeded) return;
+  if (reported.Tmax === null && reported.Hmax === null && reported.Cyc === null) return;
+
+  if (!inputTouched.T && reported.Tmax !== null) {
+    document.getElementById('tMaxInput').value = reported.Tmax;
+  }
+  if (!inputTouched.H && reported.Hmax !== null) {
+    document.getElementById('hMaxInput').value = reported.Hmax;
+  }
+  if (reported.Cyc !== null) {
+    document.getElementById('cycleSelect').value = String(reported.Cyc);
+  }
+  inputsSeeded = true;
+}
+
+/* 设备上报/应答的值生效 */
+function applyReported(key, v){
+  if (v === null) return;
+  reported[key] = v;
+
+  if (pending[key] !== null) {
+    if (v === pending[key] || Date.now() >= pendingUntil[key]) {
+      /* 已确认，或等待超时：以设备为准 */
+      pending[key] = null;
+      shown[key] = v;
+    }
+    /* 确认前忽略旧上报，避免下发后界面闪回旧值 */
+  } else {
+    shown[key] = v;
+  }
+
+  updateThresholdView();
+  seedInputsOnce();
+}
+
+/* 下发后立即按目标值显示，不等设备回传 */
+function applyPending(key, v){
+  pending[key] = v;
+  pendingUntil[key] = Date.now() + PENDING_HOLD_MS;
+  shown[key] = v;
+  updateThresholdView();
+}
+
+function clearPending(key){
+  pending[key] = null;
+  shown[key] = reported[key];
+  updateThresholdView();
+}
+
+function onThresholdAck(key, line){
+  var v = numOrNull(line.split(',')[1]);
+  if (v !== null) {
+    pending[key] = null;
+    reported[key] = v;
+    shown[key] = v;
+    updateThresholdView();
+  }
+  if (key === 'Cyc') {
+    setCycStatus('已生效：' + cycleText(v), 'ok');
+  } else {
+    setThrStatus((key === 'Tmax' ? '温度阈值' : '湿度阈值') +
+                 '已生效：' + (v === null ? '--' : v), 'ok');
+  }
+}
+
+function onThresholdErr(key, msg){
+  clearPending(key);
+  if (key === 'Cyc') setCycStatus(msg, 'err');
+  else setThrStatus(msg, 'err');
 }
 
 /* ================================================================
- * 阈值 / 记录周期
+ * 阈值 / 记录周期下发
  * ================================================================ */
 function sendThreshold(which){
-  var inputId = (which === 'T') ? 'tMaxInput' : 'hMaxInput';
-  var val = parseInt(document.getElementById(inputId).value, 10);
-  var min = (which === 'T') ? 20 : 30;
-  var max = (which === 'T') ? 50 : 99;
+  var isTemp = (which === 'T');
+  var key = isTemp ? 'Tmax' : 'Hmax';
+  var val = parseInt(document.getElementById(isTemp ? 'tMaxInput' : 'hMaxInput').value, 10);
+  var min = isTemp ? 20 : 30;
+  var max = isTemp ? 50 : 99;
 
   if (isNaN(val) || val < min || val > max) {
     setThrStatus('请输入 ' + min + '~' + max + ' 之间的值', 'err');
     return;
   }
-  var code = (which === 'T') ? '1,' : '2,';
-  if (!sendViaBt(code + val)) return;
-  setThrStatus('已发送，等待设备确认…', '');
+
+  if (!sendViaBt((isTemp ? '1,' : '2,') + val)) return;
+
+  applyPending(key, val);
+  setThrStatus('已下发', 'ok');
 }
 
 function sendCycle(){
-  var v = document.getElementById('cycleSelect').value;
+  var v = parseInt(document.getElementById('cycleSelect').value, 10);
+  if (isNaN(v) || v < 0 || v > 3) return;
   if (!sendViaBt('3,' + v)) return;
-  setCycStatus('已发送，等待设备确认…', '');
+
+  applyPending('Cyc', v);
+  setCycStatus('已下发', 'ok');
 }
 
 function setThrStatus(text, cls){
@@ -535,10 +711,10 @@ function parseConfig(line){
     var i = seg.indexOf(':');
     if (i < 0) return;
     var k = seg.slice(0, i).trim();
-    var v = seg.slice(i + 1).trim();
-    if (k === 'Tmax') document.getElementById('tMaxInput').value = v;
-    if (k === 'Hmax') document.getElementById('hMaxInput').value = v;
-    if (k === 'Cyc') document.getElementById('cycleSelect').value = v;
+    var v = numOrNull(seg.slice(i + 1).trim());
+    if (k === 'Tmax') applyReported('Tmax', v);
+    else if (k === 'Hmax') applyReported('Hmax', v);
+    else if (k === 'Cyc') applyReported('Cyc', v);
   });
 
   /* 配置回复收到后再读记录，保证一问一答 */
@@ -647,6 +823,8 @@ if (window.top !== window.self) {
 if (!window.BluetoothBridge) {
   document.getElementById('bridgeTip').classList.add('show');
 }
+
+updateThresholdView();
 </script>
 </body>
 </html>
