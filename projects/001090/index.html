@@ -186,26 +186,6 @@ canvas{display:block;width:100%;height:200px;background:#FAFAFA;border-radius:6p
 
     <div class="sync-status" id="thrStatus"></div>
   </div>
-
-  <div class="card">
-    <div class="card-title">记录周期</div>
-    <div class="thr-item">
-      <div class="thr-head">
-        <span class="thr-name">记录周期</span>
-        <span class="thr-cur"><b id="curC">--</b></span>
-      </div>
-      <div class="thr-set">
-        <select id="cycleSelect">
-          <option value="0">20 秒</option>
-          <option value="1">1 分钟</option>
-          <option value="2">5 分钟</option>
-          <option value="3">30 分钟</option>
-        </select>
-        <button class="btn" onclick="sendCycle()">下发</button>
-      </div>
-    </div>
-    <div class="sync-status" id="cycStatus"></div>
-  </div>
 </section>
 
 <!-- ================= 日志 Tab ================= -->
@@ -252,17 +232,15 @@ var syncTimer = null;
    reported = 设备上报的实际值
    shown    = 界面阈值显示值（下发后先显示新值，设备确认后接管）
    pending  = 已下发、尚未被设备上报确认的值 */
-var reported = { Tmax: null, Hmax: null, Cyc: null };
-var shown    = { Tmax: null, Hmax: null, Cyc: null };
-var pending  = { Tmax: null, Hmax: null, Cyc: null };
-var pendingUntil = { Tmax: 0, Hmax: 0, Cyc: 0 };
+var reported = { Tmax: null, Hmax: null };
+var shown    = { Tmax: null, Hmax: null };
+var pending  = { Tmax: null, Hmax: null };
+var pendingUntil = { Tmax: 0, Hmax: 0 };
 var PENDING_HOLD_MS = 2500;
 
 /* 输入框是“要下发的值”，由用户编辑，不用设备值反复覆盖 */
 var inputTouched = { T: false, H: false };
 var inputsSeeded = false;
-
-var CYCLE_NAME = ['20 秒', '1 分钟', '5 分钟', '30 分钟'];
 
 /* 最近一帧遥测，用于本地报警原因说明 */
 var currentData = { T: null, H: null, P: null, Rain: null, ALM: null };
@@ -400,16 +378,15 @@ window.onBtDisconnected = function(){
   document.getElementById('vRain').textContent = '--';
   document.getElementById('alarmBox').innerHTML = '<span class="alarm-off">等待设备数据…</span>';
 
-  reported = { Tmax: null, Hmax: null, Cyc: null };
-  shown    = { Tmax: null, Hmax: null, Cyc: null };
-  pending  = { Tmax: null, Hmax: null, Cyc: null };
-  pendingUntil = { Tmax: 0, Hmax: 0, Cyc: 0 };
+  reported = { Tmax: null, Hmax: null };
+  shown    = { Tmax: null, Hmax: null };
+  pending  = { Tmax: null, Hmax: null };
+  pendingUntil = { Tmax: 0, Hmax: 0 };
   inputTouched = { T: false, H: false };
   inputsSeeded = false;
   currentData  = { T: null, H: null, P: null, Rain: null, ALM: null };
   updateThresholdView();
-  setThrStatus('', '');
-  setCycStatus('', '');
+  setThrStatus('');
   ['vTemp', 'vHumi', 'vRain'].forEach(function(id){
     document.getElementById(id).classList.remove('alarm');
   });
@@ -437,8 +414,6 @@ function handleLine(line){
   if (line.indexOf('ERR:1') === 0) { onThresholdErr('Tmax', '温度阈值下发失败（20~50）'); return; }
   if (line.indexOf('OK:2') === 0)  { onThresholdAck('Hmax', line); return; }
   if (line.indexOf('ERR:2') === 0) { onThresholdErr('Hmax', '湿度阈值下发失败（30~99）'); return; }
-  if (line.indexOf('OK:3') === 0)  { onThresholdAck('Cyc', line); return; }
-  if (line.indexOf('ERR:3') === 0) { onThresholdErr('Cyc', '记录周期下发失败'); return; }
   if (line.indexOf('OK:7') === 0) {
     setSyncStatus('时间同步成功', 'ok');
     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
@@ -485,7 +460,6 @@ function parseTelemetry(line){
   /* 阈值随每秒上报一起来：OLED 按键改过的值也能看到 */
   if (obj.Tmax !== undefined) applyReported('Tmax', numOrNull(obj.Tmax));
   if (obj.Hmax !== undefined) applyReported('Hmax', numOrNull(obj.Hmax));
-  if (obj.Cyc !== undefined)  applyReported('Cyc',  numOrNull(obj.Cyc));
 
   var vTemp  = document.getElementById('vTemp');
   var vHumi  = document.getElementById('vHumi');
@@ -496,7 +470,7 @@ function parseTelemetry(line){
   vHumi.textContent = obj.H;
   vPress.textContent = (obj.P !== undefined) ? obj.P : '--';
 
-  var rainText = (currentData.Rain === 2) ? '大雨' : (currentData.Rain === 1) ? '小雨' : '无雨';
+  var rainText = (currentData.Rain === 1) ? '有雨' : '无雨';
   vRain.textContent = rainText;
 
   /* 超限字段标红，与下方阈值回显对应 */
@@ -529,7 +503,7 @@ function renderAlarm(){
     reasons.push('湿度 ' + currentData.H.toFixed(1) + '% > 上限 ' + shown.Hmax + '%');
   }
   if (currentData.Rain >= 1) {
-    reasons.push(currentData.Rain >= 2 ? '检测到大雨' : '检测到小雨');
+    reasons.push('检测到降雨');
   }
 
   box.innerHTML = '<div class="alarm-on">设备报警中' +
@@ -578,14 +552,9 @@ function numOrNull(v){
   return isNaN(n) ? null : n;
 }
 
-function cycleText(v){
-  return (v === null || !CYCLE_NAME[v]) ? '--' : CYCLE_NAME[v];
-}
-
 function updateThresholdView(){
   document.getElementById('curT').textContent = (shown.Tmax === null) ? '--' : shown.Tmax;
   document.getElementById('curH').textContent = (shown.Hmax === null) ? '--' : shown.Hmax;
-  document.getElementById('curC').textContent = cycleText(shown.Cyc);
 }
 
 function markInputTouched(which){
@@ -595,16 +564,13 @@ function markInputTouched(which){
 /* 首次拿到设备阈值时初始化输入框；之后不再覆盖用户输入 */
 function seedInputsOnce(){
   if (inputsSeeded) return;
-  if (reported.Tmax === null && reported.Hmax === null && reported.Cyc === null) return;
+  if (reported.Tmax === null && reported.Hmax === null) return;
 
   if (!inputTouched.T && reported.Tmax !== null) {
     document.getElementById('tMaxInput').value = reported.Tmax;
   }
   if (!inputTouched.H && reported.Hmax !== null) {
     document.getElementById('hMaxInput').value = reported.Hmax;
-  }
-  if (reported.Cyc !== null) {
-    document.getElementById('cycleSelect').value = String(reported.Cyc);
   }
   inputsSeeded = true;
 }
@@ -651,22 +617,17 @@ function onThresholdAck(key, line){
     shown[key] = v;
     updateThresholdView();
   }
-  if (key === 'Cyc') {
-    setCycStatus('已生效：' + cycleText(v), 'ok');
-  } else {
-    setThrStatus((key === 'Tmax' ? '温度阈值' : '湿度阈值') +
-                 '已生效：' + (v === null ? '--' : v), 'ok');
-  }
+  setThrStatus((key === 'Tmax' ? '温度阈值' : '湿度阈值') +
+               '已生效：' + (v === null ? '--' : v), 'ok');
 }
 
 function onThresholdErr(key, msg){
   clearPending(key);
-  if (key === 'Cyc') setCycStatus(msg, 'err');
-  else setThrStatus(msg, 'err');
+  setThrStatus(msg, 'err');
 }
 
 /* ================================================================
- * 阈值 / 记录周期下发
+ * 阈值下发
  * ================================================================ */
 function sendThreshold(which){
   var isTemp = (which === 'T');
@@ -686,29 +647,14 @@ function sendThreshold(which){
   setThrStatus('已下发', 'ok');
 }
 
-function sendCycle(){
-  var v = parseInt(document.getElementById('cycleSelect').value, 10);
-  if (isNaN(v) || v < 0 || v > 3) return;
-  if (!sendViaBt('3,' + v)) return;
-
-  applyPending('Cyc', v);
-  setCycStatus('已下发', 'ok');
-}
-
 function setThrStatus(text, cls){
   var el = document.getElementById('thrStatus');
   el.textContent = text;
   el.className = 'sync-status ' + (cls || '');
 }
 
-function setCycStatus(text, cls){
-  var el = document.getElementById('cycStatus');
-  el.textContent = text;
-  el.className = 'sync-status ' + (cls || '');
-}
-
 function parseConfig(line){
-  /* CFG:Tmax:35,Hmax:80,Cyc:0 */
+  /* CFG:Tmax:35,Hmax:80 */
   var body = line.slice(4);
   body.split(',').forEach(function(seg){
     var i = seg.indexOf(':');
@@ -717,7 +663,6 @@ function parseConfig(line){
     var v = numOrNull(seg.slice(i + 1).trim());
     if (k === 'Tmax') applyReported('Tmax', v);
     else if (k === 'Hmax') applyReported('Hmax', v);
-    else if (k === 'Cyc') applyReported('Cyc', v);
   });
 }
 
