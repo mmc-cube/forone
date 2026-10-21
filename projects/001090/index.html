@@ -178,7 +178,7 @@ canvas{display:block;width:100%;height:200px;background:#FAFAFA;border-radius:6p
         <span class="thr-cur"><b id="curH">--</b> %RH</span>
       </div>
       <div class="thr-set">
-        <input id="hMaxInput" type="number" min="30" max="99" value="80" oninput="markInputTouched('H')">
+        <input id="hMaxInput" type="number" value="80" oninput="markInputTouched('H')">
         <span class="unit">%</span>
         <button class="btn" onclick="sendThreshold('H')">下发</button>
       </div>
@@ -413,7 +413,7 @@ function handleLine(line){
   if (line.indexOf('OK:1') === 0)  { onThresholdAck('Tmax', line); return; }
   if (line.indexOf('ERR:1') === 0) { onThresholdErr('Tmax', '温度阈值下发失败（20~50）'); return; }
   if (line.indexOf('OK:2') === 0)  { onThresholdAck('Hmax', line); return; }
-  if (line.indexOf('ERR:2') === 0) { onThresholdErr('Hmax', '湿度阈值下发失败（30~99）'); return; }
+  if (line.indexOf('ERR:2') === 0) { onThresholdErr('Hmax', '湿度阈值下发失败'); return; }
   if (line.indexOf('OK:7') === 0) {
     setSyncStatus('时间同步成功', 'ok');
     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
@@ -640,13 +640,17 @@ function sendThreshold(which){
   var isTemp = (which === 'T');
   var key = isTemp ? 'Tmax' : 'Hmax';
   var val = parseInt(document.getElementById(isTemp ? 'tMaxInput' : 'hMaxInput').value, 10);
-  var min = isTemp ? 20 : 30;
-  var max = isTemp ? 50 : 99;
 
-  if (isNaN(val) || val < min || val > max) {
-    setThrStatus('请输入 ' + min + '~' + max + ' 之间的值', 'err');
+  if (isNaN(val)) {
+    setThrStatus(isTemp ? '请输入温度阈值' : '请输入湿度阈值', 'err');
     return;
   }
+  /* 温度仍限 20~50；湿度不做上下限限制，负值按 0（与下位机一致） */
+  if (isTemp && (val < 20 || val > 50)) {
+    setThrStatus('请输入 20~50 之间的值', 'err');
+    return;
+  }
+  if (!isTemp && val < 0) val = 0;
 
   if (!sendViaBt((isTemp ? '1,' : '2,') + val)) return;
 
