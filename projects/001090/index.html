@@ -333,9 +333,8 @@ window.onBtConnected = function(address){
   document.getElementById('deviceList').disabled = true;
   addLog('已连接：' + address);
 
-  /* 连接后自动同步阈值配置，并读取设备记录 */
+  /* 连接后先同步配置；收到 CFG: 回复后再读记录，避免两条指令撞车 */
   setTimeout(function(){ if (isBtConnected) sendViaBt('CFG?'); }, 400);
-  setTimeout(function(){ if (isBtConnected) readRecords(); }, 900);
 };
 
 window.onBtDisconnected = function(){
@@ -356,6 +355,7 @@ window.onBtDisconnected = function(){
 
   recordBuffer = [];
   recordCount = 0;
+  recordReceived = 0;
   var recList = document.getElementById('recordList');
   if (recList) recList.innerHTML = '<div class="empty">点击“读取记录”从下位机读取</div>';
   setRecStatus('', '');
@@ -538,18 +538,23 @@ function parseConfig(line){
     if (k === 'Hmax') document.getElementById('hMaxInput').value = v;
     if (k === 'Cyc') document.getElementById('cycleSelect').value = v;
   });
+
+  /* 配置回复收到后再读记录，保证一问一答 */
+  setTimeout(function(){ if (isBtConnected) readRecords(); }, 200);
 }
 
 /* ================================================================
  * 设备记录读取
  * ================================================================ */
 var recordCount = 0;
+var recordReceived = 0;
 var recordBuffer = [];
 
 function readRecords(){
   if (!isBtConnected) { alert('请先连接蓝牙设备'); return; }
 
   recordCount = 0;
+  recordReceived = 0;
   recordBuffer = [];
   document.getElementById('recordList').innerHTML = '<div class="empty">读取中…</div>';
   setRecStatus('正在读取记录…', '');
@@ -559,6 +564,7 @@ function readRecords(){
 function onRecordCount(line){
   var n = parseInt(line.slice(4), 10);
   recordCount = isNaN(n) ? 0 : n;
+  recordReceived = 0;
   recordBuffer = [];
 
   if (recordCount <= 0) {
@@ -567,8 +573,9 @@ function onRecordCount(line){
     return;
   }
 
-  setRecStatus('共 ' + recordCount + ' 条，读取中…', '');
-  sendViaBt('HIST:1');
+  setRecStatus('共 ' + recordCount + ' 条，从最新开始读取…', '');
+  /* 与 OLED 一致：最新一条在前，从 count 往回读 */
+  sendViaBt('HIST:' + recordCount);
 }
 
 function onRecordLine(line){
@@ -586,14 +593,15 @@ function onRecordLine(line){
   });
 
   recordBuffer.push(rec);
+  recordReceived++;
   renderRecords();
 
-  if (rec.total > 0 && rec.idx < rec.total) {
+  if (rec.idx > 1) {
     (function(next){
       setTimeout(function(){ if (isBtConnected) sendViaBt('HIST:' + next); }, 150);
-    })(rec.idx + 1);
+    })(rec.idx - 1);
   } else {
-    setRecStatus('读取完成（' + rec.idx + '/' + rec.total + '）', 'ok');
+    setRecStatus('读取完成（' + recordReceived + '/' + recordCount + '）', 'ok');
   }
 }
 
