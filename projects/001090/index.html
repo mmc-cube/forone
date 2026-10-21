@@ -76,19 +76,20 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 .thr-set input,.thr-set select{flex:1;min-width:0;height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font-size:14px;color:var(--text);background:#fff;}
 .thr-set .unit{font-size:13px;color:var(--sub);flex-shrink:0;}
 .thr-set .btn{height:40px;flex-shrink:0;}
-.chart-bar{display:flex;gap:8px;margin-bottom:6px;}
+.chart-bar{display:flex;gap:8px;margin-bottom:8px;}
 .chart-bar select{flex:1;min-width:0;height:36px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font-size:13px;color:var(--text);background:#fff;}
 .chart-bar .btn{height:36px;}
-.chart-label{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--sub);margin:8px 0 3px;}
-.chart-label b{font-size:13px;color:var(--text);font-weight:600;}
-canvas{display:block;width:100%;height:90px;background:#FAFAFA;border-radius:6px;}
-.chart-axis{display:flex;justify-content:space-between;font-size:10px;color:#B0BEC5;margin-top:4px;}
+.seg{display:flex;background:#ECEFF1;border-radius:8px;padding:3px;margin-bottom:10px;}
+.seg button{flex:1;height:32px;border:none;background:transparent;border-radius:6px;font-size:13px;color:#607D8B;font-weight:600;cursor:pointer;}
+.seg button.active{background:#FFF;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12);}
+canvas{display:block;width:100%;height:200px;background:#FAFAFA;border-radius:6px;}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+.stats>div{background:#F7F9FA;border-radius:8px;padding:8px 4px;text-align:center;}
+.stats span{display:block;font-size:11px;color:var(--sub);}
+.stats b{display:block;font-size:16px;font-weight:700;color:var(--text);margin-top:2px;}
+.stats i{display:block;font-size:10px;color:#90A4AE;font-style:normal;min-height:13px;}
 
 /* ---------- 日志 ---------- */
-.log-list{display:flex;flex-direction:column;gap:6px;}
-.log-item{background:#FFF;border-radius:8px;padding:8px 10px;font-size:12px;color:#37474F;word-break:break-all;box-shadow:0 1px 3px rgba(0,0,0,.06);}
-.log-time{color:#90A4AE;margin-right:6px;}
-.empty{color:#B0BEC5;font-size:13px;text-align:center;padding:24px 0;}
 
 /* ---------- 环境提示 ---------- */
 .bridge-tip{display:none;background:#FFF3E0;color:#E65100;border-radius:8px;padding:10px;font-size:12px;line-height:1.5;margin-bottom:12px;}
@@ -211,30 +212,24 @@ canvas{display:block;width:100%;height:90px;background:#FAFAFA;border-radius:6px
 <section id="tab-log" class="tab-content">
   <div class="card">
     <div class="card-title">波形记录</div>
+
     <div class="chart-bar">
       <select id="daySelect" onchange="renderCharts()"></select>
       <button class="btn ghost" onclick="clearHistory()">清空</button>
     </div>
 
-    <div class="chart-label"><span>温度 ℃</span><b id="tLast">--</b></div>
-    <canvas id="chartT"></canvas>
-
-    <div class="chart-label"><span>湿度 %RH</span><b id="hLast">--</b></div>
-    <canvas id="chartH"></canvas>
-
-    <div class="chart-label"><span>气压 hPa</span><b id="pLast">--</b></div>
-    <canvas id="chartP"></canvas>
-
-    <div class="chart-axis">
-      <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span>
+    <div class="seg" id="metricSeg">
+      <button data-m="1" class="active" onclick="setMetric(1)">温度</button>
+      <button data-m="2" onclick="setMetric(2)">湿度</button>
+      <button data-m="3" onclick="setMetric(3)">气压</button>
     </div>
-    <div class="sync-status" id="chartStatus">暂无数据</div>
-  </div>
 
-  <div class="card">
-    <div class="card-title">原始数据（最近 20 条）</div>
-    <div class="log-list" id="logList">
-      <div class="empty">暂无数据</div>
+    <canvas id="chart"></canvas>
+
+    <div class="stats">
+      <div><span>日均</span><b id="stAvg">--</b><i></i></div>
+      <div><span>日高</span><b id="stMax">--</b><i id="stMaxTime"></i></div>
+      <div><span>日低</span><b id="stMin">--</b><i id="stMinTime"></i></div>
     </div>
   </div>
 </section>
@@ -291,6 +286,7 @@ document.querySelectorAll('.tab-item').forEach(function(item){
  * ================================================================ */
 function addLog(text){
   var list = document.getElementById('logList');
+  if (!list) return;   /* 原始数据卡已移除，日志不再展示 */
   var empty = list.querySelector('.empty');
   if (empty) list.removeChild(empty);
 
@@ -728,16 +724,22 @@ function parseConfig(line){
 /* ================================================================
  * 本地波形记录（APP 侧保存，下位机只负责上报）
  * ----------------------------------------------------------------
- * 采样间隔跟随设备“记录周期”（Cyc），数据存 localStorage，
- * 保留最近 7 天，按天画 00:00~24:00 的曲线。
+ * 只在数据发生变化时落点（温度 ≥0.2℃ / 湿度 ≥1% / 气压 ≥0.5hPa），
+ * 数据存 localStorage，保留最近 7 天，按天画 00:00~24:00 的曲线。
  * ================================================================ */
 var HIST_KEY = 'wx_station_hist_v1';
 var HIST_DAYS = 7;
-var CYCLE_MS = [20000, 60000, 300000, 1800000];
-var CYCLE_FULL = ['20 秒', '1 分钟', '5 分钟', '30 分钟'];
+
+/* 指标：1=温度 2=湿度 3=气压（对应采样点数组下标） */
+var METRICS = {
+  1: { name: '温度', unit: '℃',   color: '#F44336' },
+  2: { name: '湿度', unit: '%RH',  color: '#2196F3' },
+  3: { name: '气压', unit: 'hPa',  color: '#4CAF50' }
+};
+var curMetric = 1;
 
 var hist = loadHist();
-var lastSampleMs = 0;
+var lastSample = null;      /* 上一次落点的 [温度, 湿度, 气压] */
 
 function dayKey(d){
   return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
@@ -769,17 +771,23 @@ function saveHist(){
   }
 }
 
-/* 每收到一帧遥测，按设备周期决定是否落一个采样点 */
+/* 数据发生变化才落点：温度 0.2℃ / 湿度 1% / 气压 0.5hPa 死区，避免平段堆点 */
 function recordSample(){
   if (currentData.T === null || currentData.H === null) return;
 
+  if (lastSample) {
+    var dT = Math.abs(currentData.T - lastSample[0]);
+    var dH = Math.abs(currentData.H - lastSample[1]);
+    var dP = 0;
+    if (currentData.P !== null && lastSample[2] !== null) {
+      dP = Math.abs(currentData.P - lastSample[2]);
+    }
+    if (dT < 0.2 && dH < 1 && dP < 0.5) return;
+  }
+
+  lastSample = [currentData.T, currentData.H, currentData.P];
+
   var now = new Date();
-  var cyc = (shown.Cyc === null) ? 0 : shown.Cyc;
-  var interval = CYCLE_MS[cyc] || CYCLE_MS[0];
-
-  if (lastSampleMs && now.getTime() - lastSampleMs < interval) return;
-  lastSampleMs = now.getTime();
-
   var key = dayKey(now);
   if (!hist[key]) hist[key] = [];
 
@@ -803,8 +811,16 @@ function recordSample(){
 function clearHistory(){
   if (!confirm('确定清空本地波形记录？')) return;
   hist = {};
-  lastSampleMs = 0;
+  lastSample = null;
   saveHist();
+  renderCharts();
+}
+
+function setMetric(m){
+  curMetric = m;
+  document.querySelectorAll('#metricSeg button').forEach(function(b){
+    b.classList.toggle('active', Number(b.dataset.m) === m);
+  });
   renderCharts();
 }
 
@@ -830,28 +846,70 @@ function renderCharts(){
 
   var key = document.getElementById('daySelect').value;
   var pts = hist[key] || [];
+  var meta = METRICS[curMetric];
 
-  drawChart('chartT', pts, 1, '#F44336', 'tLast');
-  drawChart('chartH', pts, 2, '#2196F3', 'hLast');
-  drawChart('chartP', pts, 3, '#4CAF50', 'pLast');
-
-  var el = document.getElementById('chartStatus');
-  if (!pts.length) {
-    el.textContent = key + ' · 暂无数据';
-  } else {
-    var cyc = (shown.Cyc === null) ? 0 : shown.Cyc;
-    el.textContent = key + ' · ' + pts.length + ' 点 · 采样 ' + (CYCLE_FULL[cyc] || '20 秒');
-  }
+  drawChart(pts, curMetric, meta);
+  renderStats(pts, curMetric, meta);
 }
 
-/* 画一条当日曲线：x = 0~24 点，y 自适应量程 */
-function drawChart(canvasId, pts, idx, color, labelId){
-  var c = document.getElementById(canvasId);
-  var label = document.getElementById(labelId);
+function fmtTime(sec){
+  var h = Math.floor(sec / 3600);
+  var m = Math.floor((sec % 3600) / 60);
+  return pad2(h) + ':' + pad2(m);
+}
+
+function statValues(pts, idx){
+  var out = [];
+  for (var i = 0; i < pts.length; i++) {
+    var v = pts[i][idx];
+    if (v !== null && v !== undefined && !isNaN(v)) {
+      out.push({ v: Number(v), sec: pts[i][0] });
+    }
+  }
+  return out;
+}
+
+/* 日均 / 日高 / 日低（高低温附发生时刻） */
+function renderStats(pts, idx, meta){
+  var arr = statValues(pts, idx);
+  var avg = document.getElementById('stAvg');
+  var hi  = document.getElementById('stMax');
+  var lo  = document.getElementById('stMin');
+  var hiT = document.getElementById('stMaxTime');
+  var loT = document.getElementById('stMinTime');
+
+  if (!arr.length) {
+    avg.textContent = '--';
+    hi.textContent = '--';
+    lo.textContent = '--';
+    hiT.textContent = '';
+    loT.textContent = '';
+    return;
+  }
+
+  var sum = 0;
+  var max = arr[0];
+  var min = arr[0];
+  for (var i = 0; i < arr.length; i++) {
+    sum += arr[i].v;
+    if (arr[i].v > max.v) max = arr[i];
+    if (arr[i].v < min.v) min = arr[i];
+  }
+
+  avg.textContent = (sum / arr.length).toFixed(1) + meta.unit;
+  hi.textContent = max.v.toFixed(1) + meta.unit;
+  lo.textContent = min.v.toFixed(1) + meta.unit;
+  hiT.textContent = fmtTime(max.sec);
+  loT.textContent = fmtTime(min.sec);
+}
+
+/* 画当日曲线：x = 00:00~24:00，y 自适应量程 */
+function drawChart(pts, idx, meta){
+  var c = document.getElementById('chart');
   if (!c) return;
 
   var w = c.clientWidth;
-  var h = c.clientHeight || 90;
+  var h = c.clientHeight || 200;
   if (!w) return;
 
   var dpr = window.devicePixelRatio || 1;
@@ -864,29 +922,38 @@ function drawChart(canvasId, pts, idx, color, labelId){
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
-  /* 6 小时一条竖向网格 */
+  var left = 36;
+  var right = 8;
+  var top = 10;
+  var bottom = h - 18;
+
+  /* 竖向 6 小时网格 + 时间刻度 */
   ctx.strokeStyle = '#ECEFF1';
   ctx.lineWidth = 1;
-  for (var gx = 0; gx <= 4; gx++) {
-    var gpx = Math.round(gx * w / 4) + 0.5;
+  var hourMarks = [0, 6, 12, 18, 24];
+  for (var i = 0; i < hourMarks.length; i++) {
+    var gx = left + (w - left - right) * hourMarks[i] / 24;
     ctx.beginPath();
-    ctx.moveTo(gpx, 0);
-    ctx.lineTo(gpx, h);
+    ctx.moveTo(Math.round(gx) + 0.5, top);
+    ctx.lineTo(Math.round(gx) + 0.5, bottom);
     ctx.stroke();
+
+    ctx.fillStyle = '#B0BEC5';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = (hourMarks[i] === 0) ? 'left' : (hourMarks[i] === 24) ? 'right' : 'center';
+    ctx.fillText(pad2(hourMarks[i]) + ':00', gx, h - 4);
   }
 
-  var vals = [];
-  for (var i = 0; i < pts.length; i++) {
-    var v = pts[i][idx];
-    if (v !== null && v !== undefined && !isNaN(v)) vals.push(Number(v));
-  }
-  if (!vals.length) {
-    if (label) label.textContent = '--';
-    return;
+  var arr = statValues(pts, idx);
+  if (!arr.length) return;
+
+  var rawMin = Infinity;
+  var rawMax = -Infinity;
+  for (var k = 0; k < arr.length; k++) {
+    if (arr[k].v < rawMin) rawMin = arr[k].v;
+    if (arr[k].v > rawMax) rawMax = arr[k].v;
   }
 
-  var rawMin = Math.min.apply(null, vals);
-  var rawMax = Math.max.apply(null, vals);
   var min = rawMin;
   var max = rawMax;
   if (max - min < 0.5) { max += 0.5; min -= 0.5; }
@@ -894,44 +961,46 @@ function drawChart(canvasId, pts, idx, color, labelId){
   min -= pad;
   max += pad;
 
-  var top = 8;
-  var bottom = h - 8;
   var toY = function(val){ return bottom - (val - min) / (max - min) * (bottom - top); };
-  var toX = function(sec){ return sec / 86400 * w; };
+  var toX = function(sec){ return left + (w - left - right) * sec / 86400; };
 
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.6;
+  /* 横向参考线 + 左侧量程 */
+  ctx.strokeStyle = '#EEF1F3';
+  for (var g = 0; g <= 2; g++) {
+    var gy = top + (bottom - top) * g / 2;
+    ctx.beginPath();
+    ctx.moveTo(left, Math.round(gy) + 0.5);
+    ctx.lineTo(w - right, Math.round(gy) + 0.5);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#90A4AE';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(rawMax.toFixed(1), left - 5, top + 4);
+  ctx.fillText(((rawMax + rawMin) / 2).toFixed(1), left - 5, (top + bottom) / 2 + 3);
+  ctx.fillText(rawMin.toFixed(1), left - 5, bottom + 3);
+
+  /* 曲线 */
+  ctx.strokeStyle = meta.color;
+  ctx.lineWidth = 1.8;
   ctx.lineJoin = 'round';
   ctx.beginPath();
   var started = false;
-  for (var j = 0; j < pts.length; j++) {
-    var pv = pts[j][idx];
-    if (pv === null || pv === undefined || isNaN(pv)) { started = false; continue; }
-    var px = toX(pts[j][0]);
-    var py = toY(Number(pv));
+  for (var j = 0; j < arr.length; j++) {
+    var px = toX(arr[j].sec);
+    var py = toY(arr[j].v);
     if (!started) { ctx.moveTo(px, py); started = true; }
     else { ctx.lineTo(px, py); }
   }
   ctx.stroke();
 
-  var last = null;
-  for (var k = pts.length - 1; k >= 0; k--) {
-    if (pts[k][idx] !== null && pts[k][idx] !== undefined && !isNaN(pts[k][idx])) {
-      last = pts[k];
-      break;
-    }
-  }
-  if (last) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(toX(last[0]), toY(Number(last[idx])), 2.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  if (label) {
-    label.textContent = (last ? Number(last[idx]).toFixed(1) : '--') +
-                        '  (' + rawMin.toFixed(1) + '~' + rawMax.toFixed(1) + ')';
-  }
+  /* 末端点 */
+  var last = arr[arr.length - 1];
+  ctx.fillStyle = meta.color;
+  ctx.beginPath();
+  ctx.arc(toX(last.sec), toY(last.v), 3, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 window.addEventListener('resize', function(){
