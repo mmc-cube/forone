@@ -451,9 +451,10 @@ function parseTelemetry(line){
     document.getElementById('dateText').textContent = obj.D;
   }
 
-  currentData.T    = numOrNull(obj.T);
-  currentData.H    = numOrNull(obj.H);
-  currentData.P    = numOrNull(obj.P);
+  /* 0 视为无效读数，直接丢弃 */
+  currentData.T    = nonZero(obj.T);
+  currentData.H    = nonZero(obj.H);
+  currentData.P    = nonZero(obj.P);
   currentData.Rain = numOrNull(obj.Rain);
   currentData.ALM  = numOrNull(obj.ALM);
 
@@ -466,9 +467,9 @@ function parseTelemetry(line){
   var vPress = document.getElementById('vPress');
   var vRain  = document.getElementById('vRain');
 
-  vTemp.textContent = obj.T;
-  vHumi.textContent = obj.H;
-  vPress.textContent = (obj.P !== undefined) ? obj.P : '--';
+  vTemp.textContent  = (currentData.T === null) ? '--' : obj.T;
+  vHumi.textContent  = (currentData.H === null) ? '--' : obj.H;
+  vPress.textContent = (currentData.P === null) ? '--' : obj.P;
 
   var rainText = (currentData.Rain === 1) ? '有雨' : '无雨';
   vRain.textContent = rainText;
@@ -550,6 +551,12 @@ function setSyncStatus(text, cls){
 function numOrNull(v){
   var n = parseFloat(v);
   return isNaN(n) ? null : n;
+}
+
+/* 0 视为无效读数（传感器偶发坏值），曲线的断崖就是这么来的 */
+function nonZero(v){
+  var n = numOrNull(v);
+  return (n === null || n === 0) ? null : n;
 }
 
 function updateThresholdView(){
@@ -718,16 +725,26 @@ function saveHist(){
 
 /* 数据发生变化才落点：温度 0.2℃ / 湿度 1% / 气压 0.5hPa 死区，避免平段堆点 */
 function recordSample(){
-  if (currentData.T === null || currentData.H === null) return;
+  /* 三个通道全无效（0 或缺失）就不落点 */
+  if (currentData.T === null && currentData.H === null && currentData.P === null) return;
 
   if (lastSample) {
-    var dT = Math.abs(currentData.T - lastSample[0]);
-    var dH = Math.abs(currentData.H - lastSample[1]);
-    var dP = 0;
-    if (currentData.P !== null && lastSample[2] !== null) {
-      dP = Math.abs(currentData.P - lastSample[2]);
+    var changed = false;
+
+    if (currentData.T !== null &&
+        (lastSample[0] === null || Math.abs(currentData.T - lastSample[0]) >= 0.2)) {
+      changed = true;
     }
-    if (dT < 0.2 && dH < 1 && dP < 0.5) return;
+    if (currentData.H !== null &&
+        (lastSample[1] === null || Math.abs(currentData.H - lastSample[1]) >= 1)) {
+      changed = true;
+    }
+    if (currentData.P !== null &&
+        (lastSample[2] === null || Math.abs(currentData.P - lastSample[2]) >= 0.5)) {
+      changed = true;
+    }
+
+    if (!changed) return;
   }
 
   lastSample = [currentData.T, currentData.H, currentData.P];
@@ -807,7 +824,8 @@ function statValues(pts, idx){
   var out = [];
   for (var i = 0; i < pts.length; i++) {
     var v = pts[i][idx];
-    if (v !== null && v !== undefined && !isNaN(v)) {
+    /* 0 是坏值（同时兼容过滤前已存进 localStorage 的旧数据） */
+    if (v !== null && v !== undefined && !isNaN(v) && Number(v) !== 0) {
       out.push({ v: Number(v), sec: pts[i][0] });
     }
   }
