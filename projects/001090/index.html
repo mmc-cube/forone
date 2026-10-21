@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>便携式气象参数记录仪</title>
+<style>
+:root{
+  --bg:#F5F5F5; --card:#FFFFFF; --primary:#2196F3; --alarm:#F44336;
+  --ok:#4CAF50; --text:#212121; --sub:#757575;
+  --shadow:0 2px 8px rgba(0,0,0,.08); --radius:12px; --line:#E0E0E0;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;background:var(--bg);color:var(--text);}
+body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
+
+/* ---------- Tab 内容 ---------- */
+.tab-content{display:none;flex:1;overflow-y:auto;padding:12px;}
+.tab-content.active{display:block;}
+
+/* ---------- 底部 Tab ---------- */
+.tab-bar{display:flex;height:56px;background:#FFF;border-top:1px solid var(--line);flex-shrink:0;}
+.tab-item{flex:1;display:flex;align-items:center;justify-content:center;color:#666;font-size:15px;font-weight:500;cursor:pointer;user-select:none;}
+.tab-item.active{color:var(--primary);font-weight:700;}
+.tab-item .badge{display:none;min-width:16px;height:16px;line-height:16px;padding:0 4px;margin-left:4px;border-radius:8px;background:var(--alarm);color:#fff;font-size:11px;text-align:center;}
+.tab-item .badge.show{display:inline-block;}
+
+/* ---------- 卡片 ---------- */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;margin-bottom:12px;}
+.card-title{font-size:13px;color:var(--sub);margin-bottom:10px;letter-spacing:.5px;}
+
+/* ---------- 状态栏 ---------- */
+.status-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.dot{width:9px;height:9px;border-radius:50%;background:#BDBDBD;flex-shrink:0;}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px rgba(76,175,80,.15);}
+.dot.off{background:var(--alarm);}
+.status-text{font-size:13px;color:var(--sub);flex:1;}
+.btn{height:40px;padding:0 14px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;cursor:pointer;}
+.btn:active{opacity:.8;}
+.btn.ghost{background:#ECEFF1;color:#455A64;}
+.btn.danger{background:var(--alarm);}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.select-row{display:flex;gap:8px;margin-bottom:10px;}
+.select-row select{flex:1;height:40px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:0 8px;font-size:13px;color:var(--text);}
+
+/* ---------- 实时数据 ---------- */
+.time-big{font-size:34px;font-weight:700;letter-spacing:1px;line-height:1.1;}
+.date-sub{font-size:13px;color:var(--sub);margin-top:4px;}
+.metric{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #F0F0F0;}
+.metric:last-child{border-bottom:none;}
+.metric .label{font-size:13px;color:var(--sub);}
+.metric .value{font-size:28px;font-weight:700;line-height:1;}
+.metric .unit{font-size:13px;color:var(--sub);font-weight:400;margin-left:4px;}
+.metric .value.alarm{color:var(--alarm);}
+
+.alarm-ok{display:flex;align-items:center;gap:8px;color:var(--ok);font-size:15px;font-weight:600;}
+.alarm-on{background:#FFEBEE;border-radius:8px;padding:10px;color:var(--alarm);font-size:14px;font-weight:600;line-height:1.5;}
+.alarm-off{color:var(--ok);font-size:14px;font-weight:600;}
+
+/* ---------- 控制 ---------- */
+.ctrl-note{font-size:12px;color:var(--sub);line-height:1.6;margin-top:8px;}
+.ctrl-btn{width:100%;height:52px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-size:16px;font-weight:700;margin-top:10px;cursor:pointer;}
+.ctrl-btn:active{opacity:.85;}
+.ctrl-btn.secondary{background:#455A64;}
+.ctrl-btn:disabled{opacity:.45;}
+.sync-status{font-size:13px;margin-top:10px;color:var(--sub);min-height:20px;}
+.sync-status.ok{color:var(--ok);font-weight:600;}
+.sync-status.err{color:var(--alarm);font-weight:600;}
+
+/* ---------- 日志 ---------- */
+.log-list{display:flex;flex-direction:column;gap:6px;}
+.log-item{background:#FFF;border-radius:8px;padding:8px 10px;font-size:12px;color:#37474F;word-break:break-all;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.log-time{color:#90A4AE;margin-right:6px;}
+.empty{color:#B0BEC5;font-size:13px;text-align:center;padding:24px 0;}
+
+/* ---------- 环境提示 ---------- */
+.bridge-tip{display:none;background:#FFF3E0;color:#E65100;border-radius:8px;padding:10px;font-size:12px;line-height:1.5;margin-bottom:12px;}
+.bridge-tip.show{display:block;}
+</style>
+</head>
+<body>
+
+<!-- ================= 数据 Tab ================= -->
+<section id="tab-data" class="tab-content active">
+  <div class="bridge-tip" id="bridgeTip">当前浏览器不支持蓝牙桥接。请用 Android WebView 壳运行本页面，普通浏览器只能查看界面。</div>
+
+  <div class="card">
+    <div class="status-row">
+      <span class="dot off" id="btDot"></span>
+      <span class="status-text" id="btStatus">未连接</span>
+      <button class="btn ghost" id="btnScan" onclick="scanDevices()">扫描</button>
+      <button class="btn" id="btnConnect" onclick="connectSelected()">连接</button>
+      <button class="btn danger" id="btnDisconnect" onclick="disconnectBt()" style="display:none;">断开</button>
+    </div>
+    <div class="select-row">
+      <select id="deviceList">
+        <option value="">请先扫描已配对设备</option>
+      </select>
+    </div>
+    <div class="ctrl-note">选择系统蓝牙里已配对的串口透传模块，波特率 9600 8N1。</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">设备时间</div>
+    <div class="time-big" id="timeText">--:--:--</div>
+    <div class="date-sub" id="dateText">----</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">实时气象参数</div>
+    <div class="metric">
+      <span class="label">温度</span>
+      <span><span class="value" id="vTemp">--</span><span class="unit">℃</span></span>
+    </div>
+    <div class="metric">
+      <span class="label">湿度</span>
+      <span><span class="value" id="vHumi">--</span><span class="unit">%RH</span></span>
+    </div>
+    <div class="metric">
+      <span class="label">气压</span>
+      <span><span class="value" id="vPress">--</span><span class="unit">hPa</span></span>
+    </div>
+    <div class="metric">
+      <span class="label">雨情</span>
+      <span><span class="value" id="vRain">--</span></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">报警状态</div>
+    <div id="alarmBox"><span class="alarm-off">等待设备数据…</span></div>
+  </div>
+</section>
+
+<!-- ================= 控制 Tab ================= -->
+<section id="tab-control" class="tab-content">
+  <div class="card">
+    <div class="card-title">时间同步</div>
+    <div class="ctrl-note">点击按钮把手机当前时间写入下位机 DS1302。设备回复 OK:TIME 表示成功。</div>
+    <button class="ctrl-btn" id="btnSyncTime" onclick="syncTime()">同步时间</button>
+    <div class="sync-status" id="syncStatus"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">通信检测</div>
+    <div class="ctrl-note">发送 PING，设备回复 OK:PING 表示蓝牙链路正常。</div>
+    <button class="ctrl-btn secondary" id="btnPing" onclick="sendPing()">心跳测试</button>
+    <div class="sync-status" id="pingStatus"></div>
+  </div>
+</section>
+
+<!-- ================= 日志 Tab ================= -->
+<section id="tab-log" class="tab-content">
+  <div class="card">
+    <div class="card-title">原始数据（最近 20 条）</div>
+    <div class="log-list" id="logList">
+      <div class="empty">暂无数据</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 底部 Tab ================= -->
+<nav class="tab-bar">
+  <div class="tab-item active" data-tab="data">数据</div>
+  <div class="tab-item" data-tab="control">控制</div>
+  <div class="tab-item" data-tab="log">日志</div>
+</nav>
+
+<script>
+/* ================================================================
+ * 全局状态
+ * ================================================================ */
+var isBtConnected = false;
+var syncTimer = null;
+var pingTimer = null;
+
+/* ================================================================
+ * Tab 切换
+ * ================================================================ */
+document.querySelectorAll('.tab-item').forEach(function(item){
+  item.addEventListener('click', function(){
+    var tab = item.dataset.tab;
+    document.querySelectorAll('.tab-item').forEach(function(i){ i.classList.remove('active'); });
+    item.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
+    document.getElementById('tab-' + tab).classList.add('active');
+  });
+});
+
+/* ================================================================
+ * 日志
+ * ================================================================ */
+function addLog(text){
+  var list = document.getElementById('logList');
+  var empty = list.querySelector('.empty');
+  if (empty) list.removeChild(empty);
+
+  var d = new Date();
+  var hh = String(d.getHours()).padStart(2,'0');
+  var mm = String(d.getMinutes()).padStart(2,'0');
+  var ss = String(d.getSeconds()).padStart(2,'0');
+
+  var el = document.createElement('div');
+  el.className = 'log-item';
+  el.innerHTML = '<span class="log-time">' + hh + ':' + mm + ':' + ss + '</span>' +
+                 escapeHtml(text);
+  list.insertBefore(el, list.firstChild);
+  while (list.children.length > 20) list.removeChild(list.lastChild);
+}
+
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ================================================================
+ * 蓝牙控制（Android WebView BluetoothBridge）
+ * ================================================================ */
+function scanDevices(){
+  if (window.BluetoothBridge) {
+    window.BluetoothBridge.getPairedDevices();
+  } else {
+    document.getElementById('bridgeTip').classList.add('show');
+  }
+}
+
+function connectSelected(){
+  var addr = document.getElementById('deviceList').value;
+  if (!addr) { alert('请先扫描并选择设备'); return; }
+  if (!window.BluetoothBridge) {
+    document.getElementById('bridgeTip').classList.add('show');
+    return;
+  }
+  window.BluetoothBridge.connect(addr);
+}
+
+function disconnectBt(){
+  if (window.BluetoothBridge) window.BluetoothBridge.disconnect();
+}
+
+function sendViaBt(cmd){
+  if (!isBtConnected || !window.BluetoothBridge) {
+    alert('蓝牙未连接，请先在“数据”页连接设备');
+    return false;
+  }
+  window.BluetoothBridge.send(cmd);
+  addLog('→ ' + cmd.trim());
+  return true;
+}
+
+/* ================================================================
+ * 蓝牙回调（Android 调用）
+ * ================================================================ */
+window.onBtDeviceList = function(deviceArray){
+  var select = document.getElementById('deviceList');
+  select.innerHTML = '';
+
+  if (!deviceArray || !deviceArray.length) {
+    var opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '未找到已配对设备，请先在系统蓝牙里配对';
+    select.appendChild(opt);
+    addLog('扫描完成：没有已配对设备');
+    return;
+  }
+
+  deviceArray.forEach(function(d){
+    var o = document.createElement('option');
+    o.value = d.address;
+    o.textContent = d.name + ' (' + d.address + ')';
+    select.appendChild(o);
+  });
+  addLog('扫描到 ' + deviceArray.length + ' 个设备');
+};
+
+window.onBtConnected = function(address){
+  isBtConnected = true;
+  document.getElementById('btDot').className = 'dot on';
+  document.getElementById('btStatus').textContent = '已连接：' + address;
+  document.getElementById('btnScan').style.display = 'none';
+  document.getElementById('btnConnect').style.display = 'none';
+  document.getElementById('btnDisconnect').style.display = 'block';
+  document.getElementById('deviceList').disabled = true;
+  addLog('已连接：' + address);
+};
+
+window.onBtDisconnected = function(){
+  isBtConnected = false;
+  document.getElementById('btDot').className = 'dot off';
+  document.getElementById('btStatus').textContent = '未连接';
+  document.getElementById('btnScan').style.display = 'block';
+  document.getElementById('btnConnect').style.display = 'block';
+  document.getElementById('btnDisconnect').style.display = 'none';
+  document.getElementById('deviceList').disabled = false;
+  document.getElementById('timeText').textContent = '--:--:--';
+  document.getElementById('dateText').textContent = '----';
+  document.getElementById('vTemp').textContent = '--';
+  document.getElementById('vHumi').textContent = '--';
+  document.getElementById('vPress').textContent = '--';
+  document.getElementById('vRain').textContent = '--';
+  document.getElementById('alarmBox').innerHTML = '<span class="alarm-off">等待设备数据…</span>';
+  addLog('连接已断开');
+};
+
+window.onBtError = function(errMsg){
+  addLog('蓝牙错误：' + errMsg);
+};
+
+window.onBtData = function(line){
+  line = String(line).replace(/[\r\n]+/g, '').trim();
+  if (!line) return;
+
+  addLog(line);
+
+  if (line.indexOf('OK:TIME') === 0) {
+    setSyncStatus('时间同步成功', 'ok');
+    if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
+    return;
+  }
+  if (line.indexOf('ERR:TIME') === 0) {
+    setSyncStatus('时间同步失败（格式/范围错误）', 'err');
+    if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
+    return;
+  }
+  if (line.indexOf('OK:PING') === 0) {
+    setPingStatus('链路正常', 'ok');
+    if (pingTimer) { clearTimeout(pingTimer); pingTimer = null; }
+    return;
+  }
+
+  parseTelemetry(line);
+};
+
+/* ================================================================
+ * 上行解析
+ * 格式：D:2026-10-21 18:30:25,T:25.6,H:60.0,P:1027.1,Rain:0,ALM:0
+ * ================================================================ */
+function parseTelemetry(line){
+  var obj = {};
+  line.split(',').forEach(function(seg){
+    var i = seg.indexOf(':');
+    if (i > 0) obj[seg.slice(0, i).trim()] = seg.slice(i + 1).trim();
+  });
+
+  if (obj.D) {
+    var dt = obj.D.split(' ');
+    if (dt.length >= 2) {
+      document.getElementById('dateText').textContent = dt[0];
+      document.getElementById('timeText').textContent = dt[1];
+    } else {
+      document.getElementById('dateText').textContent = obj.D;
+    }
+  }
+
+  if (obj.T !== undefined) document.getElementById('vTemp').textContent = obj.T;
+  if (obj.H !== undefined) document.getElementById('vHumi').textContent = obj.H;
+  if (obj.P !== undefined) document.getElementById('vPress').textContent = obj.P;
+
+  var rain = parseInt(obj.Rain, 10);
+  var rainText = (rain === 2) ? '大雨' : (rain === 1) ? '小雨' : '无雨';
+  document.getElementById('vRain').textContent = rainText;
+
+  var alm = parseInt(obj.ALM, 10);
+  var box = document.getElementById('alarmBox');
+  if (alm === 1) {
+    box.innerHTML = '<div class="alarm-on">设备报警中：温度或湿度超限，或检测到降雨。</div>';
+    document.getElementById('vRain').classList.add('alarm');
+  } else {
+    box.innerHTML = '<div class="alarm-ok">运行正常</div>';
+    document.getElementById('vRain').classList.remove('alarm');
+  }
+}
+
+/* ================================================================
+ * 时间同步
+ * ================================================================ */
+function pad2(n){ return String(n).padStart(2, '0'); }
+
+function syncTime(){
+  if (!isBtConnected) { alert('请先连接蓝牙设备'); return; }
+
+  var now = new Date();
+  var cmd = 'TIME:' + now.getFullYear() + '-' +
+            pad2(now.getMonth() + 1) + '-' + pad2(now.getDate()) + ' ' +
+            pad2(now.getHours()) + ':' + pad2(now.getMinutes()) + ':' +
+            pad2(now.getSeconds());
+
+  if (!sendViaBt(cmd + '\n')) return;
+
+  setSyncStatus('已发送，等待设备确认…', '');
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(function(){
+    setSyncStatus('同步超时，未收到 OK:TIME', 'err');
+    syncTimer = null;
+  }, 3000);
+}
+
+function setSyncStatus(text, cls){
+  var el = document.getElementById('syncStatus');
+  el.textContent = text;
+  el.className = 'sync-status ' + (cls || '');
+}
+
+/* ================================================================
+ * 心跳
+ * ================================================================ */
+function sendPing(){
+  if (!isBtConnected) { alert('请先连接蓝牙设备'); return; }
+  if (!sendViaBt('PING\n')) return;
+
+  setPingStatus('已发送，等待设备回复…', '');
+  if (pingTimer) clearTimeout(pingTimer);
+  pingTimer = setTimeout(function(){
+    setPingStatus('超时，未收到 OK:PING', 'err');
+    pingTimer = null;
+  }, 3000);
+}
+
+function setPingStatus(text, cls){
+  var el = document.getElementById('pingStatus');
+  el.textContent = text;
+  el.className = 'sync-status ' + (cls || '');
+}
+
+/* ================================================================
+ * WebView 壳：把回调挂到 window.top
+ * ================================================================ */
+if (window.top !== window.self) {
+  window.top.onBtDeviceList   = window.onBtDeviceList;
+  window.top.onBtConnected    = window.onBtConnected;
+  window.top.onBtDisconnected = window.onBtDisconnected;
+  window.top.onBtError        = window.onBtError;
+  window.top.onBtData         = window.onBtData;
+}
+
+/* 非 WebView 环境提示 */
+if (!window.BluetoothBridge) {
+  document.getElementById('bridgeTip').classList.add('show');
+}
+</script>
+</body>
+</html>
