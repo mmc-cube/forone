@@ -76,8 +76,13 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 .thr-set input,.thr-set select{flex:1;min-width:0;height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font-size:14px;color:var(--text);background:#fff;}
 .thr-set .unit{font-size:13px;color:var(--sub);flex-shrink:0;}
 .thr-set .btn{height:40px;flex-shrink:0;}
-.record-item{background:#FFF;border-radius:8px;padding:10px;margin-bottom:6px;box-shadow:0 1px 3px rgba(0,0,0,.06);font-size:12px;color:#37474F;line-height:1.6;}
-.record-item .rec-head{font-weight:700;color:var(--primary);margin-bottom:2px;}
+.chart-bar{display:flex;gap:8px;margin-bottom:6px;}
+.chart-bar select{flex:1;min-width:0;height:36px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font-size:13px;color:var(--text);background:#fff;}
+.chart-bar .btn{height:36px;}
+.chart-label{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--sub);margin:8px 0 3px;}
+.chart-label b{font-size:13px;color:var(--text);font-weight:600;}
+canvas{display:block;width:100%;height:90px;background:#FAFAFA;border-radius:6px;}
+.chart-axis{display:flex;justify-content:space-between;font-size:10px;color:#B0BEC5;margin-top:4px;}
 
 /* ---------- 日志 ---------- */
 .log-list{display:flex;flex-direction:column;gap:6px;}
@@ -205,12 +210,25 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 <!-- ================= 日志 Tab ================= -->
 <section id="tab-log" class="tab-content">
   <div class="card">
-    <div class="card-title">设备记录（最近 10 条）</div>
-    <button class="ctrl-btn secondary" id="btnReadRecords" onclick="readRecords()">读取记录</button>
-    <div class="sync-status" id="recStatus"></div>
-    <div id="recordList" style="margin-top:10px;">
-      <div class="empty">点击“读取记录”从下位机读取</div>
+    <div class="card-title">波形记录</div>
+    <div class="chart-bar">
+      <select id="daySelect" onchange="renderCharts()"></select>
+      <button class="btn ghost" onclick="clearHistory()">清空</button>
     </div>
+
+    <div class="chart-label"><span>温度 ℃</span><b id="tLast">--</b></div>
+    <canvas id="chartT"></canvas>
+
+    <div class="chart-label"><span>湿度 %RH</span><b id="hLast">--</b></div>
+    <canvas id="chartH"></canvas>
+
+    <div class="chart-label"><span>气压 hPa</span><b id="pLast">--</b></div>
+    <canvas id="chartP"></canvas>
+
+    <div class="chart-axis">
+      <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span>
+    </div>
+    <div class="sync-status" id="chartStatus">暂无数据</div>
   </div>
 
   <div class="card">
@@ -264,6 +282,7 @@ document.querySelectorAll('.tab-item').forEach(function(item){
     item.classList.add('active');
     document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
     document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'log') setTimeout(renderCharts, 0);
   });
 });
 
@@ -399,13 +418,6 @@ window.onBtDisconnected = function(){
     document.getElementById(id).classList.remove('alarm');
   });
 
-  recordBuffer = [];
-  recordCount = 0;
-  recordReceived = 0;
-  var recList = document.getElementById('recordList');
-  if (recList) recList.innerHTML = '<div class="empty">点击“读取记录”从下位机读取</div>';
-  setRecStatus('', '');
-
   addLog('连接已断开');
 };
 
@@ -431,7 +443,6 @@ function handleLine(line){
   if (line.indexOf('ERR:2') === 0) { onThresholdErr('Hmax', '湿度阈值下发失败（30~99）'); return; }
   if (line.indexOf('OK:3') === 0)  { onThresholdAck('Cyc', line); return; }
   if (line.indexOf('ERR:3') === 0) { onThresholdErr('Cyc', '记录周期下发失败'); return; }
-  if (line.indexOf('ERR:6') === 0) { setRecStatus('记录读取失败', 'err'); return; }
   if (line.indexOf('OK:7') === 0) {
     setSyncStatus('时间同步成功', 'ok');
     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
@@ -443,8 +454,6 @@ function handleLine(line){
     return;
   }
   if (line.indexOf('CFG:') === 0) { parseConfig(line); return; }
-  if (line.indexOf('CNT:') === 0) { onRecordCount(line); return; }
-  if (line.indexOf('REC:') === 0) { onRecordLine(line); return; }
 
   parseTelemetry(line);
 };
@@ -502,6 +511,9 @@ function parseTelemetry(line){
   vRain.classList.toggle('alarm', currentData.Rain >= 1);
 
   renderAlarm();
+
+  /* 按设备记录周期落一个波形采样点 */
+  recordSample();
 }
 
 /* 报警卡：设备 ALM 为准，本地再用回传阈值说明是哪个条件触发 */
@@ -711,97 +723,220 @@ function parseConfig(line){
     else if (k === 'Hmax') applyReported('Hmax', v);
     else if (k === 'Cyc') applyReported('Cyc', v);
   });
-
-  /* 配置回复收到后再读记录，保证一问一答 */
-  setTimeout(function(){ if (isBtConnected) readRecords(); }, 200);
 }
 
 /* ================================================================
- * 设备记录读取
+ * 本地波形记录（APP 侧保存，下位机只负责上报）
+ * ----------------------------------------------------------------
+ * 采样间隔跟随设备“记录周期”（Cyc），数据存 localStorage，
+ * 保留最近 7 天，按天画 00:00~24:00 的曲线。
  * ================================================================ */
-var recordCount = 0;
-var recordReceived = 0;
-var recordBuffer = [];
+var HIST_KEY = 'wx_station_hist_v1';
+var HIST_DAYS = 7;
+var CYCLE_MS = [20000, 60000, 300000, 1800000];
+var CYCLE_FULL = ['20 秒', '1 分钟', '5 分钟', '30 分钟'];
 
-function readRecords(){
-  if (!isBtConnected) { alert('请先连接蓝牙设备'); return; }
+var hist = loadHist();
+var lastSampleMs = 0;
 
-  recordCount = 0;
-  recordReceived = 0;
-  recordBuffer = [];
-  document.getElementById('recordList').innerHTML = '<div class="empty">读取中…</div>';
-  setRecStatus('正在读取记录…', '');
-  sendViaBt('5');
+function dayKey(d){
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
 }
 
-function onRecordCount(line){
-  var n = parseInt(line.slice(4), 10);
-  recordCount = isNaN(n) ? 0 : n;
-  recordReceived = 0;
-  recordBuffer = [];
-
-  if (recordCount <= 0) {
-    document.getElementById('recordList').innerHTML = '<div class="empty">设备暂无记录</div>';
-    setRecStatus('设备暂无记录', '');
-    return;
-  }
-
-  setRecStatus('共 ' + recordCount + ' 条，从最新开始读取…', '');
-  /* 与 OLED 一致：最新一条在前，从 count 往回读 */
-  sendViaBt('6,' + recordCount);
+function loadHist(){
+  try {
+    var raw = localStorage.getItem(HIST_KEY);
+    var o = raw ? JSON.parse(raw) : null;
+    if (o && typeof o === 'object' && !Array.isArray(o)) return o;
+  } catch (e) {}
+  return {};
 }
 
-function onRecordLine(line){
-  var segs = line.split(',');
-  var m = segs[0].match(/REC:(\d+)\/(\d+)/);
-  var rec = { idx: 0, total: 0, D: '--', T: '--', H: '--', P: '--', Rain: '0' };
-
-  if (m) {
-    rec.idx = parseInt(m[1], 10);
-    rec.total = parseInt(m[2], 10);
+function saveHist(){
+  try {
+    var keys = Object.keys(hist).sort();
+    while (keys.length > HIST_DAYS) delete hist[keys.shift()];
+    localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+  } catch (e) {
+    /* 配额满：丢掉最旧一天再试一次 */
+    try {
+      var ks = Object.keys(hist).sort();
+      if (ks.length) {
+        delete hist[ks[0]];
+        localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+      }
+    } catch (e2) {}
   }
-  segs.slice(1).forEach(function(seg){
-    var i = seg.indexOf(':');
-    if (i > 0) rec[seg.slice(0, i).trim()] = seg.slice(i + 1).trim();
+}
+
+/* 每收到一帧遥测，按设备周期决定是否落一个采样点 */
+function recordSample(){
+  if (currentData.T === null || currentData.H === null) return;
+
+  var now = new Date();
+  var cyc = (shown.Cyc === null) ? 0 : shown.Cyc;
+  var interval = CYCLE_MS[cyc] || CYCLE_MS[0];
+
+  if (lastSampleMs && now.getTime() - lastSampleMs < interval) return;
+  lastSampleMs = now.getTime();
+
+  var key = dayKey(now);
+  if (!hist[key]) hist[key] = [];
+
+  var pts = hist[key];
+  var sec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  pts.push([sec, currentData.T, currentData.H, currentData.P]);
+
+  /* 单日超过 5000 点就隔点抽稀，避免 localStorage 膨胀 */
+  if (pts.length > 5000) {
+    var thinned = [];
+    for (var i = 0; i < pts.length; i += 2) thinned.push(pts[i]);
+    hist[key] = thinned;
+  }
+
+  saveHist();
+  if (document.getElementById('tab-log').classList.contains('active')) {
+    renderCharts();
+  }
+}
+
+function clearHistory(){
+  if (!confirm('确定清空本地波形记录？')) return;
+  hist = {};
+  lastSampleMs = 0;
+  saveHist();
+  renderCharts();
+}
+
+function refreshDaySelect(){
+  var sel = document.getElementById('daySelect');
+  var today = dayKey(new Date());
+  var keys = Object.keys(hist).sort().reverse();
+  if (keys.indexOf(today) < 0) keys.unshift(today);
+
+  var cur = sel.value;
+  sel.innerHTML = '';
+  keys.forEach(function(k){
+    var o = document.createElement('option');
+    o.value = k;
+    o.textContent = (k === today) ? ('今天 · ' + k) : k;
+    sel.appendChild(o);
   });
+  sel.value = (cur && keys.indexOf(cur) >= 0) ? cur : today;
+}
 
-  recordBuffer.push(rec);
-  recordReceived++;
-  renderRecords();
+function renderCharts(){
+  refreshDaySelect();
 
-  if (rec.idx > 1) {
-    (function(next){
-      setTimeout(function(){ if (isBtConnected) sendViaBt('6,' + next); }, 150);
-    })(rec.idx - 1);
+  var key = document.getElementById('daySelect').value;
+  var pts = hist[key] || [];
+
+  drawChart('chartT', pts, 1, '#F44336', 'tLast');
+  drawChart('chartH', pts, 2, '#2196F3', 'hLast');
+  drawChart('chartP', pts, 3, '#4CAF50', 'pLast');
+
+  var el = document.getElementById('chartStatus');
+  if (!pts.length) {
+    el.textContent = key + ' · 暂无数据';
   } else {
-    setRecStatus('读取完成（' + recordReceived + '/' + recordCount + '）', 'ok');
+    var cyc = (shown.Cyc === null) ? 0 : shown.Cyc;
+    el.textContent = key + ' · ' + pts.length + ' 点 · 采样 ' + (CYCLE_FULL[cyc] || '20 秒');
   }
 }
 
-function renderRecords(){
-  var list = document.getElementById('recordList');
+/* 画一条当日曲线：x = 0~24 点，y 自适应量程 */
+function drawChart(canvasId, pts, idx, color, labelId){
+  var c = document.getElementById(canvasId);
+  var label = document.getElementById(labelId);
+  if (!c) return;
 
-  if (!recordBuffer.length) {
-    list.innerHTML = '<div class="empty">设备暂无记录</div>';
+  var w = c.clientWidth;
+  var h = c.clientHeight || 90;
+  if (!w) return;
+
+  var dpr = window.devicePixelRatio || 1;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+    c.width = Math.round(w * dpr);
+    c.height = Math.round(h * dpr);
+  }
+
+  var ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  /* 6 小时一条竖向网格 */
+  ctx.strokeStyle = '#ECEFF1';
+  ctx.lineWidth = 1;
+  for (var gx = 0; gx <= 4; gx++) {
+    var gpx = Math.round(gx * w / 4) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(gpx, 0);
+    ctx.lineTo(gpx, h);
+    ctx.stroke();
+  }
+
+  var vals = [];
+  for (var i = 0; i < pts.length; i++) {
+    var v = pts[i][idx];
+    if (v !== null && v !== undefined && !isNaN(v)) vals.push(Number(v));
+  }
+  if (!vals.length) {
+    if (label) label.textContent = '--';
     return;
   }
 
-  list.innerHTML = '';
-  recordBuffer.forEach(function(r){
-    var rain = (r.Rain === '2') ? '大雨' : (r.Rain === '1') ? '小雨' : '无雨';
-    var el = document.createElement('div');
-    el.className = 'record-item';
-    el.innerHTML = '<div class="rec-head">记录 ' + r.idx + '/' + r.total + '</div>' +
-      escapeHtml(r.D) + '<br>T:' + escapeHtml(r.T) + '℃　H:' + escapeHtml(r.H) + '%　P:' + escapeHtml(r.P) + 'hPa<br>雨情：' + rain;
-    list.appendChild(el);
-  });
+  var rawMin = Math.min.apply(null, vals);
+  var rawMax = Math.max.apply(null, vals);
+  var min = rawMin;
+  var max = rawMax;
+  if (max - min < 0.5) { max += 0.5; min -= 0.5; }
+  var pad = (max - min) * 0.12;
+  min -= pad;
+  max += pad;
+
+  var top = 8;
+  var bottom = h - 8;
+  var toY = function(val){ return bottom - (val - min) / (max - min) * (bottom - top); };
+  var toX = function(sec){ return sec / 86400 * w; };
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.6;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  var started = false;
+  for (var j = 0; j < pts.length; j++) {
+    var pv = pts[j][idx];
+    if (pv === null || pv === undefined || isNaN(pv)) { started = false; continue; }
+    var px = toX(pts[j][0]);
+    var py = toY(Number(pv));
+    if (!started) { ctx.moveTo(px, py); started = true; }
+    else { ctx.lineTo(px, py); }
+  }
+  ctx.stroke();
+
+  var last = null;
+  for (var k = pts.length - 1; k >= 0; k--) {
+    if (pts[k][idx] !== null && pts[k][idx] !== undefined && !isNaN(pts[k][idx])) {
+      last = pts[k];
+      break;
+    }
+  }
+  if (last) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(toX(last[0]), toY(Number(last[idx])), 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (label) {
+    label.textContent = (last ? Number(last[idx]).toFixed(1) : '--') +
+                        '  (' + rawMin.toFixed(1) + '~' + rawMax.toFixed(1) + ')';
+  }
 }
 
-function setRecStatus(text, cls){
-  var el = document.getElementById('recStatus');
-  el.textContent = text;
-  el.className = 'sync-status ' + (cls || '');
-}
+window.addEventListener('resize', function(){
+  if (document.getElementById('tab-log').classList.contains('active')) renderCharts();
+});
 
 /* ================================================================
  * WebView 壳：把回调挂到 window.top
@@ -820,6 +955,8 @@ if (!window.BluetoothBridge) {
 }
 
 updateThresholdView();
+refreshDaySelect();
+renderCharts();
 </script>
 </body>
 </html>
