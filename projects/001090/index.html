@@ -58,7 +58,6 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 .alarm-off{color:var(--ok);font-size:14px;font-weight:600;}
 
 /* ---------- 控制 ---------- */
-.ctrl-note{font-size:12px;color:var(--sub);line-height:1.6;margin-top:8px;}
 .ctrl-btn{width:100%;height:52px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-size:16px;font-weight:700;margin-top:10px;cursor:pointer;}
 .ctrl-btn:active{opacity:.85;}
 .ctrl-btn.secondary{background:#455A64;}
@@ -110,7 +109,6 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
         <option value="">请先扫描已配对设备</option>
       </select>
     </div>
-    <div class="ctrl-note">选择系统蓝牙里已配对的串口透传模块，波特率 9600 8N1。</div>
   </div>
 
   <div class="card">
@@ -149,7 +147,6 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 <section id="tab-control" class="tab-content">
   <div class="card">
     <div class="card-title">时间同步</div>
-    <div class="ctrl-note">点击按钮发送 7,年,月,日,时,分,秒，把手机时间写入 DS1302。设备回复 OK:7 表示成功。</div>
     <button class="ctrl-btn" id="btnSyncTime" onclick="syncTime()">同步时间</button>
     <div class="sync-status" id="syncStatus"></div>
   </div>
@@ -182,7 +179,6 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
     </div>
 
     <div class="sync-status" id="thrStatus"></div>
-    <div class="ctrl-note">右上角是下位机实际生效的阈值（OLED 按键修改也会同步）；下方输入框是待下发的值，每个阈值单独下发。断电恢复默认 35℃ / 80%。</div>
   </div>
 
   <div class="card">
@@ -203,7 +199,6 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
       </div>
     </div>
     <div class="sync-status" id="cycStatus"></div>
-    <div class="ctrl-note">修改后立即生效，下位机按新周期写入最近 10 条记录。</div>
   </div>
 </section>
 
