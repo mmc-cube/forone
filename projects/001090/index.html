@@ -677,10 +677,10 @@ function parseConfig(line){
  * 本地波形记录（APP 侧保存，下位机只负责上报）
  * ----------------------------------------------------------------
  * 只在数据发生变化时落点（温度 ≥0.2℃ / 湿度 ≥1% / 气压 ≥0.5hPa），
- * 数据存 localStorage，保留最近 7 天，按天画 00:00~24:00 的曲线。
+ * 数据存 localStorage，保留最近 30 天，按天画自适应时间窗口的曲线。
  * ================================================================ */
 var HIST_KEY = 'wx_station_hist_v1';
-var HIST_DAYS = 7;
+var HIST_DAYS = 30;
 
 /* 指标：1=温度 2=湿度 3=气压（对应采样点数组下标） */
 var METRICS = {
@@ -701,7 +701,12 @@ function loadHist(){
   try {
     var raw = localStorage.getItem(HIST_KEY);
     var o = raw ? JSON.parse(raw) : null;
-    if (o && typeof o === 'object' && !Array.isArray(o)) return o;
+    if (o && typeof o === 'object' && !Array.isArray(o)) {
+      /* 载入时就裁掉超过保留天数的旧数据 */
+      var keys = Object.keys(o).sort();
+      while (keys.length > HIST_DAYS) delete o[keys.shift()];
+      return o;
+    }
   } catch (e) {}
   return {};
 }
