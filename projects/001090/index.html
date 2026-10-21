@@ -903,7 +903,46 @@ function renderStats(pts, idx, meta){
   loT.textContent = fmtTime(min.sec);
 }
 
-/* 画当日曲线：x = 00:00~24:00，y 自适应量程 */
+/* 窗口刻度步长：让窗口内大约 4~6 格 */
+function niceStep(span){
+  var steps = [300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
+  for (var i = 0; i < steps.length; i++) {
+    if (span / steps[i] <= 6) return steps[i];
+  }
+  return 86400;
+}
+
+function fmtHM(sec){
+  sec = Math.round(sec);
+  if (sec >= 86400) return '24:00';
+  return pad2(Math.floor(sec / 3600)) + ':' + pad2(Math.floor((sec % 3600) / 60));
+}
+
+/* 按时间分桶取均值：点太密时每个桶只保留一个代表点，压掉来回抖动 */
+function aggregate(arr, winStart, winEnd, maxPoints){
+  if (arr.length <= maxPoints) return arr;
+
+  var bucketSec = (winEnd - winStart) / maxPoints;
+  if (bucketSec <= 0) return arr;
+
+  var out = [];
+  var i = 0;
+  while (i < arr.length) {
+    var b = Math.floor((arr[i].sec - winStart) / bucketSec);
+    var sumV = 0, sumT = 0, n = 0;
+
+    while (i < arr.length && Math.floor((arr[i].sec - winStart) / bucketSec) === b) {
+      sumV += arr[i].v;
+      sumT += arr[i].sec;
+      n++;
+      i++;
+    }
+    out.push({ v: sumV / n, sec: sumT / n });
+  }
+  return out;
+}
+
+/* 画当日曲线：窗口随数据量自适应，数据密时按时间取均值 */
 function drawChart(pts, idx, meta){
   var c = document.getElementById('chart');
   if (!c) return;
@@ -927,31 +966,55 @@ function drawChart(pts, idx, meta){
   var top = 10;
   var bottom = h - 18;
 
-  /* 竖向 6 小时网格 + 时间刻度 */
+  var arr = statValues(pts, idx);
+
+  /* 窗口：从首个点所在格到末个点所在格，最少保留 10 分钟 */
+  var step = 21600;
+  var winStart = 0;
+  var winEnd = 86400;
+
+  if (arr.length) {
+    var firstSec = arr[0].sec;
+    var lastSec = arr[arr.length - 1].sec;
+    step = niceStep(Math.max(lastSec - firstSec, 600));
+
+    winStart = Math.floor(firstSec / step) * step;
+    winEnd = Math.ceil(Math.max(lastSec, winStart + step) / step) * step;
+    if (winStart < 0) winStart = 0;
+    if (winEnd > 86400) winEnd = 86400;
+    if (winEnd <= winStart) winEnd = Math.min(86400, winStart + step);
+  }
+
+  /* 竖向网格 + 时间刻度 */
   ctx.strokeStyle = '#ECEFF1';
   ctx.lineWidth = 1;
-  var hourMarks = [0, 6, 12, 18, 24];
-  for (var i = 0; i < hourMarks.length; i++) {
-    var gx = left + (w - left - right) * hourMarks[i] / 24;
+  ctx.font = '10px sans-serif';
+
+  for (var t = winStart; t <= winEnd; t += step) {
+    var gx = left + (w - left - right) * (t - winStart) / (winEnd - winStart);
     ctx.beginPath();
     ctx.moveTo(Math.round(gx) + 0.5, top);
     ctx.lineTo(Math.round(gx) + 0.5, bottom);
     ctx.stroke();
 
     ctx.fillStyle = '#B0BEC5';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = (hourMarks[i] === 0) ? 'left' : (hourMarks[i] === 24) ? 'right' : 'center';
-    ctx.fillText(pad2(hourMarks[i]) + ':00', gx, h - 4);
+    ctx.textAlign = (t === winStart) ? 'left' : (t === winEnd) ? 'right' : 'center';
+    ctx.fillText(fmtHM(t), gx, h - 4);
   }
 
-  var arr = statValues(pts, idx);
   if (!arr.length) return;
+
+  /* 点太密就分桶取均值，目标 2 像素一个点 */
+  var maxPoints = Math.round((w - left - right) / 2);
+  if (maxPoints < 40) maxPoints = 40;
+  if (maxPoints > 240) maxPoints = 240;
+  var drawPts = aggregate(arr, winStart, winEnd, maxPoints);
 
   var rawMin = Infinity;
   var rawMax = -Infinity;
-  for (var k = 0; k < arr.length; k++) {
-    if (arr[k].v < rawMin) rawMin = arr[k].v;
-    if (arr[k].v > rawMax) rawMax = arr[k].v;
+  for (var k = 0; k < drawPts.length; k++) {
+    if (drawPts[k].v < rawMin) rawMin = drawPts[k].v;
+    if (drawPts[k].v > rawMax) rawMax = drawPts[k].v;
   }
 
   var min = rawMin;
@@ -962,7 +1025,7 @@ function drawChart(pts, idx, meta){
   max += pad;
 
   var toY = function(val){ return bottom - (val - min) / (max - min) * (bottom - top); };
-  var toX = function(sec){ return left + (w - left - right) * sec / 86400; };
+  var toX = function(sec){ return left + (w - left - right) * (sec - winStart) / (winEnd - winStart); };
 
   /* 横向参考线 + 左侧量程 */
   ctx.strokeStyle = '#EEF1F3';
@@ -986,17 +1049,16 @@ function drawChart(pts, idx, meta){
   ctx.lineWidth = 1.8;
   ctx.lineJoin = 'round';
   ctx.beginPath();
-  var started = false;
-  for (var j = 0; j < arr.length; j++) {
-    var px = toX(arr[j].sec);
-    var py = toY(arr[j].v);
-    if (!started) { ctx.moveTo(px, py); started = true; }
-    else { ctx.lineTo(px, py); }
+  for (var j = 0; j < drawPts.length; j++) {
+    var px = toX(drawPts[j].sec);
+    var py = toY(drawPts[j].v);
+    if (j === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
   }
   ctx.stroke();
 
   /* 末端点 */
-  var last = arr[arr.length - 1];
+  var last = drawPts[drawPts.length - 1];
   ctx.fillStyle = meta.color;
   ctx.beginPath();
   ctx.arc(toX(last.sec), toY(last.v), 3, 0, Math.PI * 2);
