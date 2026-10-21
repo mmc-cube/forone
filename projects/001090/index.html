@@ -67,6 +67,14 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 .sync-status.ok{color:var(--ok);font-weight:600;}
 .sync-status.err{color:var(--alarm);font-weight:600;}
 
+.thr-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.thr-row label{font-size:13px;color:var(--sub);width:64px;flex-shrink:0;}
+.thr-row input,.thr-row select{flex:1;height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font-size:14px;color:var(--text);background:#fff;}
+.thr-row .unit{font-size:13px;color:var(--sub);}
+.thr-row .btn{height:40px;flex-shrink:0;}
+.record-item{background:#FFF;border-radius:8px;padding:10px;margin-bottom:6px;box-shadow:0 1px 3px rgba(0,0,0,.06);font-size:12px;color:#37474F;line-height:1.6;}
+.record-item .rec-head{font-weight:700;color:var(--primary);margin-bottom:2px;}
+
 /* ---------- 日志 ---------- */
 .log-list{display:flex;flex-direction:column;gap:6px;}
 .log-item{background:#FFF;border-radius:8px;padding:8px 10px;font-size:12px;color:#37474F;word-break:break-all;box-shadow:0 1px 3px rgba(0,0,0,.06);}
@@ -142,6 +150,40 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
   </div>
 
   <div class="card">
+    <div class="card-title">报警阈值</div>
+    <div class="thr-row">
+      <label>温度上限</label>
+      <input id="tMaxInput" type="number" min="20" max="50" value="35">
+      <span class="unit">℃</span>
+      <button class="btn" onclick="sendThreshold('T')">发送</button>
+    </div>
+    <div class="thr-row">
+      <label>湿度上限</label>
+      <input id="hMaxInput" type="number" min="30" max="99" value="80">
+      <span class="unit">%</span>
+      <button class="btn" onclick="sendThreshold('H')">发送</button>
+    </div>
+    <div class="sync-status" id="thrStatus"></div>
+    <div class="ctrl-note">阈值写入下位机 RAM，断电恢复默认值 35℃ / 80%。</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">记录周期</div>
+    <div class="thr-row">
+      <label>周期</label>
+      <select id="cycleSelect">
+        <option value="0">20 秒</option>
+        <option value="1">1 分钟</option>
+        <option value="2">5 分钟</option>
+        <option value="3">30 分钟</option>
+      </select>
+      <button class="btn" onclick="sendCycle()">发送</button>
+    </div>
+    <div class="sync-status" id="cycStatus"></div>
+    <div class="ctrl-note">修改后立即生效，下位机按新周期写入最近 10 条记录。</div>
+  </div>
+
+  <div class="card">
     <div class="card-title">通信检测</div>
     <div class="ctrl-note">发送 PING，设备回复 OK:PING 表示蓝牙链路正常。</div>
     <button class="ctrl-btn secondary" id="btnPing" onclick="sendPing()">心跳测试</button>
@@ -151,6 +193,15 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 
 <!-- ================= 日志 Tab ================= -->
 <section id="tab-log" class="tab-content">
+  <div class="card">
+    <div class="card-title">设备记录（最近 10 条）</div>
+    <button class="ctrl-btn secondary" id="btnReadRecords" onclick="readRecords()">读取记录</button>
+    <div class="sync-status" id="recStatus"></div>
+    <div id="recordList" style="margin-top:10px;">
+      <div class="empty">点击“读取记录”从下位机读取</div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-title">原始数据（最近 20 条）</div>
     <div class="log-list" id="logList">
@@ -281,6 +332,10 @@ window.onBtConnected = function(address){
   document.getElementById('btnDisconnect').style.display = 'block';
   document.getElementById('deviceList').disabled = true;
   addLog('已连接：' + address);
+
+  /* 连接后自动同步阈值配置，并读取设备记录 */
+  setTimeout(function(){ if (isBtConnected) sendViaBt('CFG?'); }, 400);
+  setTimeout(function(){ if (isBtConnected) readRecords(); }, 900);
 };
 
 window.onBtDisconnected = function(){
@@ -298,6 +353,13 @@ window.onBtDisconnected = function(){
   document.getElementById('vPress').textContent = '--';
   document.getElementById('vRain').textContent = '--';
   document.getElementById('alarmBox').innerHTML = '<span class="alarm-off">等待设备数据…</span>';
+
+  recordBuffer = [];
+  recordCount = 0;
+  var recList = document.getElementById('recordList');
+  if (recList) recList.innerHTML = '<div class="empty">点击“读取记录”从下位机读取</div>';
+  setRecStatus('', '');
+
   addLog('连接已断开');
 };
 
@@ -326,6 +388,14 @@ window.onBtData = function(line){
     if (pingTimer) { clearTimeout(pingTimer); pingTimer = null; }
     return;
   }
+  if (line.indexOf('CFG:') === 0)      { parseConfig(line); return; }
+  if (line.indexOf('CNT:') === 0)      { onRecordCount(line); return; }
+  if (line.indexOf('REC:') === 0)      { onRecordLine(line); return; }
+  if (line.indexOf('OK:THR') === 0)    { setThrStatus('阈值设置成功', 'ok'); return; }
+  if (line.indexOf('ERR:THR') === 0)   { setThrStatus('阈值设置失败（温度 20~50，湿度 30~99）', 'err'); return; }
+  if (line.indexOf('OK:CYC') === 0)    { setCycStatus('记录周期设置成功', 'ok'); return; }
+  if (line.indexOf('ERR:CYC') === 0)   { setCycStatus('记录周期设置失败', 'err'); return; }
+  if (line.indexOf('ERR:HIST') === 0)  { setRecStatus('记录读取失败', 'err'); return; }
 
   parseTelemetry(line);
 };
@@ -417,6 +487,137 @@ function sendPing(){
 
 function setPingStatus(text, cls){
   var el = document.getElementById('pingStatus');
+  el.textContent = text;
+  el.className = 'sync-status ' + (cls || '');
+}
+
+/* ================================================================
+ * 阈值 / 记录周期
+ * ================================================================ */
+function sendThreshold(which){
+  var inputId = (which === 'T') ? 'tMaxInput' : 'hMaxInput';
+  var val = parseInt(document.getElementById(inputId).value, 10);
+  var min = (which === 'T') ? 20 : 30;
+  var max = (which === 'T') ? 50 : 99;
+
+  if (isNaN(val) || val < min || val > max) {
+    setThrStatus('请输入 ' + min + '~' + max + ' 之间的值', 'err');
+    return;
+  }
+  if (!sendViaBt('THR:' + which + ',' + val)) return;
+  setThrStatus('已发送，等待设备确认…', '');
+}
+
+function sendCycle(){
+  var v = document.getElementById('cycleSelect').value;
+  if (!sendViaBt('CYC:' + v)) return;
+  setCycStatus('已发送，等待设备确认…', '');
+}
+
+function setThrStatus(text, cls){
+  var el = document.getElementById('thrStatus');
+  el.textContent = text;
+  el.className = 'sync-status ' + (cls || '');
+}
+
+function setCycStatus(text, cls){
+  var el = document.getElementById('cycStatus');
+  el.textContent = text;
+  el.className = 'sync-status ' + (cls || '');
+}
+
+function parseConfig(line){
+  /* CFG:Tmax:35,Hmax:80,Cyc:0 */
+  var body = line.slice(4);
+  body.split(',').forEach(function(seg){
+    var i = seg.indexOf(':');
+    if (i < 0) return;
+    var k = seg.slice(0, i).trim();
+    var v = seg.slice(i + 1).trim();
+    if (k === 'Tmax') document.getElementById('tMaxInput').value = v;
+    if (k === 'Hmax') document.getElementById('hMaxInput').value = v;
+    if (k === 'Cyc') document.getElementById('cycleSelect').value = v;
+  });
+}
+
+/* ================================================================
+ * 设备记录读取
+ * ================================================================ */
+var recordCount = 0;
+var recordBuffer = [];
+
+function readRecords(){
+  if (!isBtConnected) { alert('请先连接蓝牙设备'); return; }
+
+  recordCount = 0;
+  recordBuffer = [];
+  document.getElementById('recordList').innerHTML = '<div class="empty">读取中…</div>';
+  setRecStatus('正在读取记录…', '');
+  sendViaBt('HIST?');
+}
+
+function onRecordCount(line){
+  var n = parseInt(line.slice(4), 10);
+  recordCount = isNaN(n) ? 0 : n;
+  recordBuffer = [];
+
+  if (recordCount <= 0) {
+    document.getElementById('recordList').innerHTML = '<div class="empty">设备暂无记录</div>';
+    setRecStatus('设备暂无记录', '');
+    return;
+  }
+
+  setRecStatus('共 ' + recordCount + ' 条，读取中…', '');
+  sendViaBt('HIST:1');
+}
+
+function onRecordLine(line){
+  var segs = line.split(',');
+  var m = segs[0].match(/REC:(\d+)\/(\d+)/);
+  var rec = { idx: 0, total: 0, D: '--', T: '--', H: '--', P: '--', Rain: '0' };
+
+  if (m) {
+    rec.idx = parseInt(m[1], 10);
+    rec.total = parseInt(m[2], 10);
+  }
+  segs.slice(1).forEach(function(seg){
+    var i = seg.indexOf(':');
+    if (i > 0) rec[seg.slice(0, i).trim()] = seg.slice(i + 1).trim();
+  });
+
+  recordBuffer.push(rec);
+  renderRecords();
+
+  if (rec.total > 0 && rec.idx < rec.total) {
+    (function(next){
+      setTimeout(function(){ if (isBtConnected) sendViaBt('HIST:' + next); }, 150);
+    })(rec.idx + 1);
+  } else {
+    setRecStatus('读取完成（' + rec.idx + '/' + rec.total + '）', 'ok');
+  }
+}
+
+function renderRecords(){
+  var list = document.getElementById('recordList');
+
+  if (!recordBuffer.length) {
+    list.innerHTML = '<div class="empty">设备暂无记录</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  recordBuffer.forEach(function(r){
+    var rain = (r.Rain === '2') ? '大雨' : (r.Rain === '1') ? '小雨' : '无雨';
+    var el = document.createElement('div');
+    el.className = 'record-item';
+    el.innerHTML = '<div class="rec-head">记录 ' + r.idx + '/' + r.total + '</div>' +
+      escapeHtml(r.D) + '<br>T:' + escapeHtml(r.T) + '℃　H:' + escapeHtml(r.H) + '%　P:' + escapeHtml(r.P) + 'hPa<br>雨情：' + rain;
+    list.appendChild(el);
+  });
+}
+
+function setRecStatus(text, cls){
+  var el = document.getElementById('recStatus');
   el.textContent = text;
   el.className = 'sync-status ' + (cls || '');
 }
