@@ -144,7 +144,7 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 <section id="tab-control" class="tab-content">
   <div class="card">
     <div class="card-title">时间同步</div>
-    <div class="ctrl-note">点击按钮把手机当前时间写入下位机 DS1302。设备回复 OK:TIME 表示成功。</div>
+    <div class="ctrl-note">点击按钮发送 7,年,月,日,时,分,秒，把手机时间写入 DS1302。设备回复 OK:7 表示成功。</div>
     <button class="ctrl-btn" id="btnSyncTime" onclick="syncTime()">同步时间</button>
     <div class="sync-status" id="syncStatus"></div>
   </div>
@@ -185,7 +185,7 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
 
   <div class="card">
     <div class="card-title">通信检测</div>
-    <div class="ctrl-note">发送 PING，设备回复 OK:PING 表示蓝牙链路正常。</div>
+    <div class="ctrl-note">发送 8，设备回复 OK:8 表示蓝牙链路正常。</div>
     <button class="ctrl-btn secondary" id="btnPing" onclick="sendPing()">心跳测试</button>
     <div class="sync-status" id="pingStatus"></div>
   </div>
@@ -334,7 +334,7 @@ window.onBtConnected = function(address){
   addLog('已连接：' + address);
 
   /* 连接后先同步配置；收到 CFG: 回复后再读记录，避免两条指令撞车 */
-  setTimeout(function(){ if (isBtConnected) sendViaBt('CFG?'); }, 400);
+  setTimeout(function(){ if (isBtConnected) sendViaBt('4'); }, 400);
 };
 
 window.onBtDisconnected = function(){
@@ -373,29 +373,31 @@ window.onBtData = function(line){
 
   addLog(line);
 
-  if (line.indexOf('OK:TIME') === 0) {
+  if (line.indexOf('OK:1') === 0)  { setThrStatus('温度上限设置成功', 'ok'); return; }
+  if (line.indexOf('ERR:1') === 0) { setThrStatus('温度上限设置失败（20~50）', 'err'); return; }
+  if (line.indexOf('OK:2') === 0)  { setThrStatus('湿度上限设置成功', 'ok'); return; }
+  if (line.indexOf('ERR:2') === 0) { setThrStatus('湿度上限设置失败（30~99）', 'err'); return; }
+  if (line.indexOf('OK:3') === 0)  { setCycStatus('记录周期设置成功', 'ok'); return; }
+  if (line.indexOf('ERR:3') === 0) { setCycStatus('记录周期设置失败', 'err'); return; }
+  if (line.indexOf('ERR:6') === 0) { setRecStatus('记录读取失败', 'err'); return; }
+  if (line.indexOf('OK:7') === 0) {
     setSyncStatus('时间同步成功', 'ok');
     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
     return;
   }
-  if (line.indexOf('ERR:TIME') === 0) {
+  if (line.indexOf('ERR:7') === 0) {
     setSyncStatus('时间同步失败（格式/范围错误）', 'err');
     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
     return;
   }
-  if (line.indexOf('OK:PING') === 0) {
+  if (line.indexOf('OK:8') === 0) {
     setPingStatus('链路正常', 'ok');
     if (pingTimer) { clearTimeout(pingTimer); pingTimer = null; }
     return;
   }
-  if (line.indexOf('CFG:') === 0)      { parseConfig(line); return; }
-  if (line.indexOf('CNT:') === 0)      { onRecordCount(line); return; }
-  if (line.indexOf('REC:') === 0)      { onRecordLine(line); return; }
-  if (line.indexOf('OK:THR') === 0)    { setThrStatus('阈值设置成功', 'ok'); return; }
-  if (line.indexOf('ERR:THR') === 0)   { setThrStatus('阈值设置失败（温度 20~50，湿度 30~99）', 'err'); return; }
-  if (line.indexOf('OK:CYC') === 0)    { setCycStatus('记录周期设置成功', 'ok'); return; }
-  if (line.indexOf('ERR:CYC') === 0)   { setCycStatus('记录周期设置失败', 'err'); return; }
-  if (line.indexOf('ERR:HIST') === 0)  { setRecStatus('记录读取失败', 'err'); return; }
+  if (line.indexOf('CFG:') === 0) { parseConfig(line); return; }
+  if (line.indexOf('CNT:') === 0) { onRecordCount(line); return; }
+  if (line.indexOf('REC:') === 0) { onRecordLine(line); return; }
 
   parseTelemetry(line);
 };
@@ -449,17 +451,16 @@ function syncTime(){
   if (!isBtConnected) { alert('请先连接蓝牙设备'); return; }
 
   var now = new Date();
-  var cmd = 'TIME:' + now.getFullYear() + '-' +
-            pad2(now.getMonth() + 1) + '-' + pad2(now.getDate()) + ' ' +
-            pad2(now.getHours()) + ':' + pad2(now.getMinutes()) + ':' +
-            pad2(now.getSeconds());
+  var cmd = '7,' + now.getFullYear() + ',' +
+            (now.getMonth() + 1) + ',' + now.getDate() + ',' +
+            now.getHours() + ',' + now.getMinutes() + ',' + now.getSeconds();
 
-  if (!sendViaBt(cmd + '\n')) return;
+  if (!sendViaBt(cmd)) return;
 
   setSyncStatus('已发送，等待设备确认…', '');
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(function(){
-    setSyncStatus('同步超时，未收到 OK:TIME', 'err');
+    setSyncStatus('同步超时，未收到 OK:7', 'err');
     syncTimer = null;
   }, 3000);
 }
@@ -475,12 +476,12 @@ function setSyncStatus(text, cls){
  * ================================================================ */
 function sendPing(){
   if (!isBtConnected) { alert('请先连接蓝牙设备'); return; }
-  if (!sendViaBt('PING\n')) return;
+  if (!sendViaBt('8')) return;
 
   setPingStatus('已发送，等待设备回复…', '');
   if (pingTimer) clearTimeout(pingTimer);
   pingTimer = setTimeout(function(){
-    setPingStatus('超时，未收到 OK:PING', 'err');
+    setPingStatus('超时，未收到 OK:8', 'err');
     pingTimer = null;
   }, 3000);
 }
@@ -504,13 +505,14 @@ function sendThreshold(which){
     setThrStatus('请输入 ' + min + '~' + max + ' 之间的值', 'err');
     return;
   }
-  if (!sendViaBt('THR:' + which + ',' + val)) return;
+  var code = (which === 'T') ? '1,' : '2,';
+  if (!sendViaBt(code + val)) return;
   setThrStatus('已发送，等待设备确认…', '');
 }
 
 function sendCycle(){
   var v = document.getElementById('cycleSelect').value;
-  if (!sendViaBt('CYC:' + v)) return;
+  if (!sendViaBt('3,' + v)) return;
   setCycStatus('已发送，等待设备确认…', '');
 }
 
@@ -558,7 +560,7 @@ function readRecords(){
   recordBuffer = [];
   document.getElementById('recordList').innerHTML = '<div class="empty">读取中…</div>';
   setRecStatus('正在读取记录…', '');
-  sendViaBt('HIST?');
+  sendViaBt('5');
 }
 
 function onRecordCount(line){
@@ -575,7 +577,7 @@ function onRecordCount(line){
 
   setRecStatus('共 ' + recordCount + ' 条，从最新开始读取…', '');
   /* 与 OLED 一致：最新一条在前，从 count 往回读 */
-  sendViaBt('HIST:' + recordCount);
+  sendViaBt('6,' + recordCount);
 }
 
 function onRecordLine(line){
@@ -598,7 +600,7 @@ function onRecordLine(line){
 
   if (rec.idx > 1) {
     (function(next){
-      setTimeout(function(){ if (isBtConnected) sendViaBt('HIST:' + next); }, 150);
+      setTimeout(function(){ if (isBtConnected) sendViaBt('6,' + next); }, 150);
     })(rec.idx - 1);
   } else {
     setRecStatus('读取完成（' + recordReceived + '/' + recordCount + '）', 'ok');
