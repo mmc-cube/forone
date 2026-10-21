@@ -866,7 +866,19 @@ function renderStats(pts, idx, meta){
   loT.textContent = fmtTime(min.sec);
 }
 
-/* 窗口刻度步长：让窗口内大约 4~6 格 */
+/* 分桶步长：10 分钟 → 30 分钟 → 1 小时 → 2 小时（跨度越大桶越大）；
+   跨度很短时自动细分，保证至少 4 个桶 */
+function bucketSize(span){
+  var steps = [600, 1800, 3600, 7200];
+  var step = 7200;
+  for (var i = 0; i < steps.length; i++) {
+    if (span / steps[i] <= 36) { step = steps[i]; break; }
+  }
+  while (step > 60 && span / step < 4) step /= 2;
+  return step;
+}
+
+/* 坐标轴刻度：让窗口内大约 4~6 格 */
 function niceStep(span){
   var steps = [300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
   for (var i = 0; i < steps.length; i++) {
@@ -881,26 +893,29 @@ function fmtHM(sec){
   return pad2(Math.floor(sec / 3600)) + ':' + pad2(Math.floor((sec % 3600) / 60));
 }
 
-/* 按时间分桶取均值：点太密时每个桶只保留一个代表点，压掉来回抖动 */
-function aggregate(arr, winStart, winEnd, maxPoints){
-  if (arr.length <= maxPoints) return arr;
-
-  var bucketSec = (winEnd - winStart) / maxPoints;
-  if (bucketSec <= 0) return arr;
-
+/* 已过去的桶取均值；最后一个桶用最新原始值，保证“刚更新的数据是准的”，
+   等时间走过这一桶后它也会变成均值 */
+function aggregate(arr, winStart, bucketSec){
   var out = [];
   var i = 0;
-  while (i < arr.length) {
-    var b = Math.floor((arr[i].sec - winStart) / bucketSec);
-    var sumV = 0, sumT = 0, n = 0;
+  var n = arr.length;
 
-    while (i < arr.length && Math.floor((arr[i].sec - winStart) / bucketSec) === b) {
+  while (i < n) {
+    var b = Math.floor((arr[i].sec - winStart) / bucketSec);
+    var sumV = 0, sumT = 0, cnt = 0;
+
+    while (i < n && Math.floor((arr[i].sec - winStart) / bucketSec) === b) {
       sumV += arr[i].v;
       sumT += arr[i].sec;
-      n++;
+      cnt++;
       i++;
     }
-    out.push({ v: sumV / n, sec: sumT / n });
+    out.push({ v: sumV / cnt, sec: sumT / cnt });
+  }
+
+  if (out.length) {
+    var latest = arr[n - 1];
+    out[out.length - 1] = { v: latest.v, sec: latest.sec };
   }
   return out;
 }
@@ -967,11 +982,9 @@ function drawChart(pts, idx, meta){
 
   if (!arr.length) return;
 
-  /* 点太密就分桶取均值，目标 2 像素一个点 */
-  var maxPoints = Math.round((w - left - right) / 2);
-  if (maxPoints < 40) maxPoints = 40;
-  if (maxPoints > 240) maxPoints = 240;
-  var drawPts = aggregate(arr, winStart, winEnd, maxPoints);
+  /* 按时间分桶：过去段取均值，最新一段保留原始最新值 */
+  var bucketSec = bucketSize(winEnd - winStart);
+  var drawPts = aggregate(arr, winStart, bucketSec);
 
   var rawMin = Infinity;
   var rawMax = -Infinity;
