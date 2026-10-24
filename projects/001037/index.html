@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>电动自行车智能充电管理系统</title>
+<script src="mqtt.min.js"></script>
+<style>
+:root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --alarm: #F44336;
+    --ok: #4CAF50;
+    --text: #212121;
+    --sub: #757575;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+body {
+    display: flex;
+    flex-direction: column;
+    max-width: 420px;
+    margin: 0 auto;
+}
+.tab-content {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+}
+.tab-content.active { display: block; }
+.card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+.card-title {
+    font-size: 14px;
+    color: var(--sub);
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+/* 状态栏 */
+.status-bar {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+.dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+    background: #F44336;
+}
+.dot.on { background: var(--ok); }
+/* 数据行 */
+.data-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+.data-row:last-child { border-bottom: none; }
+.data-name { font-size: 13px; color: var(--sub); }
+.data-value { font-size: 28px; font-weight: bold; }
+.data-value.small { font-size: 16px; }
+.data-unit { font-size: 13px; color: var(--sub); margin-left: 2px; }
+.data-value.alarm { color: var(--alarm); }
+/* 报警卡 */
+.alarm-item {
+    background: #FFEBEE;
+    color: var(--alarm);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+.alarm-ok { color: var(--ok); font-size: 15px; }
+/* 控制按钮 */
+.ctrl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn {
+    height: 48px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--primary);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.btn:active { opacity: 0.85; }
+.btn.off { background: #9E9E9E; }
+.btn.wide { width: 100%; grid-column: 1 / -1; }
+/* 阈值行 */
+.thr-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+.thr-row:last-child { border-bottom: none; }
+.thr-info { flex: 1; }
+.thr-label { font-size: 14px; font-weight: 600; }
+.thr-current { font-size: 12px; color: var(--sub); margin-top: 2px; }
+.thr-row input {
+    width: 80px;
+    height: 44px;
+    border: 1px solid #DDD;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 15px;
+}
+.thr-row .btn { width: 72px; height: 44px; font-size: 14px; }
+/* 日志 */
+.log-item {
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--sub);
+    padding: 5px 0;
+    border-bottom: 1px dashed #EEE;
+    word-break: break-all;
+}
+.log-time { color: var(--primary); }
+/* Tab 栏 */
+.tab-bar {
+    display: flex;
+    height: 56px;
+    background: #FFFFFF;
+    border-top: 1px solid #E0E0E0;
+    flex-shrink: 0;
+}
+.tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #666;
+    font-size: 14px;
+    font-weight: 500;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+}
+.tab-item.active { color: var(--primary); font-weight: 600; }
+.badge {
+    display: none;
+    position: absolute;
+    top: 8px;
+    margin-left: 4px;
+    min-width: 16px; height: 16px;
+    background: var(--alarm);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 10px;
+    line-height: 16px;
+    text-align: center;
+    padding: 0 4px;
+}
+.badge.show { display: block; }
+/* Toast */
+#toast {
+    position: fixed;
+    bottom: 76px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    display: none;
+    z-index: 99;
+}
+</style>
+</head>
+<body>
+
+<div id="tab-data" class="tab-content active">
+    <div class="status-bar">
+        <div class="dot" id="mqtt-dot"></div>
+        <span id="mqtt-status">未连接</span>
+        <span style="flex:1"></span>
+        <span id="state-text" style="font-weight:600; color:var(--sub)">待机</span>
+    </div>
+
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-name">电池电压</span>
+            <span><span class="data-value" id="v-voltage">--</span><span class="data-unit">V</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">电流（正充负放）</span>
+            <span><span class="data-value" id="v-current">--</span><span class="data-unit">mA</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">电池温度</span>
+            <span><span class="data-value" id="v-temp">--</span><span class="data-unit">℃</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">电量</span>
+            <span><span class="data-value" id="v-soc">--</span><span class="data-unit">%</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">剩余充电时间</span>
+            <span><span class="data-value small" id="v-remain">--</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">充入 / 放出电量</span>
+            <span><span class="data-value small" id="v-mah">--</span><span class="data-unit">mAh</span></span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">回路状态</div>
+        <div class="data-row">
+            <span class="data-name">充电回路（继电器1）</span>
+            <span class="data-value small" id="v-relay1">--</span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">放电回路（继电器2）</span>
+            <span class="data-value small" id="v-relay2">--</span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">设备时钟</span>
+            <span class="data-value small" id="v-clock">--</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">报警状态</div>
+        <div id="alarm-list"><div class="alarm-ok">运行正常</div></div>
+    </div>
+</div>
+
+<div id="tab-ctrl" class="tab-content">
+    <div class="card">
+        <div class="card-title">回路控制</div>
+        <div class="ctrl-grid">
+            <button class="btn" onclick="sendCmd('03')">充电开</button>
+            <button class="btn off" onclick="sendCmd('04')">充电关</button>
+            <button class="btn" onclick="sendCmd('05')">放电开</button>
+            <button class="btn off" onclick="sendCmd('06')">放电关</button>
+            <button class="btn wide" onclick="syncTime()">时间同步（手机时间写入设备）</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="thr-row">
+            <div class="thr-info">
+                <div class="thr-label">充电时长</div>
+                <div class="thr-current">当前：<span id="cur-min">--</span> 分钟</div>
+            </div>
+            <input id="input-min" type="number" inputmode="numeric" placeholder="1~999">
+            <button class="btn" onclick="sendThreshold('min','01',1,999)">发送</button>
+        </div>
+        <div class="thr-row">
+            <div class="thr-info">
+                <div class="thr-label">温度阈值</div>
+                <div class="thr-current">当前：<span id="cur-temp">--</span> ℃</div>
+            </div>
+            <input id="input-temp" type="number" inputmode="numeric" placeholder="40~70">
+            <button class="btn" onclick="sendThreshold('temp','02',40,70)">发送</button>
+        </div>
+    </div>
+</div>
+
+<div id="tab-log" class="tab-content">
+    <div class="card">
+        <div class="card-title">数据日志（最近 20 条）</div>
+        <div id="log-list"><div class="log-item">暂无数据</div></div>
+    </div>
+</div>
+
+<div class="tab-bar">
+    <div class="tab-item active" data-tab="data">数据<div class="badge" id="alarm-badge"></div></div>
+    <div class="tab-item" data-tab="ctrl">控制</div>
+    <div class="tab-item" data-tab="log">日志</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// Topic 硬编码（PRD 锁定），不可动态修改
+const UPLOAD_TOPIC = '001/037/cdglxt/upload';
+const CMD_TOPIC    = '001/037/cdglxt/cmd';
+
+const STATE_TEXT = ['充电中','放电中','已充满','定时已到','过温保护','过放保护','低电量','待机'];
+
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+    reconnectPeriod: 3000
+});
+
+client.on('connect', () => {
+    document.getElementById('mqtt-dot').classList.add('on');
+    document.getElementById('mqtt-status').textContent = '已连接';
+    client.subscribe(UPLOAD_TOPIC);
+});
+
+client.on('reconnect', () => {
+    document.getElementById('mqtt-dot').classList.remove('on');
+    document.getElementById('mqtt-status').textContent = '连接中...';
+});
+
+client.on('offline', () => {
+    document.getElementById('mqtt-dot').classList.remove('on');
+    document.getElementById('mqtt-status').textContent = '未连接';
+});
+
+// 阈值编辑状态（展示/输入分离，互不干扰）
+const thrEdit = {
+    min:  { dirty: false, focused: false, pending: null },
+    temp: { dirty: false, focused: false, pending: null }
+};
+['min','temp'].forEach(k => {
+    const el = document.getElementById('input-' + k);
+    el.addEventListener('focus', () => { thrEdit[k].focused = true; });
+    el.addEventListener('blur',  () => { thrEdit[k].focused = false; });
+    el.addEventListener('input', () => { thrEdit[k].dirty = true; });
+});
+
+client.on('message', (topic, payload) => {
+    if (topic !== UPLOAD_TOPIC) return;
+    const raw = payload.toString();
+    addLog(raw);
+    const p = raw.split(',');
+    if (p.length < 15) return;
+    const d = {
+        voltage:  parseFloat(p[0]),
+        current:  parseFloat(p[1]),
+        temp:     parseFloat(p[2]) / 10,
+        soc:      parseFloat(p[3]),
+        relay1:   parseInt(p[4]),
+        relay2:   parseInt(p[5]),
+        chgEn:    parseInt(p[6]),
+        disEn:    parseInt(p[7]),
+        state:    parseInt(p[8]),
+        remain:   parseInt(p[9]),
+        chgMah:   parseFloat(p[10]),
+        disMah:   parseFloat(p[11]),
+        setMin:   parseFloat(p[12]),
+        setTemp:  parseFloat(p[13]),
+        clock:    p[14]
+    };
+    if (!Number.isFinite(d.voltage)) return;
+    updateUI(d);
+    checkAlarms(d);
+});
+
+function setText(id, txt) { document.getElementById(id).textContent = txt; }
+
+function updateUI(d) {
+    setText('v-voltage', d.voltage.toFixed(3));
+    setText('v-current', (d.current > 0 ? '+' : '') + d.current.toFixed(1));
+    setText('v-temp', d.temp.toFixed(1));
+    setText('v-soc', Math.round(d.soc));
+    setText('v-remain', d.remain > 0
+        ? Math.floor(d.remain/60) + '分' + (d.remain%60) + '秒'
+        : '--');
+    setText('v-mah', Math.round(d.chgMah) + ' / ' + Math.round(d.disMah));
+    setText('v-relay1', d.relay1 ? '闭合' : '断开');
+    setText('v-relay2', d.relay2 ? '闭合' : '断开');
+    setText('v-clock', d.clock.length === 6
+        ? d.clock.substr(0,2) + ':' + d.clock.substr(2,2) + ':' + d.clock.substr(4,2)
+        : d.clock);
+    setText('state-text', STATE_TEXT[d.state] || '--');
+
+    // 阈值：只更新展示区，输入框未编辑时才同步
+    onUplinkThreshold('min',  d.setMin);
+    onUplinkThreshold('temp', d.setTemp);
+}
+
+// ---- 阈值乐观更新（展示与输入分离，技术术语不暴露） ----
+function onUplinkThreshold(key, deviceValue) {
+    if (!Number.isFinite(deviceValue)) return;
+    const pend = thrEdit[key].pending;
+    if (pend && Math.abs(deviceValue - pend) < 1) {
+        clearTimeout(thrEdit[key].timer);
+        thrEdit[key].pending = null;           // 设备已确认，静默接管
+    }
+    const display = (thrEdit[key].pending !== null) ? thrEdit[key].pending : deviceValue;
+    setText('cur-' + key, Math.round(display));
+    if (!thrEdit[key].focused && !thrEdit[key].dirty) {
+        document.getElementById('input-' + key).value = Math.round(display);
+    }
+}
+
+function sendThreshold(key, code, min, max) {
+    const el = document.getElementById('input-' + key);
+    const val = parseFloat(el.value);
+    if (!Number.isFinite(val) || val < min || val > max) {
+        toast('请输入 ' + min + ' ~ ' + max + ' 之间的数值');
+        return;
+    }
+    sendCmd(code + ',' + Math.round(val));
+    thrEdit[key].dirty = false;
+    thrEdit[key].pending = val;                // 内部待确认，2~5 秒内设备接管
+    thrEdit[key].timer = setTimeout(() => { thrEdit[key].pending = null; }, 5000);
+    setText('cur-' + key, Math.round(val));
+    toast('已发送');
+}
+
+// ---- 报警判断（完全按 PRD 第四层规则） ----
+function checkAlarms(d) {
+    const alarms = [];
+    if (d.temp > d.setTemp)            alarms.push('电池过温，充电已停止');
+    if (d.voltage < 3.0)               alarms.push('电池过放，放电已停止');
+    else if (d.voltage < 3.3)          alarms.push('电池低电量');
+    if (d.state === 2)                 alarms.push('电池已充满');
+    if (d.state === 3)                 alarms.push('充电时长已到，已停止充电');
+    renderAlarms(alarms);
+}
+
+function renderAlarms(alarms) {
+    const box = document.getElementById('alarm-list');
+    const badge = document.getElementById('alarm-badge');
+    if (!alarms.length) {
+        box.innerHTML = '<div class="alarm-ok">运行正常</div>';
+        badge.classList.remove('show');
+        return;
+    }
+    box.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+    badge.textContent = alarms.length;
+    badge.classList.add('show');
+}
+
+// ---- 下发 ----
+function sendCmd(cmd) {
+    if (client.connected) {
+        client.publish(CMD_TOPIC, cmd);
+        toast('已发送');
+    } else {
+        toast('未连接，请稍候');
+    }
+}
+
+function syncTime() {
+    const n = new Date();
+    const hh = String(n.getHours()).padStart(2, '0');
+    const mm = String(n.getMinutes()).padStart(2, '0');
+    const ss = String(n.getSeconds()).padStart(2, '0');
+    sendCmd('07,' + hh + mm + ss);            // PRD：07,HHMMSS 一键时间同步
+}
+
+// ---- Tab 切换 ----
+document.querySelectorAll('.tab-item').forEach(item => {
+    item.addEventListener('click', () => {
+        const tab = item.dataset.tab;
+        document.querySelectorAll('.tab-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+    });
+});
+
+// ---- 日志 ----
+const logs = [];
+function addLog(raw) {
+    const n = new Date();
+    const t = n.toTimeString().substr(0, 8);
+    logs.unshift('<span class="log-time">[' + t + ']</span> ' + raw);
+    if (logs.length > 20) logs.pop();
+    document.getElementById('log-list').innerHTML =
+        logs.map(l => '<div class="log-item">' + l + '</div>').join('');
+}
+
+// ---- Toast ----
+let toastTimer = null;
+function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.style.display = 'block';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.style.display = 'none'; }, 2000);
+}
+</script>
+</body>
+</html>
