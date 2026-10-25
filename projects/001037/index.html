@@ -243,6 +243,10 @@ body {
             <span class="data-value small" id="v-relay2">--</span>
         </div>
         <div class="data-row">
+            <span class="data-name">充电模式</span>
+            <span class="data-value small" id="v-mode">--</span>
+        </div>
+        <div class="data-row">
             <span class="data-name">设备时钟</span>
             <span class="data-value small" id="v-clock">--</span>
         </div>
@@ -267,15 +271,24 @@ body {
     </div>
 
     <div class="card">
-        <div class="card-title">阈值设置</div>
-        <div class="thr-row">
+        <div class="card-title">充电模式</div>
+        <div class="ctrl-grid">
+            <button class="btn off" onclick="sendCmd('08')">正常模式<br>（充满自停）</button>
+            <div></div>
+        </div>
+        <div class="thr-row" style="border:none; padding-top:12px;">
             <div class="thr-info">
-                <div class="thr-label">充电时长</div>
-                <div class="thr-current">当前：<span id="cur-min">--</span> 分钟</div>
+                <div class="thr-label">定时充电（本次）</div>
+                <div class="thr-current">当前：<span id="cur-min">--</span> 分钟，到时未充满自动停</div>
             </div>
             <input id="input-min" type="number" inputmode="numeric" placeholder="1~999">
             <button class="btn" onclick="sendThreshold('min','01',1,999)">发送</button>
         </div>
+        <div style="font-size:12px;color:#757575;">定时充电：按充电后倒计时，判满先停；到时未满强制断。</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">阈值设置</div>
         <div class="thr-row">
             <div class="thr-info">
                 <div class="thr-label">温度阈值</div>
@@ -347,7 +360,7 @@ client.on('message', (topic, payload) => {
     const raw = payload.toString();
     addLog(raw);
     const p = raw.split(',');
-    if (p.length < 15) return;
+    if (p.length < 16) return;
     const d = {
         voltage:  parseFloat(p[0]),
         current:  parseFloat(p[1]),
@@ -363,7 +376,8 @@ client.on('message', (topic, payload) => {
         disMah:   parseFloat(p[11]),
         setMin:   parseFloat(p[12]),
         setTemp:  parseFloat(p[13]),
-        clock:    p[14]
+        clock:    p[14],
+        mode:     parseInt(p[15])
     };
     if (!Number.isFinite(d.voltage)) return;
     updateUI(d);
@@ -383,6 +397,9 @@ function updateUI(d) {
     setText('v-mah', Math.round(d.chgMah) + ' / ' + Math.round(d.disMah));
     setText('v-relay1', d.relay1 ? '闭合' : '断开');
     setText('v-relay2', d.relay2 ? '闭合' : '断开');
+    setText('v-mode', d.mode === 1
+        ? '定时 ' + Math.round(d.setMin) + ' 分钟'
+        : '正常（充满自停）');
     setText('v-clock', d.clock.length === 6
         ? d.clock.substr(0,2) + ':' + d.clock.substr(2,2) + ':' + d.clock.substr(4,2)
         : d.clock);
