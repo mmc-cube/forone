@@ -429,7 +429,7 @@ client.on('connect', () => {
 });
 
 // ===================== GPS补位下发 =====================
-// 收到下位机数据后等2分钟再开始获取手机定位并下发，给NEO-6M先锁星的窗口；
+// 收到下位机数据后等30秒再开始获取手机定位并下发，给NEO-6M先锁星的窗口；
 // 首次定位成功立即下发 05,纬度,经度，之后每3分钟刷新一次。
 // 下位机仅在 NEO-6M 无信号时使用该值，有信号时始终用真GPS，无需开关。
 let gpsFix = null;          // { lat, lng } 最近一次手机定位
@@ -470,11 +470,11 @@ client.on('message', (topic, payload) => {
     return;
   }
   addLog(raw);
-  // 首次收到下位机数据：等2分钟再启动GPS补位（给NEO-6M先锁星的机会）
+  // 首次收到下位机数据：等30秒再启动GPS补位（给NEO-6M先锁星的机会）
   if (!gpsTimerStarted) {
     gpsTimerStarted = true;
-    addLog('已连上设备，2分钟后开始GPS补位下发');
-    setTimeout(startGpsFallback, 2 * 60 * 1000);
+    addLog('已连上设备，30秒后开始GPS补位下发');
+    setTimeout(startGpsFallback, 30 * 1000);
   }
   const parts = raw.split(',');
   if (parts.length < 10) return;
