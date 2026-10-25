@@ -440,7 +440,6 @@ function checkAlarms(d) {
     const alarms = [];
     if (d.temp > d.setTemp)            alarms.push('电池过温，充电已停止');
     if (d.voltage < 3.5)               alarms.push('电池过放(<3.0V)，放电已暂停');
-    else if (d.voltage < 3.3)          alarms.push('电池低电量');
     if (d.state === 2)                 alarms.push('电池已充满');
     if (d.state === 3)                 alarms.push('充电时长已到，已停止充电');
     renderAlarms(alarms);
