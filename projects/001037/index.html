@@ -262,11 +262,10 @@ body {
     <div class="card">
         <div class="card-title">回路控制</div>
         <div class="ctrl-grid">
-            <button class="btn" onclick="sendCmd('03')">充电开</button>
+            <button class="btn" onclick="chargeOn()">充电开</button>
             <button class="btn off" onclick="sendCmd('04')">充电关</button>
             <button class="btn" onclick="sendCmd('05')">放电开</button>
             <button class="btn off" onclick="sendCmd('06')">放电关</button>
-            <button class="btn wide" onclick="sendCmd('08')">正常模式（充满自停，不计时）</button>
             <button class="btn wide" onclick="syncTime()">时间同步（手机时间写入设备）</button>
         </div>
     </div>
@@ -468,6 +467,16 @@ function sendCmd(cmd) {
     } else {
         toast('未连接，请稍候');
     }
+}
+
+function chargeOn() {
+    if (!client.connected) {
+        toast('未连接，请稍候');
+        return;
+    }
+    client.publish(CMD_TOPIC, '08');           // 正常模式：充满自停
+    client.publish(CMD_TOPIC, '03');           // 开始充电
+    toast('正常充电已开始');
 }
 
 function startTimedCharge() {
