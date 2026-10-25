@@ -266,25 +266,21 @@ body {
             <button class="btn off" onclick="sendCmd('04')">充电关</button>
             <button class="btn" onclick="sendCmd('05')">放电开</button>
             <button class="btn off" onclick="sendCmd('06')">放电关</button>
+            <button class="btn wide" onclick="sendCmd('08')">正常模式（充满自停，不计时）</button>
             <button class="btn wide" onclick="syncTime()">时间同步（手机时间写入设备）</button>
         </div>
     </div>
 
     <div class="card">
-        <div class="card-title">充电模式</div>
-        <div class="ctrl-grid">
-            <button class="btn off" onclick="sendCmd('08')">正常模式<br>（充满自停）</button>
-            <div></div>
-        </div>
-        <div class="thr-row" style="border:none; padding-top:12px;">
+        <div class="card-title">定时充电</div>
+        <div class="thr-row" style="border:none;">
             <div class="thr-info">
-                <div class="thr-label">定时充电（本次）</div>
+                <div class="thr-label">定时充电（分钟）</div>
                 <div class="thr-current">当前：<span id="cur-min">--</span> 分钟，到时未充满自动停</div>
             </div>
-            <input id="input-min" type="number" inputmode="numeric" placeholder="1~999">
-            <button class="btn" onclick="sendThreshold('min','01',1,999)">发送</button>
+            <input id="input-min" type="number" inputmode="numeric" placeholder="分钟">
+            <button class="btn" onclick="startTimedCharge()">定时充电</button>
         </div>
-        <div style="font-size:12px;color:#757575;">定时充电：按充电后倒计时，判满先停；到时未满强制断。</div>
     </div>
 
     <div class="card">
@@ -294,8 +290,8 @@ body {
                 <div class="thr-label">温度阈值</div>
                 <div class="thr-current">当前：<span id="cur-temp">--</span> ℃</div>
             </div>
-            <input id="input-temp" type="number" inputmode="numeric" placeholder="40~70">
-            <button class="btn" onclick="sendThreshold('temp','02',40,70)">发送</button>
+            <input id="input-temp" type="number" inputmode="numeric" placeholder="℃">
+            <button class="btn" onclick="sendThreshold('temp','02')">发送</button>
         </div>
     </div>
 </div>
@@ -425,11 +421,11 @@ function onUplinkThreshold(key, deviceValue) {
     }
 }
 
-function sendThreshold(key, code, min, max) {
+function sendThreshold(key, code) {
     const el = document.getElementById('input-' + key);
     const val = parseFloat(el.value);
-    if (!Number.isFinite(val) || val < min || val > max) {
-        toast('请输入 ' + min + ' ~ ' + max + ' 之间的数值');
+    if (!Number.isFinite(val)) {
+        toast('请输入数值');
         return;
     }
     sendCmd(code + ',' + Math.round(val));
@@ -472,6 +468,27 @@ function sendCmd(cmd) {
     } else {
         toast('未连接，请稍候');
     }
+}
+
+function startTimedCharge() {
+    const el = document.getElementById('input-min');
+    const val = parseFloat(el.value);
+    if (!Number.isFinite(val)) {
+        toast('请输入定时分钟数');
+        return;
+    }
+    if (!client.connected) {
+        toast('未连接，请稍候');
+        return;
+    }
+    const v = Math.round(val);
+    client.publish(CMD_TOPIC, '01,' + v);      // 定时模式 + 本次时长
+    client.publish(CMD_TOPIC, '03');           // 立即开始充电
+    thrEdit.min.dirty = false;
+    thrEdit.min.pending = v;
+    thrEdit.min.timer = setTimeout(() => { thrEdit.min.pending = null; }, 5000);
+    setText('cur-min', v);
+    toast('定时充电已启动');
 }
 
 function syncTime() {
