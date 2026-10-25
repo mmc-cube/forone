@@ -501,13 +501,13 @@ client.on('message', (topic, payload) => {
 
 // ===================== UI 更新 =====================
 function updateUI(d) {
-  // 心率
+  // 心率（固件成对门控：心率血氧一起出数或一起归零，0 显示为 --）
   const hrAlarm = d.heart_rate > d.hr_threshold && d.heart_rate > 0;
-  setDataValue('valHR', d.heart_rate, 'bpm', hrAlarm);
+  setDataValue('valHR', d.heart_rate > 0 ? d.heart_rate : '--', 'bpm', hrAlarm);
 
   // 血氧
   const spo2Alarm = d.spo2 < d.spo2_threshold && d.spo2 > 0;
-  setDataValue('valSpO2', d.spo2, '%', spo2Alarm);
+  setDataValue('valSpO2', d.spo2 > 0 ? d.spo2 : '--', '%', spo2Alarm);
 
   // 燃气
   const gasAlarm = d.gas_ppm > d.gas_threshold;
