@@ -399,6 +399,10 @@ let lastData = {};
 // key: 'hr' | 'spo2' | 'gas'，value: { val }
 const thrLock = { hr: null, spo2: null, gas: null };
 
+// SOS锁存：收到一次 sos_flag=1 就持续显示SOS告警，点消警才清除
+// （下位机SOS标志仍是按住为1、松开归0，锁存由App端完成，同摔倒逻辑）
+let sosLatched = false;
+
 // ===================== 健康趋势 =====================
 const TREND_KEY = 'dulao_trend_v1';
 const TREND_MAX = 500;   // 最多保存条数
@@ -488,6 +492,7 @@ client.on('message', (topic, payload) => {
     gas_threshold:   parseInt(parts[9])
   };
   lastData = data;
+  if (data.sos_flag === 1) sosLatched = true;   // SOS锁存，直到消警
   updateUI(data);
   checkAlarms(data);
   saveTrend(data.heart_rate);
@@ -566,8 +571,8 @@ function updateGPS(lat, lng) {
 function checkAlarms(d) {
   const alarms = [];
 
-  // SOS 最高优先级
-  if (d.sos_flag === 1) {
+  // SOS 最高优先级（锁存：收到过一次就持续告警，直到点消警）
+  if (d.sos_flag === 1 || sosLatched) {
     alarms.push({ text: '🆘 SOS 紧急求救！', isSOS: true });
   }
   // 跌倒
@@ -734,7 +739,10 @@ function toggleLog() {
 
 // ===================== 消警按钮 =====================
 function onClearClick() {
+  sosLatched = false;   // 清除App端SOS锁存（下位机标志由01指令清）
   sendCmd('01');
+  // 立即刷新告警显示，不等下一包上行
+  if (lastData && lastData.sos_flag !== undefined) checkAlarms(lastData);
 }
 </script>
 </body>
