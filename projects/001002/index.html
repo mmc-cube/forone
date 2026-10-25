@@ -421,7 +421,36 @@ client.on('connect', () => {
   setConnState('connected');
   client.subscribe(UPLOAD_TOPIC);
   client.subscribe(CMD_TOPIC);  // 回显：确认指令已发到 broker
+  pushGpsFix();                 // 重连/首发连接后补发一次手机定位
 });
+
+// ===================== GPS补位下发 =====================
+// 手机定位成功后下发 05,纬度,经度 给下位机，之后每3分钟刷新一次。
+// 下位机仅在 NEO-6M 无信号时使用该值，有信号时始终用真GPS，无需开关。
+let gpsFix = null;  // { lat, lng } 最近一次手机定位
+
+function pushGpsFix() {
+  if (!gpsFix) return;
+  const cmd = '05,' + gpsFix.lat.toFixed(4) + ',' + gpsFix.lng.toFixed(4);
+  if (client && client.connected) {
+    client.publish(CMD_TOPIC, cmd);
+    addLog('→ GPS补位下发: ' + cmd);
+  }
+}
+
+navigator.geolocation.watchPosition(
+  (pos) => {
+    const first = (gpsFix === null);
+    gpsFix = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if (first) pushGpsFix();   // 首次定位成功立即下发，不等3分钟
+  },
+  (err) => {
+    addLog('GPS补位不可用: ' + err.message);
+  },
+  { enableHighAccuracy: false, maximumAge: 30000, timeout: 20000 }
+);
+
+setInterval(pushGpsFix, 3 * 60 * 1000);  // 每3分钟刷新一次补位坐标
 
 client.on('reconnect', () => setConnState('connecting'));
 client.on('offline', () => setConnState('disconnected'));
