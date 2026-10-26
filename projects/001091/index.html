@@ -180,6 +180,25 @@ body{
 }
 .legend-unit{margin-left:auto;font-weight:600;}
 
+/* ---------- 波形统计 ---------- */
+.wave-stat{
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed #EEEEEE;
+}
+.wave-stat-label{font-size:13px;color:var(--sub);}
+.wave-stat-value{
+  font-size:22px;
+  font-weight:700;
+  color:var(--alarm);
+  font-variant-numeric:tabular-nums;
+}
+.wave-stat-unit{font-size:12px;color:var(--sub);}
+.wave-stat-note{font-size:11px;color:var(--sub);margin-left:auto;}
+
 /* ---------- 报警卡 ---------- */
 .alarm-card{
   border-left:4px solid var(--ok);
@@ -391,6 +410,12 @@ body{
       <span class="legend-item"><i class="legend-dash"></i>阈值</span>
       <span class="legend-unit">m/s</span>
     </div>
+    <div class="wave-stat">
+      <span class="wave-stat-label">超速次数</span>
+      <span class="wave-stat-value" id="overspeedCount">0</span>
+      <span class="wave-stat-unit">次</span>
+      <span class="wave-stat-note">自本次连接起</span>
+    </div>
   </div>
 
   <!-- 报警提示卡 -->
@@ -474,6 +499,8 @@ var pending = { dist: null, thr: null };   /* { value, timer } */
 var wavePoints = [];
 var MAX_POINTS = 100;
 var logItems = [];
+var lastCnt = -1;          /* 上一次收到的测量次数，用于识别新测量 */
+var overspeedCount = 0;    /* 累计超速次数（按新测量帧统计） */
 
 function $(id){ return document.getElementById(id); }
 
@@ -751,6 +778,20 @@ function parseAndUpdate(line){
     return;
   }
 
+  /* 超速统计：只在 cnt 递增（新测量）时计数，用该帧自带的 thr 判断 */
+  if (isFinite(cnt) && cnt >= 0){
+    if (lastCnt < 0){
+      lastCnt = cnt;                 /* 首帧建立基线，不计入 */
+    } else if (cnt < lastCnt){
+      overspeedCount = 0;            /* 设备重启 cnt 归零 → 统计清零 */
+      wavePoints.length = 0;         /* 波形同步从头开始 */
+      lastCnt = cnt;
+    } else if (cnt > lastCnt){
+      if (v > thr) overspeedCount++;
+      lastCnt = cnt;
+    }
+  }
+
   state.v       = Math.max(0, Math.min(99.99, v));
   state.max     = isFinite(mx) ? Math.max(0, Math.min(99.99, mx)) : state.max;
   state.cnt     = isFinite(cnt) ? cnt : state.cnt;
@@ -779,6 +820,7 @@ function updateUI(){
   $('vCount').textContent = state.cnt;
   $('vThr').textContent   = thr.toFixed(2) + ' m/s';
   $('vTime').textContent  = state.lastTime;
+  $('overspeedCount').textContent = overspeedCount;
 
   $('vSpeed').classList.toggle('alarm-value', alarm);
 
