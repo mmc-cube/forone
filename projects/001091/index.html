@@ -389,7 +389,7 @@ body{
       <span class="legend-item"><i class="legend-dot"></i>正常</span>
       <span class="legend-item"><i class="legend-dot alarm"></i>超速</span>
       <span class="legend-item"><i class="legend-dash"></i>阈值</span>
-      <span class="legend-unit" id="waveUnit">m/s</span>
+      <span class="legend-unit">m/s</span>
     </div>
   </div>
 
@@ -425,24 +425,7 @@ body{
       <button class="btn btn-inline" onclick="sendParam('thr','02',0.10,9.99)">发送</button>
     </div>
 
-    <div class="param-row">
-      <div class="param-info">
-        <div class="param-name">显示单位</div>
-        <div class="param-cur">当前：<b id="cur-unit">m/s</b></div>
-      </div>
-      <div class="seg">
-        <button class="seg-btn active" id="seg-ms" onclick="sendUnit(0)">m/s</button>
-        <button class="seg-btn" id="seg-kmh" onclick="sendUnit(1)">km/h</button>
-      </div>
-    </div>
-
-    <div class="hint">修改后设备立即生效，并自动回传一帧确认。阈值始终以 m/s 设置，单位只影响速度显示。</div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">数据上传</div>
-    <button class="btn ghost" onclick="requestUpload()">立即上传当前数据</button>
-    <div class="hint">发送指令 00，设备收到后立即回传一帧当前状态。</div>
+    <div class="hint">修改后设备立即生效，并自动回传一帧确认。</div>
   </div>
 
 </div>
@@ -478,7 +461,6 @@ var state = {
   v: 0,                 /* 本次测速 m/s */
   max: 0,               /* 开机最大速度 m/s */
   cnt: 0,               /* 测量次数 */
-  unit: 0,              /* 0=m/s 1=km/h */
   hwAlarm: 0,           /* 设备上报的报警位（仅记录，不用于界面判断） */
   hasData: false,
   lastTime: '--:--:--'
@@ -657,14 +639,6 @@ window.onBtConnected = function(address){
   $('btnDisconnect').style.display = 'block';
 
   addLog('已连接 ' + address, true);
-
-  /* 连上后主动请求一帧当前状态，界面不用等下一次测速 */
-  setTimeout(function(){
-    if (isBtConnected && window.BluetoothBridge){
-      window.BluetoothBridge.send('00\n');
-      addLog('发送 00', true);
-    }
-  }, 600);
 };
 
 window.onBtDisconnected = function(){
@@ -758,7 +732,6 @@ function parseAndUpdate(line){
   var cnt   = parseInt(p[3], 10);
   var thr   = parseFloat(p[4]);
   var dist  = parseFloat(p[5]);
-  var unit  = parseInt(p[6], 10);
 
   if (!isFinite(v) || !isFinite(thr)){
     addLog('速度或阈值字段异常，已忽略');
@@ -774,7 +747,6 @@ function parseAndUpdate(line){
   state.max     = isFinite(mx) ? Math.max(0, Math.min(99.99, mx)) : state.max;
   state.cnt     = isFinite(cnt) ? cnt : state.cnt;
   state.hwAlarm = (hwAl === 1) ? 1 : 0;
-  state.unit    = (unit === 1) ? 1 : 0;
   state.hasData = true;
   state.lastTime = nowText();
 
@@ -789,15 +761,13 @@ function parseAndUpdate(line){
 }
 
 function updateUI(){
-  var scale = state.unit ? 3.6 : 1;
-  var unitText = state.unit ? 'km/h' : 'm/s';
   var thr = params.thr;
   var alarm = state.hasData && (state.v > thr);
 
-  $('vSpeed').textContent = state.hasData ? (state.v * scale).toFixed(2) : '--';
-  $('vMax').textContent   = state.hasData ? (state.max * scale).toFixed(2) : '--';
-  $('uSpeed').textContent = unitText;
-  $('uMax').textContent   = unitText;
+  $('vSpeed').textContent = state.hasData ? state.v.toFixed(2) : '--';
+  $('vMax').textContent   = state.hasData ? state.max.toFixed(2) : '--';
+  $('uSpeed').textContent = 'm/s';
+  $('uMax').textContent   = 'm/s';
   $('vCount').textContent = state.cnt;
   $('vThr').textContent   = thr.toFixed(2) + ' m/s';
   $('vTime').textContent  = state.lastTime;
@@ -812,19 +782,12 @@ function updateUI(){
   } else if (alarm){
     card.classList.add('active');
     $('alarmText').textContent = '超速报警';
-    $('alarmSub').textContent  = '本次 ' + (state.v * scale).toFixed(2) + ' ' + unitText +
-                                 ' 超过阈值 ' + thr.toFixed(2) + ' m/s';
+    $('alarmSub').textContent  = '本次 ' + state.v.toFixed(2) + ' m/s 超过阈值 ' + thr.toFixed(2) + ' m/s';
   } else {
     card.classList.remove('active');
     $('alarmText').textContent = '运行正常';
-    $('alarmSub').textContent  = '本次 ' + (state.v * scale).toFixed(2) + ' ' + unitText +
-                                 ' 低于阈值 ' + thr.toFixed(2) + ' m/s';
+    $('alarmSub').textContent  = '本次 ' + state.v.toFixed(2) + ' m/s 低于阈值 ' + thr.toFixed(2) + ' m/s';
   }
-
-  $('cur-unit').textContent = unitText;
-  $('seg-ms').classList.toggle('active', !state.unit);
-  $('seg-kmh').classList.toggle('active', !!state.unit);
-  $('waveUnit').textContent = unitText;
 
   updateAlarmBadge(alarm);
 }
@@ -859,20 +822,6 @@ function sendParam(key, code, min, max){
   updateUI();
   drawWave();
   toast('已发送');
-}
-
-function sendUnit(u){
-  u = u ? 1 : 0;
-  if (!sendViaBt('03,' + u)) return;
-
-  state.unit = u;
-  updateUI();
-  drawWave();
-  toast('已发送');
-}
-
-function requestUpload(){
-  if (sendViaBt('00')) toast('已请求上传');
 }
 
 /* ================================================================
@@ -923,13 +872,11 @@ function drawWave(){
   var plotH = H - padT - padB;
   if (plotW <= 0 || plotH <= 0) return;
 
-  var scale = state.unit ? 3.6 : 1;
-  var unitText = state.unit ? 'km/h' : 'm/s';
-  var thrDisp = params.thr * scale;
+  var thrDisp = params.thr;
 
   var dataMax = 0;
   for (var i = 0; i < wavePoints.length; i++){
-    var vv = wavePoints[i].v * scale;
+    var vv = wavePoints[i].v;
     if (vv > dataMax) dataMax = vv;
   }
 
@@ -977,7 +924,7 @@ function drawWave(){
   ctx.fillStyle = '#9E9E9E';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText(unitText, padL, padT + plotH + 6 * dpr);
+  ctx.fillText('m/s', padL, padT + plotH + 6 * dpr);
   ctx.textAlign = 'right';
   ctx.fillText('最近 ' + wavePoints.length + ' 次', padL + plotW, padT + plotH + 6 * dpr);
 
@@ -1007,7 +954,7 @@ function drawWave(){
   ctx.beginPath();
   for (var j = 0; j < n; j++){
     var x = xAt(j);
-    var y = yAt(wavePoints[j].v * scale);
+    var y = yAt(wavePoints[j].v);
     if (j === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
@@ -1016,7 +963,7 @@ function drawWave(){
   /* 数据点：超阈值标红 */
   for (var k = 0; k < n; k++){
     var xk = xAt(k);
-    var yk = yAt(wavePoints[k].v * scale);
+    var yk = yAt(wavePoints[k].v);
     ctx.beginPath();
     ctx.arc(xk, yk, 3 * dpr, 0, Math.PI * 2);
     ctx.fillStyle = (wavePoints[k].v > params.thr) ? '#F44336' : '#2196F3';
