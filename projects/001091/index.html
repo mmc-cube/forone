@@ -639,6 +639,14 @@ window.onBtConnected = function(address){
   $('btnDisconnect').style.display = 'block';
 
   addLog('已连接 ' + address, true);
+
+  /* 握手：连接成功后主动发 00，设备收到后立即回传一帧当前状态 */
+  setTimeout(function(){
+    if (isBtConnected && window.BluetoothBridge){
+      window.BluetoothBridge.send('00\n');
+      addLog('发送 00（握手）', true);
+    }
+  }, 500);
 };
 
 window.onBtDisconnected = function(){
