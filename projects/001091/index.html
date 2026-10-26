@@ -371,7 +371,7 @@ body{
     </div>
     <div class="row">
       <span class="row-label">当前阈值</span>
-      <span class="row-value small" id="vThr">1.50 m/s</span>
+      <span class="row-value small" id="vThr">1.00 m/s</span>
     </div>
     <div class="row">
       <span class="row-label">最后更新</span>
@@ -419,7 +419,7 @@ body{
     <div class="param-row">
       <div class="param-info">
         <div class="param-name">速度阈值</div>
-        <div class="param-cur">当前：<b id="cur-thr">1.50</b> m/s</div>
+        <div class="param-cur">当前：<b id="cur-thr">1.00</b> m/s</div>
       </div>
       <input class="num-input" id="input-thr" type="number" step="0.01" min="0.1" max="9.99" inputmode="decimal">
       <button class="btn btn-inline" onclick="sendParam('thr','02',0.10,9.99)">发送</button>
@@ -484,7 +484,7 @@ var state = {
   lastTime: '--:--:--'
 };
 
-var params = { dist: 10, thr: 1.50 };
+var params = { dist: 10, thr: 1.00 };
 var edit   = { dist: { dirty: false, focused: false },
                thr:  { dirty: false, focused: false } };
 var pending = { dist: null, thr: null };   /* { value, timer } */
@@ -762,6 +762,11 @@ function parseAndUpdate(line){
 
   if (!isFinite(v) || !isFinite(thr)){
     addLog('速度或阈值字段异常，已忽略');
+    return;
+  }
+
+  if (v > 10){
+    addLog('速度 ' + v.toFixed(2) + ' m/s 超过 10，判为误判已丢弃');
     return;
   }
 
