@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#2196F3">
+<title>激光测速系统</title>
+<style>
+:root{
+  --bg:#F5F5F5;
+  --card:#FFFFFF;
+  --primary:#2196F3;
+  --alarm:#F44336;
+  --ok:#4CAF50;
+  --warn:#FF9800;
+  --text:#212121;
+  --sub:#757575;
+  --line:#E0E0E0;
+  --shadow:0 2px 8px rgba(0,0,0,0.08);
+  --radius:12px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+html,body{
+  height:100%;
+  overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-tap-highlight-color:transparent;
+}
+
+body{
+  display:flex;
+  flex-direction:column;
+  max-width:420px;
+  margin:0 auto;
+}
+
+/* ---------- Tab 内容区 ---------- */
+.tab-content{
+  display:none;
+  flex:1;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  padding:12px;
+}
+.tab-content.active{display:block;}
+
+/* ---------- 卡片 ---------- */
+.card{
+  background:var(--card);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:16px;
+  margin-bottom:12px;
+}
+.card:last-child{margin-bottom:4px;}
+.card-title{
+  font-size:14px;
+  font-weight:600;
+  color:var(--sub);
+  margin-bottom:12px;
+  letter-spacing:0.5px;
+}
+
+/* ---------- 连接卡 ---------- */
+.connect-card{border-left:4px solid var(--warn);}
+.bt-status-row{
+  display:flex;
+  align-items:center;
+  font-size:14px;
+  margin-bottom:10px;
+}
+.dot{
+  width:10px;height:10px;border-radius:50%;
+  background:var(--alarm);
+  margin-right:8px;
+  flex-shrink:0;
+  transition:background .2s;
+}
+.dot.on{background:var(--ok);}
+.status-text{font-weight:600;color:var(--alarm);}
+.status-text.on{color:var(--ok);}
+
+.device-select{
+  width:100%;
+  height:44px;
+  padding:0 10px;
+  margin:8px 0;
+  border-radius:8px;
+  border:1px solid var(--line);
+  background:#fff;
+  color:var(--text);
+  font-size:14px;
+}
+
+.btn{
+  width:100%;
+  min-height:48px;
+  border:none;
+  border-radius:8px;
+  background:var(--primary);
+  color:#fff;
+  font-size:15px;
+  font-weight:600;
+  cursor:pointer;
+  transition:filter .15s, transform .05s;
+  margin-top:8px;
+}
+.btn:active{filter:brightness(.92);transform:scale(.995);}
+.btn.secondary{background:#607D8B;}
+.btn.danger{background:var(--alarm);}
+.btn.ghost{
+  background:#fff;
+  color:var(--primary);
+  border:1px solid var(--primary);
+}
+.btn:disabled{background:#BDBDBD;cursor:not-allowed;}
+
+.hint{
+  font-size:12px;
+  color:var(--sub);
+  line-height:1.6;
+  margin-top:8px;
+}
+
+/* ---------- 数据行 ---------- */
+.row{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  padding:10px 0;
+  border-bottom:1px solid #F0F0F0;
+}
+.row:last-child{border-bottom:none;}
+.row-label{font-size:13px;color:var(--sub);}
+.row-value{
+  font-size:28px;
+  font-weight:700;
+  line-height:1.1;
+  color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+.row-value .unit{
+  font-size:13px;
+  font-weight:500;
+  color:var(--sub);
+  margin-left:4px;
+}
+.row-value.small{font-size:16px;font-weight:600;}
+.alarm-value{color:var(--alarm);}
+
+/* ---------- 波形 ---------- */
+.wave-wrap{position:relative;}
+#waveCanvas{
+  display:block;
+  width:100%;
+  height:180px;
+}
+.wave-legend{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-top:8px;
+  font-size:12px;
+  color:var(--sub);
+}
+.legend-item{display:flex;align-items:center;gap:5px;}
+.legend-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--primary);
+}
+.legend-dot.alarm{background:var(--alarm);}
+.legend-dash{
+  width:16px;height:0;
+  border-top:2px dashed var(--warn);
+}
+.legend-unit{margin-left:auto;font-weight:600;}
+
+/* ---------- 报警卡 ---------- */
+.alarm-card{
+  border-left:4px solid var(--ok);
+  transition:background .2s, border-color .2s;
+}
+.alarm-card.active{
+  background:#FFEBEE;
+  border-left-color:var(--alarm);
+}
+.alarm-text{
+  font-size:20px;
+  font-weight:700;
+  color:var(--ok);
+}
+.alarm-card.active .alarm-text{color:var(--alarm);}
+.alarm-sub{
+  font-size:12px;
+  color:var(--sub);
+  margin-top:6px;
+  line-height:1.5;
+}
+
+/* ---------- 参数行 ---------- */
+.param-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 0;
+  border-bottom:1px solid #F0F0F0;
+}
+.param-row:last-child{border-bottom:none;}
+.param-info{flex:1;min-width:0;}
+.param-name{font-size:14px;font-weight:600;}
+.param-cur{font-size:12px;color:var(--sub);margin-top:3px;}
+.param-cur b{color:var(--text);font-weight:600;}
+
+.num-input{
+  width:72px;
+  height:44px;
+  flex-shrink:0;
+  border:1px solid var(--line);
+  border-radius:8px;
+  font-size:17px;
+  font-weight:600;
+  text-align:center;
+  color:var(--text);
+  background:#fff;
+}
+.num-input:focus{outline:none;border-color:var(--primary);}
+
+.btn-inline{
+  width:auto;
+  min-height:44px;
+  padding:0 14px;
+  margin-top:0;
+  font-size:14px;
+  flex-shrink:0;
+}
+
+/* ---------- 单位切换 ---------- */
+.seg{
+  display:flex;
+  border:1px solid var(--line);
+  border-radius:8px;
+  overflow:hidden;
+  flex-shrink:0;
+}
+.seg-btn{
+  border:none;
+  background:#fff;
+  color:var(--sub);
+  padding:0 12px;
+  height:44px;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+}
+.seg-btn.active{background:var(--primary);color:#fff;}
+
+/* ---------- 日志 ---------- */
+.log-item{
+  font-size:12px;
+  font-family:Consolas,Menlo,monospace;
+  color:var(--text);
+  padding:8px 0;
+  border-bottom:1px dashed #EEEEEE;
+  word-break:break-all;
+  line-height:1.5;
+}
+.log-item:last-child{border-bottom:none;}
+.log-time{color:var(--sub);margin-right:6px;}
+.log-item.tx{color:var(--primary);}
+.log-empty{font-size:13px;color:var(--sub);text-align:center;padding:20px 0;}
+
+/* ---------- 底部 Tab 栏 ---------- */
+.tab-bar{
+  display:flex;
+  height:56px;
+  padding-bottom:env(safe-area-inset-bottom);
+  background:#FFFFFF;
+  border-top:1px solid var(--line);
+  flex-shrink:0;
+}
+.tab-item{
+  position:relative;
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:14px;
+  font-weight:500;
+  color:#666;
+  cursor:pointer;
+  user-select:none;
+}
+.tab-item.active{color:var(--primary);font-weight:700;}
+.badge{
+  position:absolute;
+  top:10px;
+  margin-left:28px;
+  min-width:16px;
+  height:16px;
+  padding:0 4px;
+  border-radius:8px;
+  background:var(--alarm);
+  color:#fff;
+  font-size:10px;
+  line-height:16px;
+  text-align:center;
+  display:none;
+}
+.badge.show{display:block;}
+
+/* ---------- 轻提示 ---------- */
+.toast{
+  position:fixed;
+  left:50%;
+  bottom:78px;
+  transform:translateX(-50%) translateY(10px);
+  background:rgba(33,33,33,.88);
+  color:#fff;
+  font-size:13px;
+  padding:8px 16px;
+  border-radius:16px;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .2s, transform .2s;
+  z-index:99;
+  max-width:80%;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- ==================== 数据 Tab ==================== -->
+<div class="tab-content active" id="tab-data">
+
+  <!-- 蓝牙连接卡 -->
+  <div class="card connect-card">
+    <div class="card-title">蓝牙连接</div>
+    <div class="bt-status-row">
+      <span class="dot" id="btDot"></span>
+      <span class="status-text" id="btStatus">未连接</span>
+    </div>
+    <select id="deviceList" class="device-select">
+      <option value="">未扫描到已配对设备</option>
+    </select>
+    <button class="btn" id="btnScan" onclick="scanDevices()">扫描已配对设备</button>
+    <button class="btn" id="btnConnect" onclick="connectSelected()">连接</button>
+    <button class="btn danger" id="btnDisconnect" onclick="disconnectBt()" style="display:none">断开连接</button>
+    <div class="hint">请先在手机系统蓝牙中配对 JDY-31（PIN 常为 1234 / 0000），再回到此页面连接。</div>
+  </div>
+
+  <!-- 实时数据卡 -->
+  <div class="card">
+    <div class="card-title">实时数据</div>
+    <div class="row">
+      <span class="row-label">当前速度</span>
+      <span class="row-value"><span id="vSpeed">--</span><span class="unit" id="uSpeed">m/s</span></span>
+    </div>
+    <div class="row">
+      <span class="row-label">最大速度</span>
+      <span class="row-value"><span id="vMax">--</span><span class="unit" id="uMax">m/s</span></span>
+    </div>
+    <div class="row">
+      <span class="row-label">测量次数</span>
+      <span class="row-value"><span id="vCount">0</span><span class="unit">次</span></span>
+    </div>
+    <div class="row">
+      <span class="row-label">当前阈值</span>
+      <span class="row-value small" id="vThr">1.50 m/s</span>
+    </div>
+    <div class="row">
+      <span class="row-label">最后更新</span>
+      <span class="row-value small" id="vTime">--:--:--</span>
+    </div>
+  </div>
+
+  <!-- 速度波形卡 -->
+  <div class="card">
+    <div class="card-title">速度波形（最近 100 次）</div>
+    <div class="wave-wrap">
+      <canvas id="waveCanvas" height="180"></canvas>
+    </div>
+    <div class="wave-legend">
+      <span class="legend-item"><i class="legend-dot"></i>正常</span>
+      <span class="legend-item"><i class="legend-dot alarm"></i>超速</span>
+      <span class="legend-item"><i class="legend-dash"></i>阈值</span>
+      <span class="legend-unit" id="waveUnit">m/s</span>
+    </div>
+  </div>
+
+  <!-- 报警提示卡 -->
+  <div class="card alarm-card" id="alarmCard">
+    <div class="alarm-text" id="alarmText">等待测速</div>
+    <div class="alarm-sub" id="alarmSub">物体依次遮挡两道激光后，此处显示本次速度。</div>
+  </div>
+
+</div>
+
+<!-- ==================== 控制 Tab ==================== -->
+<div class="tab-content" id="tab-control">
+
+  <div class="card">
+    <div class="card-title">参数设置</div>
+
+    <div class="param-row">
+      <div class="param-info">
+        <div class="param-name">激光间距</div>
+        <div class="param-cur">当前：<b id="cur-dist">10</b> cm</div>
+      </div>
+      <input class="num-input" id="input-dist" type="number" step="1" min="1" max="100" inputmode="numeric">
+      <button class="btn btn-inline" onclick="sendParam('dist','01',1,100)">发送</button>
+    </div>
+
+    <div class="param-row">
+      <div class="param-info">
+        <div class="param-name">速度阈值</div>
+        <div class="param-cur">当前：<b id="cur-thr">1.50</b> m/s</div>
+      </div>
+      <input class="num-input" id="input-thr" type="number" step="0.01" min="0.1" max="9.99" inputmode="decimal">
+      <button class="btn btn-inline" onclick="sendParam('thr','02',0.10,9.99)">发送</button>
+    </div>
+
+    <div class="param-row">
+      <div class="param-info">
+        <div class="param-name">显示单位</div>
+        <div class="param-cur">当前：<b id="cur-unit">m/s</b></div>
+      </div>
+      <div class="seg">
+        <button class="seg-btn active" id="seg-ms" onclick="sendUnit(0)">m/s</button>
+        <button class="seg-btn" id="seg-kmh" onclick="sendUnit(1)">km/h</button>
+      </div>
+    </div>
+
+    <div class="hint">修改后设备立即生效，并自动回传一帧确认。阈值始终以 m/s 设置，单位只影响速度显示。</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">数据上传</div>
+    <button class="btn ghost" onclick="requestUpload()">立即上传当前数据</button>
+    <div class="hint">发送指令 00，设备收到后立即回传一帧当前状态。</div>
+  </div>
+
+</div>
+
+<!-- ==================== 日志 Tab ==================== -->
+<div class="tab-content" id="tab-log">
+
+  <div class="card">
+    <div class="card-title">通信日志（最近 20 条）</div>
+    <div class="log-list" id="logList">
+      <div class="log-empty" id="logEmpty">暂无数据</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ==================== 底部 Tab 栏 ==================== -->
+<div class="tab-bar">
+  <div class="tab-item active" data-tab="data">数据<span class="badge" id="alarmBadge"></span></div>
+  <div class="tab-item" data-tab="control">控制</div>
+  <div class="tab-item" data-tab="log">日志</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================
+ * 状态
+ * ================================================================ */
+var isBtConnected = false;
+
+var state = {
+  v: 0,                 /* 本次测速 m/s */
+  max: 0,               /* 开机最大速度 m/s */
+  cnt: 0,               /* 测量次数 */
+  unit: 0,              /* 0=m/s 1=km/h */
+  hwAlarm: 0,           /* 设备上报的报警位（仅记录，不用于界面判断） */
+  hasData: false,
+  lastTime: '--:--:--'
+};
+
+var params = { dist: 10, thr: 1.50 };
+var edit   = { dist: { dirty: false, focused: false },
+               thr:  { dirty: false, focused: false } };
+var pending = { dist: null, thr: null };   /* { value, timer } */
+
+var wavePoints = [];
+var MAX_POINTS = 100;
+var logItems = [];
+
+function $(id){ return document.getElementById(id); }
+
+function pad2(n){
+  n = parseInt(n, 10) || 0;
+  return (n < 10 ? '0' : '') + n;
+}
+
+function nowText(){
+  var d = new Date();
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+}
+
+/* ================================================================
+ * Tab 切换
+ * ================================================================ */
+document.querySelectorAll('.tab-item').forEach(function(item){
+  item.addEventListener('click', function(){
+    var tab = item.dataset.tab;
+    document.querySelectorAll('.tab-item').forEach(function(i){ i.classList.remove('active'); });
+    item.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
+    $('tab-' + tab).classList.add('active');
+    if (tab === 'data') resizeCanvas();
+  });
+});
+
+function updateAlarmBadge(active){
+  var badge = $('alarmBadge');
+  if (active){
+    badge.textContent = '!';
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+}
+
+/* ================================================================
+ * 轻提示
+ * ================================================================ */
+var toastTimer = null;
+function toast(msg){
+  var el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 1600);
+}
+
+/* ================================================================
+ * 日志（最新在最上面，最多 20 条）
+ * ================================================================ */
+function addLog(text, isTx){
+  var empty = $('logEmpty');
+  if (empty) empty.style.display = 'none';
+
+  var list = $('logList');
+  var item = document.createElement('div');
+  item.className = 'log-item' + (isTx ? ' tx' : '');
+
+  var t = document.createElement('span');
+  t.className = 'log-time';
+  t.textContent = nowText();
+
+  item.appendChild(t);
+  item.appendChild(document.createTextNode(text));
+
+  list.insertBefore(item, list.firstChild);
+  logItems.unshift(item);
+
+  while (logItems.length > 20){
+    var old = logItems.pop();
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+}
+
+/* ================================================================
+ * 蓝牙控制（Android WebView BluetoothBridge）
+ * ================================================================ */
+function scanDevices(){
+  if (window.BluetoothBridge){
+    addLog('扫描已配对设备...');
+    window.BluetoothBridge.getPairedDevices();
+  } else {
+    alert('请在 Android WebView 壳中运行本页面');
+    addLog('错误：当前环境没有 BluetoothBridge');
+  }
+}
+
+function connectSelected(){
+  var addr = $('deviceList').value;
+  if (!addr){
+    alert('请先选择设备；若列表为空，请先在系统蓝牙中配对 JDY-31');
+    return;
+  }
+  if (window.BluetoothBridge){
+    addLog('正在连接 ' + addr);
+    window.BluetoothBridge.connect(addr);
+  } else {
+    alert('请在 Android WebView 壳中运行本页面');
+  }
+}
+
+function disconnectBt(){
+  if (window.BluetoothBridge) window.BluetoothBridge.disconnect();
+}
+
+function sendViaBt(cmd){
+  if (!isBtConnected || !window.BluetoothBridge){
+    alert('蓝牙未连接，请先在数据页连接设备');
+    addLog('发送失败：蓝牙未连接');
+    return false;
+  }
+  window.BluetoothBridge.send(cmd + '\n');
+  addLog('发送 ' + cmd, true);
+  return true;
+}
+
+/* ================================================================
+ * 回调（Android 端调用）
+ * ================================================================ */
+window.onBtDeviceList = function(deviceArray){
+  /* 兼容部分壳子传 JSON 字符串而不是数组 */
+  if (typeof deviceArray === 'string'){
+    try {
+      deviceArray = JSON.parse(deviceArray);
+    } catch (e) {
+      deviceArray = [];
+    }
+  }
+
+  var select = $('deviceList');
+  select.innerHTML = '';
+
+  if (!deviceArray || deviceArray.length === 0){
+    var opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '未找到已配对设备，请先在系统蓝牙中配对';
+    select.appendChild(opt);
+    addLog('扫描完成：没有已配对设备');
+    return;
+  }
+
+  deviceArray.forEach(function(d){
+    var o = document.createElement('option');
+    o.value = d.address;
+    o.textContent = (d.name || '未知设备') + ' (' + d.address + ')';
+    select.appendChild(o);
+  });
+  addLog('扫描完成：' + deviceArray.length + ' 个设备');
+};
+
+window.onBtConnected = function(address){
+  isBtConnected = true;
+  address = address || '设备';
+
+  $('btDot').classList.add('on');
+  $('btStatus').textContent = '已连接：' + address;
+  $('btStatus').classList.add('on');
+  $('btnScan').style.display = 'none';
+  $('deviceList').disabled = true;
+  $('btnConnect').style.display = 'none';
+  $('btnDisconnect').style.display = 'block';
+
+  addLog('已连接 ' + address, true);
+
+  /* 连上后主动请求一帧当前状态，界面不用等下一次测速 */
+  setTimeout(function(){
+    if (isBtConnected && window.BluetoothBridge){
+      window.BluetoothBridge.send('00\n');
+      addLog('发送 00', true);
+    }
+  }, 600);
+};
+
+window.onBtDisconnected = function(){
+  isBtConnected = false;
+
+  $('btDot').classList.remove('on');
+  $('btStatus').textContent = '未连接';
+  $('btStatus').classList.remove('on');
+  $('btnScan').style.display = 'block';
+  $('deviceList').disabled = false;
+  $('btnConnect').style.display = 'block';
+  $('btnDisconnect').style.display = 'none';
+
+  addLog('蓝牙已断开');
+};
+
+window.onBtError = function(errMsg){
+  isBtConnected = false;
+  addLog('蓝牙错误：' + errMsg);
+  alert('蓝牙错误：' + errMsg);
+  window.onBtDisconnected();
+};
+
+window.onBtData = function(line){
+  line = (line || '').trim();
+  if (!line) return;
+  addLog('收到 ' + line);
+  parseAndUpdate(line);
+};
+
+/* ================================================================
+ * iframe 镜像（部署到 webpage_on 时必须保留）
+ * ================================================================ */
+try {
+  if (window.top && window.top !== window){
+    window.top.onBtDeviceList   = window.onBtDeviceList;
+    window.top.onBtConnected    = window.onBtConnected;
+    window.top.onBtDisconnected = window.onBtDisconnected;
+    window.top.onBtError        = window.onBtError;
+    window.top.onBtData         = window.onBtData;
+  }
+} catch (e) {
+  addLog('iframe 镜像失败: ' + e.message);
+}
+
+/* ================================================================
+ * 参数编辑状态绑定（聚焦/脏值期间不被上行覆盖）
+ * ================================================================ */
+['dist', 'thr'].forEach(function(key){
+  var el = $('input-' + key);
+  el.addEventListener('focus', function(){ edit[key].focused = true; });
+  el.addEventListener('blur',  function(){ edit[key].focused = false; });
+  el.addEventListener('input', function(){ edit[key].dirty = true; });
+});
+
+function fmtParam(key, val){
+  return key === 'dist' ? String(Math.round(val)) : Number(val).toFixed(2);
+}
+
+/* 上行阈值/间距：只刷新只读展示值，输入框仅在未编辑时同步 */
+function onUplinkParam(key, deviceValue){
+  var pd = pending[key];
+  if (pd && Math.abs(deviceValue - pd.value) < 0.005){
+    clearTimeout(pd.timer);
+    pending[key] = null;
+  }
+
+  var display = pending[key] ? pending[key].value : deviceValue;
+  params[key] = display;
+  $('cur-' + key).textContent = fmtParam(key, display);
+
+  if (!edit[key].focused && !edit[key].dirty){
+    $('input-' + key).value = fmtParam(key, display);
+  }
+}
+
+/* ================================================================
+ * 数据解析与渲染
+ * 上行帧：v,max,alarm,cnt,thr,dist,unit
+ * ================================================================ */
+function parseAndUpdate(line){
+  var p = line.split(',');
+  if (p.length < 7){
+    addLog('帧格式异常，已忽略');
+    return;
+  }
+
+  var v     = parseFloat(p[0]);
+  var mx    = parseFloat(p[1]);
+  var hwAl  = parseInt(p[2], 10);
+  var cnt   = parseInt(p[3], 10);
+  var thr   = parseFloat(p[4]);
+  var dist  = parseFloat(p[5]);
+  var unit  = parseInt(p[6], 10);
+
+  if (!isFinite(v) || !isFinite(thr)){
+    addLog('速度或阈值字段异常，已忽略');
+    return;
+  }
+
+  state.v       = Math.max(0, Math.min(99.99, v));
+  state.max     = isFinite(mx) ? Math.max(0, Math.min(99.99, mx)) : state.max;
+  state.cnt     = isFinite(cnt) ? cnt : state.cnt;
+  state.hwAlarm = (hwAl === 1) ? 1 : 0;
+  state.unit    = (unit === 1) ? 1 : 0;
+  state.hasData = true;
+  state.lastTime = nowText();
+
+  if (isFinite(dist)) onUplinkParam('dist', Math.max(1, Math.min(100, dist)));
+  onUplinkParam('thr', Math.max(0.10, Math.min(9.99, thr)));
+
+  wavePoints.push({ v: state.v, t: Date.now() });
+  if (wavePoints.length > MAX_POINTS) wavePoints.shift();
+
+  updateUI();
+  drawWave();
+}
+
+function updateUI(){
+  var scale = state.unit ? 3.6 : 1;
+  var unitText = state.unit ? 'km/h' : 'm/s';
+  var thr = params.thr;
+  var alarm = state.hasData && (state.v > thr);
+
+  $('vSpeed').textContent = state.hasData ? (state.v * scale).toFixed(2) : '--';
+  $('vMax').textContent   = state.hasData ? (state.max * scale).toFixed(2) : '--';
+  $('uSpeed').textContent = unitText;
+  $('uMax').textContent   = unitText;
+  $('vCount').textContent = state.cnt;
+  $('vThr').textContent   = thr.toFixed(2) + ' m/s';
+  $('vTime').textContent  = state.lastTime;
+
+  $('vSpeed').classList.toggle('alarm-value', alarm);
+
+  var card = $('alarmCard');
+  if (!state.hasData){
+    card.classList.remove('active');
+    $('alarmText').textContent = '等待测速';
+    $('alarmSub').textContent  = '物体依次遮挡两道激光后，此处显示本次速度。';
+  } else if (alarm){
+    card.classList.add('active');
+    $('alarmText').textContent = '超速报警';
+    $('alarmSub').textContent  = '本次 ' + (state.v * scale).toFixed(2) + ' ' + unitText +
+                                 ' 超过阈值 ' + thr.toFixed(2) + ' m/s';
+  } else {
+    card.classList.remove('active');
+    $('alarmText').textContent = '运行正常';
+    $('alarmSub').textContent  = '本次 ' + (state.v * scale).toFixed(2) + ' ' + unitText +
+                                 ' 低于阈值 ' + thr.toFixed(2) + ' m/s';
+  }
+
+  $('cur-unit').textContent = unitText;
+  $('seg-ms').classList.toggle('active', !state.unit);
+  $('seg-kmh').classList.toggle('active', !!state.unit);
+  $('waveUnit').textContent = unitText;
+
+  updateAlarmBadge(alarm);
+}
+
+/* ================================================================
+ * 下发指令（乐观更新，设备回传后静默接管）
+ * ================================================================ */
+function sendParam(key, code, min, max){
+  var el = $('input-' + key);
+  var val = parseFloat(el.value);
+
+  if (!isFinite(val) || val < min || val > max){
+    toast(key === 'dist' ? '间距请输入 1~100 cm' : '阈值请输入 0.10~9.99 m/s');
+    el.focus();
+    return;
+  }
+  if (key === 'dist') val = Math.round(val);
+
+  var payload = (key === 'dist') ? String(val) : val.toFixed(2);
+  if (!sendViaBt(code + ',' + payload)) return;
+
+  edit[key].dirty = false;
+  params[key] = val;
+  $('cur-' + key).textContent = fmtParam(key, val);
+
+  if (pending[key]) clearTimeout(pending[key].timer);
+  pending[key] = {
+    value: val,
+    timer: setTimeout(function(){ pending[key] = null; }, 5000)
+  };
+
+  updateUI();
+  drawWave();
+  toast('已发送');
+}
+
+function sendUnit(u){
+  u = u ? 1 : 0;
+  if (!sendViaBt('03,' + u)) return;
+
+  state.unit = u;
+  updateUI();
+  drawWave();
+  toast('已发送');
+}
+
+function requestUpload(){
+  if (sendViaBt('00')) toast('已请求上传');
+}
+
+/* ================================================================
+ * 波形绘制
+ * ================================================================ */
+function niceCeil(v){
+  if (v <= 0) return 1;
+  var pow = Math.pow(10, Math.floor(Math.log10(v)));
+  var f = v / pow;
+  var nf;
+  if (f <= 1) nf = 1;
+  else if (f <= 2) nf = 2;
+  else if (f <= 5) nf = 5;
+  else nf = 10;
+  return nf * pow;
+}
+
+function formatAxis(v){
+  if (v >= 10) return v.toFixed(0);
+  return v.toFixed(1);
+}
+
+function resizeCanvas(){
+  var canvas = $('waveCanvas');
+  if (!canvas) return;
+
+  var rect = canvas.getBoundingClientRect();
+  var cssW = rect.width;
+  if (!cssW && canvas.parentNode) cssW = canvas.parentNode.clientWidth;
+
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width  = Math.max(240, Math.round(cssW * dpr));
+  canvas.height = Math.round(180 * dpr);
+  drawWave();
+}
+
+function drawWave(){
+  var canvas = $('waveCanvas');
+  if (!canvas || !canvas.getContext) return;
+
+  var dpr = window.devicePixelRatio || 1;
+  var W = canvas.width, H = canvas.height;
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  var padL = 42 * dpr, padR = 16 * dpr, padT = 14 * dpr, padB = 24 * dpr;
+  var plotW = W - padL - padR;
+  var plotH = H - padT - padB;
+  if (plotW <= 0 || plotH <= 0) return;
+
+  var scale = state.unit ? 3.6 : 1;
+  var unitText = state.unit ? 'km/h' : 'm/s';
+  var thrDisp = params.thr * scale;
+
+  var dataMax = 0;
+  for (var i = 0; i < wavePoints.length; i++){
+    var vv = wavePoints[i].v * scale;
+    if (vv > dataMax) dataMax = vv;
+  }
+
+  var yMax = niceCeil(Math.max(thrDisp * 1.25, dataMax * 1.15, 1));
+
+  /* 网格与 Y 轴刻度 */
+  ctx.font = (11 * dpr) + 'px -apple-system, "PingFang SC", sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = dpr;
+
+  var gridN = 4;
+  for (var g = 0; g <= gridN; g++){
+    var val = yMax * g / gridN;
+    var gy = padT + plotH - (val / yMax) * plotH;
+    ctx.strokeStyle = (g === 0) ? '#D8D8D8' : '#EEEEEE';
+    ctx.beginPath();
+    ctx.moveTo(padL, gy);
+    ctx.lineTo(padL + plotW, gy);
+    ctx.stroke();
+
+    ctx.fillStyle = '#9E9E9E';
+    ctx.fillText(formatAxis(val), padL - 6 * dpr, gy);
+  }
+
+  /* 阈值虚线 */
+  var thrY = padT + plotH - (Math.min(thrDisp, yMax) / yMax) * plotH;
+  ctx.save();
+  ctx.setLineDash([5 * dpr, 4 * dpr]);
+  ctx.strokeStyle = '#FF9800';
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(padL, thrY);
+  ctx.lineTo(padL + plotW, thrY);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = '#FF9800';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('阈值 ' + thrDisp.toFixed(2), padL + 4 * dpr,
+               Math.max(padT + 12 * dpr, thrY - 3 * dpr));
+
+  /* X 轴单位与点数 */
+  ctx.fillStyle = '#9E9E9E';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(unitText, padL, padT + plotH + 6 * dpr);
+  ctx.textAlign = 'right';
+  ctx.fillText('最近 ' + wavePoints.length + ' 次', padL + plotW, padT + plotH + 6 * dpr);
+
+  if (wavePoints.length === 0){
+    ctx.fillStyle = '#9E9E9E';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('等待第一次测速...', padL + plotW / 2, padT + plotH / 2);
+    return;
+  }
+
+  var n = wavePoints.length;
+
+  /* 固定 100 个槽位，最新点在最右侧，实现滚动效果 */
+  function xAt(idx){
+    var slot = (MAX_POINTS - n) + idx;
+    return padL + (slot / (MAX_POINTS - 1)) * plotW;
+  }
+  function yAt(v){
+    return padT + plotH - (Math.min(v, yMax) / yMax) * plotH;
+  }
+
+  /* 折线 */
+  ctx.strokeStyle = 'rgba(33,150,243,0.85)';
+  ctx.lineWidth = 2 * dpr;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (var j = 0; j < n; j++){
+    var x = xAt(j);
+    var y = yAt(wavePoints[j].v * scale);
+    if (j === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  /* 数据点：超阈值标红 */
+  for (var k = 0; k < n; k++){
+    var xk = xAt(k);
+    var yk = yAt(wavePoints[k].v * scale);
+    ctx.beginPath();
+    ctx.arc(xk, yk, 3 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = (wavePoints[k].v > params.thr) ? '#F44336' : '#2196F3';
+    ctx.fill();
+  }
+}
+
+window.addEventListener('resize', resizeCanvas);
+
+/* ================================================================
+ * 初始化
+ * ================================================================ */
+$('input-dist').value = fmtParam('dist', params.dist);
+$('input-thr').value  = fmtParam('thr', params.thr);
+updateUI();
+resizeCanvas();
+</script>
+</body>
+</html>
