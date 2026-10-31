@@ -164,15 +164,6 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
       <input id="in-ThrHeatLow" type="number" inputmode="decimal" placeholder="0~90">
       <button data-thr="ThrHeatLow">发送</button>
     </div>
-
-    <div class="thr-row">
-      <div class="thr-info">
-        <div class="thr-label">水位下限</div>
-        <div class="thr-current">当前：<span id="cur-ThrLevelLow">--</span> %</div>
-      </div>
-      <input id="in-ThrLevelLow" type="number" inputmode="decimal" placeholder="0~100">
-      <button data-thr="ThrLevelLow">发送</button>
-    </div>
   </div>
 </div>
 
@@ -204,21 +195,19 @@ const POLL_MS = 500;
 /* 阈值量程（与物模型一致） */
 const RANGE = {
   ThrRateHigh: [0, 500],
-  ThrHeatLow:  [0, 90],
-  ThrLevelLow: [0, 100]
+  ThrHeatLow:  [0, 90]
 };
 
 /* ================= 状态 ================= */
 const D = {
   Rate: null, Level: null, Temperature: null, HeatOn: null,
-  ThrRateHigh: null, ThrHeatLow: null, ThrLevelLow: null
+  ThrRateHigh: null, ThrHeatLow: null
 };
 
 /* 每个阈值独立的编辑状态，互不影响 */
 const thrEdit = {
   ThrRateHigh: {dirty:false, focused:false},
-  ThrHeatLow:  {dirty:false, focused:false},
-  ThrLevelLow: {dirty:false, focused:false}
+  ThrHeatLow:  {dirty:false, focused:false}
 };
 
 /* 待确认（乐观更新）—内部使用，不在界面上体现 */
@@ -296,7 +285,6 @@ function applyUplink(map){
 
   onUplinkThreshold('ThrRateHigh', toNum(map.ThrRateHigh));
   onUplinkThreshold('ThrHeatLow',  toNum(map.ThrHeatLow));
-  onUplinkThreshold('ThrLevelLow', toNum(map.ThrLevelLow));
 
   renderData();
   checkAlarms();
@@ -312,8 +300,6 @@ function renderData(){
 
   const lvEl = document.getElementById('v-Level');
   lvEl.textContent = (D.Level === null) ? '--' : D.Level;
-  lvEl.classList.toggle('alarm',
-    D.Level !== null && D.ThrLevelLow !== null && D.Level > 0 && D.Level < D.ThrLevelLow);
 
   document.getElementById('v-Temperature').textContent =
     (D.Temperature === null) ? '--' : D.Temperature.toFixed(1);
@@ -337,9 +323,7 @@ function checkAlarms(){
   const list = [];
   if (D.Rate !== null && D.ThrRateHigh !== null && D.Rate > D.ThrRateHigh)
     list.push('滴速过高：' + D.Rate + ' 滴/分');
-  if (D.Level !== null && D.ThrLevelLow !== null &&
-      D.Level > 0 && D.Level < D.ThrLevelLow)
-    list.push('水位过低：剩余 ' + D.Level + '%');
+  /* 药液快流干由设备端单点液位开关判断（蜂鸣器 + OLED 感叹号），不上报平台 */
 
   const box = document.getElementById('alarm-box');
   if (list.length === 0){
