@@ -189,18 +189,6 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
         <div class="data-row"><span class="data-name">功率</span>
             <span><span class="data-val" id="v-p">--</span><span class="data-unit">mW</span></span></div>
     </div>
-    <!-- 追光数据卡 -->
-    <div class="card">
-        <div class="card-title">追光状态</div>
-        <div class="data-row"><span class="data-name">方位角</span>
-            <span><span class="data-val small" id="v-pan">--</span><span class="data-unit">°</span></span></div>
-        <div class="data-row"><span class="data-name">俯仰角</span>
-            <span><span class="data-val small" id="v-tilt">--</span><span class="data-unit">°</span></span></div>
-        <div class="data-row"><span class="data-name">水平偏差 dH（左−右）</span>
-            <span><span class="data-val small" id="v-dh">--</span></span></div>
-        <div class="data-row"><span class="data-name">垂直偏差 dV（上−下）</span>
-            <span><span class="data-val small" id="v-dv">--</span></span></div>
-    </div>
     <!-- 报警状态卡 -->
     <div class="card">
         <div class="card-title">报警</div>
@@ -210,10 +198,7 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
             <button class="btn-mute" id="btn-mute" onclick="sendCmd('07'); toast('已静音');">静音</button>
         </div>
     </div>
-</div>
 
-<!-- ================= 控制 Tab ================= -->
-<div class="tab-content" id="tab-ctl">
     <!-- 控制卡 -->
     <div class="card">
         <div class="card-title">控制</div>
@@ -256,16 +241,7 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
             <input id="input-thr" type="number" inputmode="numeric" placeholder="2500~4200">
             <button class="btn thr-send" onclick="sendThreshold('thr','05',2500,4200)">发送</button>
         </div>
-        <div class="thr-row">
-            <div class="thr-info">
-                <div class="thr-label">放电超时 (s)</div>
-                <div class="thr-current">当前：<b id="cur-tout">--</b></div>
-            </div>
-            <input id="input-tout" type="number" inputmode="numeric" placeholder="0,10~300">
-            <button class="btn thr-send" onclick="sendThreshold('tout','06',0,300)">发送</button>
-        </div>
     </div>
-</div>
 
 <!-- ================= 日志 Tab ================= -->
 <div class="tab-content" id="tab-log">
@@ -275,10 +251,9 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
     </div>
 </div>
 
-<!-- ================= Tab 栏 ================= -->
+<!-- ================= 底部 Tab 栏（主页 = 数据+控制融合，2026-11-01 用户定稿） ================= -->
 <div class="tab-bar">
-    <div class="tab-item active" data-tab="data"><span class="tab-ico"></span>数据<span class="badge" id="alarm-badge"></span></div>
-    <div class="tab-item" data-tab="ctl"><span class="tab-ico"></span>控制</div>
+    <div class="tab-item active" data-tab="data"><span class="tab-ico"></span>主页<span class="badge" id="alarm-badge"></span></div>
     <div class="tab-item" data-tab="log"><span class="tab-ico"></span>日志</div>
 </div>
 
@@ -299,8 +274,8 @@ let appMuted = false;                       /* APP 端静音显示（报警恢�
 /* 乐观更新待确认标记（内部用，不进界面） */
 const pending = { mode:null, dis_flag:null, thr_low_mv:null, dis_timeout_s:null };
 
-/* 阈值编辑保护：每阈值独立 dirty/focused */
-const thrEdit = { thr:{dirty:false,focused:false}, tout:{dirty:false,focused:false} };
+/* 阈值编辑保护：每阈值独立 dirty/focused（放电超时 06 不做 APP 界面，仅保留协议） */
+const thrEdit = { thr:{dirty:false,focused:false} };
 
 /* ================= MQTT ================= */
 let client = null;
@@ -345,8 +320,7 @@ function onUplink(s) {
     /* 设备回传与待确认值一致 → 静默接管 */
     if (pending.mode !== null && cur.mode === pending.mode) pending.mode = null;
     if (pending.dis_flag !== null && cur.dis_flag === pending.dis_flag) pending.dis_flag = null;
-    onUplinkThreshold('thr',  cur.thr_low_mv);
-    onUplinkThreshold('tout', cur.dis_timeout_s);
+    onUplinkThreshold('thr', cur.thr_low_mv);   /* 放电超时 06 不做 APP 界面，仅保留协议 */
 
     updateUI();
     checkAlarms();
@@ -355,15 +329,12 @@ function onUplink(s) {
 /* ================= 界面刷新 ================= */
 const $ = id => document.getElementById(id);
 function fmtSigned(v) { return (v >= 0 ? '+' : '') + v; }
+function fmtSigned1(v) { return (v >= 0 ? '+' : '') + Math.abs(v).toFixed(1); }
 function updateUI() {
     if (cur.vbat_mv !== null && !isNaN(cur.vbat_mv)) {
         $('v-vbat').textContent = (cur.vbat_mv / 1000).toFixed(2);
-        $('v-i').textContent = fmtSigned(cur.i_ma);
-        $('v-p').textContent = cur.p_mw;
-        $('v-pan').textContent = fmtSigned(cur.pan / 10).replace(/\.0$/, '');
-        $('v-tilt').textContent = fmtSigned(cur.tilt / 10).replace(/\.0$/, '');
-        $('v-dh').textContent = fmtSigned(cur.dh);
-        $('v-dv').textContent = fmtSigned(cur.dv);
+        $('v-i').textContent = fmtSigned1(cur.i_ma);      /* 统一 1 位小数（用户要求） */
+        $('v-p').textContent = Number(cur.p_mw).toFixed(1);
     }
 
     /* 状态 chips（待确认期间显示预测值） */
@@ -453,7 +424,7 @@ function bindThrInput(key) {
     el.addEventListener('blur',  () => { thrEdit[key].focused = false; });
     el.addEventListener('input', () => { thrEdit[key].dirty = true; });
 }
-bindThrInput('thr'); bindThrInput('tout');
+bindThrInput('thr');
 
 function sendThreshold(key, code, min, max) {
     const el = $('input-' + key);
