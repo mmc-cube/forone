@@ -24,7 +24,11 @@ html, body {
     background: var(--bg);
     color: var(--text);
 }
-body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; }
+body {
+    display: flex; flex-direction: column; max-width: 420px; margin: 0 auto;
+    height: 100vh;
+    height: 100dvh;   /* 手机地址栏自适应，Tab 栏始终贴底 */
+}
 
 /* ---- Tab 内容区 ---- */
 .tab-content { display: none; flex: 1; overflow-y: auto; padding: 10px; }
@@ -34,6 +38,7 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
 .tab-bar {
     display: flex; height: 56px; background: #FFFFFF;
     border-top: 1px solid #E0E0E0; flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom);   /* iPhone 底部小黑条自适应 */
 }
 .tab-item {
     flex: 1; display: flex; flex-direction: row; align-items: center; justify-content: center;
@@ -53,6 +58,19 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
     box-shadow: var(--shadow); padding: 12px; margin-bottom: 10px;
 }
 .card-title { font-size: 13px; color: var(--sub); margin-bottom: 10px; font-weight: 600; }
+
+/* ---- 状态栏（2026-11-01 用户要求加回） ---- */
+.status-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: #BDBDBD; display: inline-block; flex-shrink: 0; }
+.dot.ok { background: var(--ok); } .dot.bad { background: var(--alarm); }
+#mqtt-text { font-size: 14px; font-weight: 600; margin-right: auto; }
+.chip {
+    font-size: 12px; padding: 3px 10px; border-radius: 12px;
+    background: #EEEEEE; color: var(--sub); font-weight: 600;
+}
+.chip.on  { background: #E3F2FD; color: var(--primary); }
+.chip.dis { background: #FFF3E0; color: #E65100; }
+.chip.lock { background: #F5F5F5; color: #9E9E9E; }
 
 /* ---- 电参量三列瓦片（上名称下数值，中间划开） ---- */
 .stats { display: flex; padding: 10px 0; }
@@ -138,6 +156,14 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
 
 <!-- ================= 主页 Tab（数据+控制融合，2026-11-01 用户定稿） ================= -->
 <div class="tab-content active" id="tab-data">
+    <!-- 状态栏 -->
+    <div class="card" style="padding:10px 12px;">
+        <div class="status-row">
+            <span class="dot" id="mqtt-dot"></span><span id="mqtt-text">未连接</span>
+            <span class="chip lock" id="chip-mode">--</span>
+            <span class="chip" id="chip-chg">--</span>
+        </div>
+    </div>
     <!-- 电参量三列瓦片（上名称下数值，中间划开） -->
     <div class="card stats">
         <div class="stat"><div class="stat-name">电池电压</div>
@@ -241,7 +267,11 @@ function mqttConnect() {
     client.on('offline',   () => setMqttUI(false));
     client.on('message', (topic, payload) => onUplink(payload.toString()));
 }
-function setMqttUI(ok) { toast(ok ? '已连接' : '未连接，重连中'); }   /* 状态栏已删（用户定稿），连接状态改 toast 提示 */
+function setMqttUI(ok) {
+    $('mqtt-dot').className = 'dot ' + (ok ? 'ok' : 'bad');
+    $('mqtt-text').textContent = ok ? '已连接' : '未连接';
+    if (!ok) toast('未连接，重连中');
+}
 
 /* ================= 上行解析（$D,11 字段，序号固定） ================= */
 function onUplink(s) {
@@ -283,8 +313,16 @@ function updateUI() {
             cur.thr_low_mv !== null && cur.vbat_mv < cur.thr_low_mv);
     }
 
-    /* 开关状态（待确认期间显示预测值） */
+    /* 状态栏 chips（待确认期间显示预测值） */
     const mode = pending.mode !== null ? pending.mode : cur.mode;
+    $('chip-mode').textContent = mode === 0 ? 'TRACK' : (mode === 1 ? 'LOCK' : '--');
+    $('chip-mode').className = 'chip ' + (mode === 0 ? 'on' : 'lock');
+    const chg = (cur.i_ma === null || isNaN(cur.i_ma)) ? '--'
+              : (cur.i_ma >= 1 ? 'CHG' : (cur.i_ma <= -1 ? 'DIS' : 'IDLE'));
+    $('chip-chg').textContent = chg;
+    $('chip-chg').className = 'chip' + (chg === 'CHG' ? ' on' : (chg === 'DIS' ? ' dis' : ''));
+
+    /* 开关状态（待确认期间显示预测值） */
     const tracking = mode === 0;
     $('sw-track').checked = tracking;
     $('track-sub').textContent = tracking ? '追光运行中' : '已锁定（保持当前位置）';
@@ -389,7 +427,7 @@ function log(s) {
     const hh = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0') + ':' + String(t.getSeconds()).padStart(2,'0');
     logs.unshift('<div class="' + (s.indexOf('↑') === 2 ? 'up' : '') + '">[' + hh + '] ' + s + '</div>');
     if (logs.length > 20) logs.pop();
-    $('log-list').innerHTML = logs.join('');
+    $('log-list').innerHTML = logs.join('') || '<div style="color:#BDBDBD">暂无日志</div>';
 }
 let toastTimer = null;
 function toast(msg) {
@@ -410,7 +448,9 @@ document.querySelectorAll('.tab-item').forEach(item => {
 });
 
 /* ================= 启动 ================= */
+$('log-list').innerHTML = '<div style="color:#BDBDBD">暂无日志</div>';
 updateUI();
+log('APP 启动，正在连接 broker…');
 mqttConnect();
 </script>
 </body>
