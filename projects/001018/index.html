@@ -27,7 +27,7 @@ html, body {
 body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; }
 
 /* ---- Tab 内容区 ---- */
-.tab-content { display: none; flex: 1; overflow-y: auto; padding: 12px; }
+.tab-content { display: none; flex: 1; overflow-y: auto; padding: 10px; }
 .tab-content.active { display: block; }
 
 /* ---- 底部 Tab 栏 ---- */
@@ -46,58 +46,25 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
 .tab-item[data-tab="data"] .tab-ico { border-radius: 50%; }
 .tab-item[data-tab="log"]  .tab-ico { border-radius: 4px 4px 4px 0; }
 .tab-item.active { color: var(--primary); font-weight: 600; }
-.badge {
-    display: none; position: absolute; top: 8px; right: calc(50% - 32px);
-    min-width: 16px; height: 16px; line-height: 16px; padding: 0 4px;
-    background: var(--alarm); color: #fff; border-radius: 8px;
-    font-size: 11px; font-weight: 600; text-align: center;
-}
-.badge.show { display: block; }
 
 /* ---- 卡片 ---- */
 .card {
     background: var(--card); border-radius: var(--radius);
-    box-shadow: var(--shadow); padding: 14px; margin-bottom: 12px;
+    box-shadow: var(--shadow); padding: 12px; margin-bottom: 10px;
 }
 .card-title { font-size: 13px; color: var(--sub); margin-bottom: 10px; font-weight: 600; }
 
-/* ---- 状态栏 ---- */
-.status-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.dot { width: 10px; height: 10px; border-radius: 50%; background: #BDBDBD; display: inline-block; }
-.dot.ok { background: var(--ok); } .dot.bad { background: var(--alarm); }
-#mqtt-text { font-size: 14px; font-weight: 600; }
-.chip {
-    font-size: 12px; padding: 3px 10px; border-radius: 12px;
-    background: #EEEEEE; color: var(--sub); font-weight: 600;
-}
-.chip.on  { background: #E3F2FD; color: var(--primary); }
-.chip.dis { background: #FFF3E0; color: #E65100; }
-.chip.lock { background: #F5F5F5; color: #9E9E9E; }
-
-/* ---- 实时数据 ---- */
-.data-row { display: flex; align-items: baseline; justify-content: space-between; padding: 6px 0; }
-.data-row + .data-row { border-top: 1px solid #F0F0F0; }
-.data-name { font-size: 13px; color: var(--sub); }
-.data-val { font-size: 28px; font-weight: bold; }
-.data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
-.data-val.alarm { color: var(--alarm); }
-.data-val.small { font-size: 22px; }
-
-/* ---- 报警 ---- */
-.alarm-bar {
-    display: flex; align-items: center; justify-content: space-between;
-    background: #FFEBEE; color: var(--alarm); border-radius: 8px;
-    padding: 10px 12px; margin-top: 8px; font-size: 14px; font-weight: 600;
-}
-.alarm-ok { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--ok); font-size: 14px; font-weight: 600; }
-.btn-mute {
-    background: var(--alarm); color: #fff; border: none; border-radius: 8px;
-    height: 40px; padding: 0 16px; font-size: 14px; font-weight: 600;
-}
-.btn-mute:disabled { background: #BDBDBD; }
+/* ---- 电参量三列瓦片（上名称下数值，中间划开） ---- */
+.stats { display: flex; padding: 10px 0; }
+.stat { flex: 1; text-align: center; }
+.stat + .stat { border-left: 1px solid #EEEEEE; }
+.stat-name { font-size: 12px; color: var(--sub); margin-bottom: 6px; }
+.stat-val { font-size: 24px; font-weight: bold; }
+.stat-val.alarm { color: var(--alarm); }   /* 低电量时电压标红 */
+.stat-unit { font-size: 12px; color: var(--sub); margin-left: 2px; }
 
 /* ---- 控制卡 ---- */
-.ctl-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+.ctl-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; }
 .ctl-row + .ctl-row { border-top: 1px solid #F0F0F0; }
 .ctl-label { font-size: 15px; font-weight: 600; }
 .ctl-sub { font-size: 12px; color: var(--sub); font-weight: 400; margin-top: 2px; }
@@ -119,12 +86,12 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
 /* 点动方向盘 */
 .jog-wrap { display: flex; justify-content: center; padding: 10px 0 4px; }
 .jog-grid {
-    display: grid; grid-template-columns: repeat(3, 64px);
-    grid-template-rows: repeat(3, 52px); gap: 8px;
+    display: grid; grid-template-columns: repeat(3, 56px);
+    grid-template-rows: repeat(3, 46px); gap: 6px;
 }
 .jog-btn {
     border: none; border-radius: 10px; background: #E3F2FD; color: var(--primary);
-    font-size: 20px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    font-size: 18px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .jog-btn:active { background: var(--primary); color: #fff; }
 .jog-btn span { font-size: 11px; font-weight: 500; display: block; line-height: 1; margin-top: 2px; }
@@ -169,34 +136,16 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
 </head>
 <body>
 
-<!-- ================= 数据 Tab ================= -->
+<!-- ================= 主页 Tab（数据+控制融合，2026-11-01 用户定稿） ================= -->
 <div class="tab-content active" id="tab-data">
-    <!-- 状态栏 -->
-    <div class="card">
-        <div class="status-row">
-            <span class="dot" id="mqtt-dot"></span><span id="mqtt-text">未连接</span>
-            <span class="chip lock" id="chip-mode">--</span>
-            <span class="chip" id="chip-chg">--</span>
-        </div>
-    </div>
-    <!-- 实时数据卡 -->
-    <div class="card">
-        <div class="card-title">实时电参量</div>
-        <div class="data-row"><span class="data-name">电池电压</span>
-            <span><span class="data-val" id="v-vbat">--</span><span class="data-unit">V</span></span></div>
-        <div class="data-row"><span class="data-name">电流（充电为正）</span>
-            <span><span class="data-val" id="v-i">--</span><span class="data-unit">mA</span></span></div>
-        <div class="data-row"><span class="data-name">功率</span>
-            <span><span class="data-val" id="v-p">--</span><span class="data-unit">mW</span></span></div>
-    </div>
-    <!-- 报警状态卡 -->
-    <div class="card">
-        <div class="card-title">报警</div>
-        <div class="alarm-ok" id="alarm-ok">运行正常 ✓</div>
-        <div id="alarm-list"></div>
-        <div style="margin-top:10px; text-align:right;">
-            <button class="btn-mute" id="btn-mute" onclick="sendCmd('07'); toast('已静音');">静音</button>
-        </div>
+    <!-- 电参量三列瓦片（上名称下数值，中间划开） -->
+    <div class="card stats">
+        <div class="stat"><div class="stat-name">电池电压</div>
+            <div><span class="stat-val" id="v-vbat">--</span><span class="stat-unit">V</span></div></div>
+        <div class="stat"><div class="stat-name">电流</div>
+            <div><span class="stat-val" id="v-i">--</span><span class="stat-unit">mA</span></div></div>
+        <div class="stat"><div class="stat-name">功率</div>
+            <div><span class="stat-val" id="v-p">--</span><span class="stat-unit">mW</span></div></div>
     </div>
 
     <!-- 控制卡 -->
@@ -253,7 +202,7 @@ body { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto; 
 
 <!-- ================= 底部 Tab 栏（主页 = 数据+控制融合，2026-11-01 用户定稿） ================= -->
 <div class="tab-bar">
-    <div class="tab-item active" data-tab="data"><span class="tab-ico"></span>主页<span class="badge" id="alarm-badge"></span></div>
+    <div class="tab-item active" data-tab="data"><span class="tab-ico"></span>主页</div>
     <div class="tab-item" data-tab="log"><span class="tab-ico"></span>日志</div>
 </div>
 
@@ -269,8 +218,6 @@ const FRAME_PREFIX = '$D,';
 /* ================= 全局状态 ================= */
 const cur = { vbat_mv:null, i_ma:null, p_mw:null, pan:null, tilt:null, dh:null, dv:null,
               mode:null, dis_flag:null, thr_low_mv:null, dis_timeout_s:null };
-let appMuted = false;                       /* APP 端静音显示（报警恢复自动解除） */
-
 /* 乐观更新待确认标记（内部用，不进界面） */
 const pending = { mode:null, dis_flag:null, thr_low_mv:null, dis_timeout_s:null };
 
@@ -294,10 +241,7 @@ function mqttConnect() {
     client.on('offline',   () => setMqttUI(false));
     client.on('message', (topic, payload) => onUplink(payload.toString()));
 }
-function setMqttUI(ok) {
-    document.getElementById('mqtt-dot').className = 'dot ' + (ok ? 'ok' : 'bad');
-    document.getElementById('mqtt-text').textContent = ok ? '已连接' : '未连接';
-}
+function setMqttUI(ok) { toast(ok ? '已连接' : '未连接，重连中'); }   /* 状态栏已删（用户定稿），连接状态改 toast 提示 */
 
 /* ================= 上行解析（$D,11 字段，序号固定） ================= */
 function onUplink(s) {
@@ -323,7 +267,6 @@ function onUplink(s) {
     onUplinkThreshold('thr', cur.thr_low_mv);   /* 放电超时 06 不做 APP 界面，仅保留协议 */
 
     updateUI();
-    checkAlarms();
 }
 
 /* ================= 界面刷新 ================= */
@@ -335,41 +278,19 @@ function updateUI() {
         $('v-vbat').textContent = (cur.vbat_mv / 1000).toFixed(2);
         $('v-i').textContent = fmtSigned1(cur.i_ma);      /* 统一 1 位小数（用户要求） */
         $('v-p').textContent = Number(cur.p_mw).toFixed(1);
+        /* 低电量：电压数值标红（代替已删除的报警卡） */
+        $('v-vbat').classList.toggle('alarm',
+            cur.thr_low_mv !== null && cur.vbat_mv < cur.thr_low_mv);
     }
 
-    /* 状态 chips（待确认期间显示预测值） */
+    /* 开关状态（待确认期间显示预测值） */
     const mode = pending.mode !== null ? pending.mode : cur.mode;
-    $('chip-mode').textContent = mode === 0 ? 'TRACK' : (mode === 1 ? 'LOCK' : '--');
-    $('chip-mode').className = 'chip ' + (mode === 0 ? 'on' : 'lock');
-    const i = cur.i_ma;
-    const chg = (i === null || isNaN(i)) ? '--' : (i >= 1 ? 'CHG' : (i <= -1 ? 'DIS' : 'IDLE'));
-    $('chip-chg').textContent = chg;
-    $('chip-chg').className = 'chip' + (chg === 'CHG' ? ' on' : (chg === 'DIS' ? ' dis' : ''));
-
-    /* 开关状态 */
     const tracking = mode === 0;
     $('sw-track').checked = tracking;
     $('track-sub').textContent = tracking ? '追光运行中' : '已锁定（保持当前位置）';
     const dis = pending.dis_flag !== null ? pending.dis_flag : cur.dis_flag;
     $('sw-dis').checked = dis === 1;
     $('dis-sub').textContent = dis === 1 ? '放电中（水泥电阻负载）' : '已关闭';
-}
-
-/* ================= 报警（APP 端判断：仅 LOW_BAT） ================= */
-function checkAlarms() {
-    const alarms = [];
-    const lowbat = (cur.vbat_mv !== null && cur.thr_low_mv !== null && cur.vbat_mv < cur.thr_low_mv);
-    if (lowbat && !appMuted) alarms.push('电池电量低（' + cur.vbat_mv + ' mV < 阈值 ' + cur.thr_low_mv + ' mV）');
-    if (!lowbat) appMuted = false;      /* 报警恢复自动解除静音（与固件逻辑一致） */
-
-    const list = $('alarm-list');
-    list.innerHTML = alarms.map(a => '<div class="alarm-bar"><span>' + a + '</span></div>').join('');
-    $('alarm-ok').style.display = alarms.length ? 'none' : 'flex';
-    $('btn-mute').disabled = !lowbat;
-
-    const badge = $('alarm-badge');
-    if (alarms.length) { badge.textContent = alarms.length; badge.classList.add('show'); }
-    else badge.classList.remove('show');
 }
 
 /* ================= 下行 ================= */
@@ -442,7 +363,6 @@ function applyThresholdOptimistic(key, value) {
     pending[key === 'thr' ? 'thr_low_mv' : 'dis_timeout_s'] = value;
     $('cur-' + key).textContent = value;
     pendingTimer(key, value);
-    checkAlarms();
 }
 function onUplinkThreshold(key, deviceValue) {
     const pkey = key === 'thr' ? 'thr_low_mv' : 'dis_timeout_s';
@@ -491,7 +411,6 @@ document.querySelectorAll('.tab-item').forEach(item => {
 
 /* ================= 启动 ================= */
 updateUI();
-checkAlarms();
 mqttConnect();
 </script>
 </body>
