@@ -280,8 +280,8 @@ function onUplink(s) {
     const parts = s.slice(FRAME_PREFIX.length).trim().split(',');
     if (parts.length < 11) return;
     cur.vbat_mv = parseFloat(parts[0]);
-    cur.i_ma    = parseFloat(parts[1]);
-    cur.p_mw    = parseFloat(parts[2]);
+    cur.i_ma    = parseFloat(parts[1]) / 10;   /* 固件 ×10 上发（0.1mA 分辨率），÷10 还原 */
+    cur.p_mw    = parseFloat(parts[2]) / 10;   /* 同上（0.1mW 分辨率） */
     cur.pan     = parseFloat(parts[3]);
     cur.tilt    = parseFloat(parts[4]);
     cur.dh      = parseFloat(parts[5]);
