@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>智能宠物喂食喂水系统</title>
+<script src="mqtt.min.js"></script>
+<style>
+:root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --primary: #2196F3;
+    --alarm: #F44336;
+    --ok: #4CAF50;
+    --text: #212121;
+    --sub: #757575;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+}
+body {
+    display: flex;
+    flex-direction: column;
+    max-width: 420px;
+    margin: 0 auto;
+}
+.tab-content {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+}
+.tab-content.active { display: block; }
+.tab-bar {
+    display: flex;
+    height: 56px;
+    background: #FFFFFF;
+    border-top: 1px solid #E0E0E0;
+    flex-shrink: 0;
+    position: relative;
+}
+.tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #666;
+    font-size: 14px;
+    font-weight: 500;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+}
+.tab-item.active { color: var(--primary); font-weight: 600; }
+.badge {
+    position: absolute;
+    top: 6px; right: 22%;
+    min-width: 16px; height: 16px;
+    background: var(--alarm); color: #fff;
+    border-radius: 8px;
+    font-size: 10px; line-height: 16px;
+    text-align: center;
+    padding: 0 4px;
+    display: none;
+}
+.badge.show { display: block; }
+
+.card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px;
+    margin-bottom: 12px;
+}
+.card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--sub);
+    margin-bottom: 10px;
+}
+/* 状态栏 */
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+.dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #ccc;
+    flex-shrink: 0;
+}
+.dot.on { background: var(--ok); }
+.dot.off { background: var(--alarm); }
+/* 实时数据 */
+.data-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+.data-row:last-child { border-bottom: none; }
+.data-name { font-size: 13px; color: var(--sub); }
+.data-value {
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--text);
+}
+.data-value.small { font-size: 16px; }
+.data-unit { font-size: 13px; color: var(--sub); margin-left: 2px; }
+.data-value.alarm { color: var(--alarm); }
+/* 报警状态 */
+.alarm-ok { color: var(--ok); font-size: 15px; font-weight: 600; padding: 6px 0; }
+.alarm-item {
+    background: #FFEBEE;
+    color: var(--alarm);
+    font-size: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+/* 控制按钮 */
+.btn {
+    display: block;
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.btn:active { opacity: 0.75; }
+.btn.green { background: var(--ok); }
+.btn.gray { background: #9E9E9E; }
+.btn.mode-chip {
+    display: inline-block;
+    width: auto;
+    height: 28px;
+    line-height: 28px;
+    font-size: 12px;
+    padding: 0 12px;
+    margin: 0;
+    border-radius: 14px;
+    background: #E3F2FD;
+    color: var(--primary);
+    font-weight: 600;
+}
+/* 阈值行 */
+.thr-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+.thr-row:last-child { border-bottom: none; }
+.thr-info { flex: 1; min-width: 0; }
+.thr-label { font-size: 14px; font-weight: 600; }
+.thr-current { font-size: 12px; color: var(--sub); margin-top: 2px; }
+.thr-row input {
+    width: 80px;
+    height: 44px;
+    border: 1px solid #DDD;
+    border-radius: 8px;
+    font-size: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.thr-row button {
+    width: 72px;
+    height: 44px;
+    border: none;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.thr-row button:active { opacity: 0.75; }
+/* 定时喂食 */
+.feed-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #F0F0F0;
+    font-size: 14px;
+}
+.feed-row:last-child { border-bottom: none; }
+.feed-row input[type="time"] {
+    width: 110px;
+    height: 40px;
+    border: 1px solid #DDD;
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: center;
+}
+/* 日志 */
+.log-item {
+    font-size: 12px;
+    color: var(--text);
+    padding: 6px 0;
+    border-bottom: 1px dashed #EEE;
+    word-break: break-all;
+    font-family: monospace;
+}
+.log-time { color: var(--sub); margin-right: 6px; }
+/* toast */
+#toast {
+    position: fixed;
+    left: 50%; bottom: 80px;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    font-size: 14px;
+    padding: 10px 18px;
+    border-radius: 20px;
+    display: none;
+    z-index: 99;
+    max-width: 80%;
+    text-align: center;
+}
+.hint { font-size: 12px; color: var(--sub); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div id="tab-data" class="tab-content active">
+    <div class="card">
+        <div class="status-row">
+            <span class="dot off" id="conn-dot"></span>
+            <span id="conn-text">未连接</span>
+            <span class="btn mode-chip" id="mode-chip" style="margin-left:auto;">模式：--</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">实时数据</div>
+        <div class="data-row">
+            <span class="data-name">温度</span>
+            <span><span class="data-value" id="v-temp">--</span><span class="data-unit">℃</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">湿度</span>
+            <span><span class="data-value" id="v-humi">--</span><span class="data-unit">%RH</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">食物余量</span>
+            <span><span class="data-value" id="v-food">--</span><span class="data-unit">g</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">水位</span>
+            <span><span class="data-value" id="v-water">--</span><span class="data-unit">%</span></span>
+        </div>
+        <div class="data-row">
+            <span class="data-name">空气质量</span>
+            <span><span class="data-value small" id="v-air">--</span><span class="data-unit">级</span></span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">报警状态</div>
+        <div id="alarm-box"><div class="alarm-ok">运行正常 ✓</div></div>
+    </div>
+</div>
+
+<div id="tab-ctrl" class="tab-content">
+    <div class="card">
+        <div class="card-title">控制</div>
+        <button class="btn gray" onclick="sendCmd('07')">切换 自动/手动 模式</button>
+        <button class="btn" onclick="sendCmd('05')">喂食一次</button>
+        <button class="btn green" onclick="sendCmd('06,1')">打开水泵</button>
+        <button class="btn gray" onclick="sendCmd('06,0')">关闭水泵</button>
+        <button class="btn gray" onclick="sendCmd('01')">消警</button>
+        <div class="hint">水泵开关仅在手动模式下生效；报警存在时按任意按键/发01可静音</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">阈值设置</div>
+        <div class="thr-row">
+            <div class="thr-info">
+                <div class="thr-label">食物余量阈值</div>
+                <div class="thr-current">当前：<span id="cur-food">--</span> g</div>
+            </div>
+            <input id="input-food" type="number" inputmode="numeric" placeholder="g">
+            <button onclick="sendThreshold('food', '02', 0, 5000)">发送</button>
+        </div>
+        <div class="thr-row">
+            <div class="thr-info">
+                <div class="thr-label">水位阈值</div>
+                <div class="thr-current">当前：<span id="cur-water">--</span> %</div>
+            </div>
+            <input id="input-water" type="number" inputmode="numeric" placeholder="%">
+            <button onclick="sendThreshold('water', '03', 0, 100)">发送</button>
+        </div>
+        <div class="thr-row">
+            <div class="thr-info">
+                <div class="thr-label">空气质量阈值</div>
+                <div class="thr-current">当前：<span id="cur-air">--</span> 级（设备暂未接传感器）</div>
+            </div>
+            <input id="input-air" type="number" inputmode="numeric" placeholder="级">
+            <button onclick="sendThreshold('air', '04', 0, 100)">发送</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">定时喂食</div>
+        <div class="feed-row"><span>早上</span><input type="time" id="feed-1" value="08:00"></div>
+        <div class="feed-row"><span>中午</span><input type="time" id="feed-2" value="12:30"></div>
+        <div class="feed-row"><span>晚上</span><input type="time" id="feed-3" value="18:00"></div>
+        <button class="btn green" style="margin-top:10px;" onclick="saveFeedPlan()">保存定时</button>
+        <div class="hint" id="feed-status">到点自动下发"喂食一次"指令</div>
+    </div>
+</div>
+
+<div id="tab-log" class="tab-content">
+    <div class="card">
+        <div class="card-title">日志（最近20条）</div>
+        <div id="log-box"><div class="log-item">等待数据...</div></div>
+    </div>
+</div>
+
+<div class="tab-bar">
+    <div class="tab-item active" data-tab="data">数据<span class="badge" id="alarm-badge"></span></div>
+    <div class="tab-item" data-tab="ctrl">控制</div>
+    <div class="tab-item" data-tab="log">日志</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* Topic 直接硬编码 PRD 锁定值 */
+const UPLOAD_TOPIC = '123456/654321/zncwwswsxt/upload';
+const CMD_TOPIC    = '123456/654321/zncwwswsxt/cmd';
+
+let currentData = {
+    temp: null, humi: null, food: null, water: null, air: null, mode: null,
+    food_threshold: null, water_threshold: null, air_threshold: null
+};
+
+/* ============ MQTT ============ */
+const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+    clientId: 'webview_' + Math.random().toString(36).substr(2, 6),
+    reconnectPeriod: 3000
+});
+
+client.on('connect', () => {
+    setConn(true);
+    client.subscribe(UPLOAD_TOPIC, (err) => {
+        if (!err) addLog('已订阅上行数据');
+    });
+});
+client.on('close', () => setConn(false));
+client.on('offline', () => setConn(false));
+client.on('reconnect', () => { setConn(false); });
+
+client.on('message', (topic, payload) => {
+    const raw = payload.toString();
+    addLog(raw);
+    const parts = raw.split(',');
+    if (parts.length < 9) return;
+    currentData.temp = parseFloat(parts[0]);
+    currentData.humi = parseFloat(parts[1]);
+    currentData.food = parseFloat(parts[2]);
+    currentData.water = parseFloat(parts[3]);
+    currentData.air = parseFloat(parts[4]);
+    currentData.mode = parseInt(parts[5], 10);
+    onUplinkThreshold('food', parseFloat(parts[6]));
+    onUplinkThreshold('water', parseFloat(parts[7]));
+    onUplinkThreshold('air', parseFloat(parts[8]));
+    updateUI();
+    checkAlarms();
+});
+
+function setConn(ok) {
+    document.getElementById('conn-dot').className = 'dot ' + (ok ? 'on' : 'off');
+    document.getElementById('conn-text').textContent = ok ? '已连接' : '未连接';
+}
+
+/* ============ UI ============ */
+function updateUI() {
+    const d = currentData;
+    setVal('v-temp', d.temp, d.temp > 30);
+    setVal('v-humi', d.humi, false);
+    setVal('v-food', d.food, d.food_threshold !== null && d.food < d.food_threshold);
+    setVal('v-water', d.water, d.water_threshold !== null && d.water < d.water_threshold);
+    setVal('v-air', d.air, d.air_threshold !== null && d.air > d.air_threshold);
+    const chip = document.getElementById('mode-chip');
+    if (d.mode !== null && !isNaN(d.mode)) {
+        chip.textContent = d.mode === 1 ? '模式：自动' : '模式：手动';
+    }
+}
+function setVal(id, v, alarm) {
+    const el = document.getElementById(id);
+    if (v === null || isNaN(v)) return;
+    el.textContent = Number.isInteger(v) ? v : v.toFixed(1);
+    el.classList.toggle('alarm', !!alarm);
+}
+
+/* ============ 报警判断（APP端） ============ */
+function checkAlarms() {
+    const d = currentData, alarms = [];
+    if (d.temp !== null && d.temp > 30) alarms.push('温度过高：' + d.temp.toFixed(1) + '℃（预警线30℃）');
+    if (d.air_threshold !== null && d.air !== null && d.air > d.air_threshold) alarms.push('空气质量超标');
+    if (d.food !== null && d.food_threshold !== null && d.food < d.food_threshold) alarms.push('食物余量不足：' + d.food + 'g（阈值' + d.food_threshold + 'g）');
+    if (d.water !== null && d.water_threshold !== null && d.water < d.water_threshold) alarms.push('水位过低：' + d.water + '%（阈值' + d.water_threshold + '%）');
+    renderAlarms(alarms);
+    updateAlarmBadge(alarms.length);
+}
+function renderAlarms(alarms) {
+    const box = document.getElementById('alarm-box');
+    if (!alarms.length) {
+        box.innerHTML = '<div class="alarm-ok">运行正常 ✓</div>';
+    } else {
+        box.innerHTML = alarms.map(a => '<div class="alarm-item">' + a + '</div>').join('');
+    }
+}
+function updateAlarmBadge(count) {
+    const badge = document.getElementById('alarm-badge');
+    if (count > 0) {
+        badge.textContent = count;
+        badge.classList.add('show');
+    } else {
+        badge.classList.remove('show');
+    }
+}
+
+/* ============ Tab 切换 ============ */
+document.querySelectorAll('.tab-item').forEach(item => {
+    item.addEventListener('click', () => {
+        const tab = item.dataset.tab;
+        document.querySelectorAll('.tab-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+    });
+});
+
+/* ============ 指令发送 ============ */
+function sendCmd(cmd) {
+    client.publish(CMD_TOPIC, cmd);
+    toast('已发送');
+    addLog('↑ ' + cmd);
+}
+
+/* ============ 阈值：展示与输入分离 + 独立按钮 + 乐观更新 ============ */
+const thrEdit = {
+    food:  { dirty: false, focused: false },
+    water: { dirty: false, focused: false },
+    air:   { dirty: false, focused: false }
+};
+const pendingThr = {};
+
+['food', 'water', 'air'].forEach(key => {
+    const el = document.getElementById('input-' + key);
+    el.addEventListener('focus', () => { thrEdit[key].focused = true; });
+    el.addEventListener('blur',  () => { thrEdit[key].focused = false; });
+    el.addEventListener('input', () => { thrEdit[key].dirty = true; });
+});
+
+function sendThreshold(key, code, min, max) {
+    const el = document.getElementById('input-' + key);
+    const val = parseFloat(el.value);
+    if (!Number.isFinite(val) || val < min || val > max) {
+        toast('请输入 ' + min + ' ~ ' + max + ' 之间的数值');
+        return;
+    }
+    sendCmd(code + ',' + val);
+    thrEdit[key].dirty = false;
+    applyThresholdOptimistic(key, val);
+}
+
+function applyThresholdOptimistic(key, value) {
+    currentData[key + '_threshold'] = value;
+    document.getElementById('cur-' + key).textContent = value;
+    pendingThr[key] = {
+        value: value,
+        timer: setTimeout(() => { delete pendingThr[key]; }, 5000)
+    };
+    checkAlarms();
+}
+
+function onUplinkThreshold(key, deviceValue) {
+    if (isNaN(deviceValue)) return;
+    if (pendingThr[key] && Math.abs(deviceValue - pendingThr[key].value) < 1) {
+        clearTimeout(pendingThr[key].timer);
+        delete pendingThr[key];
+    }
+    const display = pendingThr[key] ? pendingThr[key].value : deviceValue;
+    currentData[key + '_threshold'] = display;
+    document.getElementById('cur-' + key).textContent = display;
+    /* 输入框仅在未聚焦且未编辑时同步 */
+    if (!thrEdit[key].focused && !thrEdit[key].dirty) {
+        document.getElementById('input-' + key).value = display;
+    }
+}
+
+/* ============ 定时喂食 ============ */
+function saveFeedPlan() {
+    const plan = {
+        t1: document.getElementById('feed-1').value,
+        t2: document.getElementById('feed-2').value,
+        t3: document.getElementById('feed-3').value
+    };
+    localStorage.setItem('feedPlan', JSON.stringify(plan));
+    toast('定时已保存');
+    updateFeedStatus();
+}
+function loadFeedPlan() {
+    try {
+        const plan = JSON.parse(localStorage.getItem('feedPlan') || 'null');
+        if (plan) {
+            document.getElementById('feed-1').value = plan.t1;
+            document.getElementById('feed-2').value = plan.t2;
+            document.getElementById('feed-3').value = plan.t3;
+        }
+    } catch (e) {}
+    updateFeedStatus();
+}
+function updateFeedStatus() {
+    const t = [1, 2, 3].map(i => document.getElementById('feed-' + i).value).filter(Boolean);
+    document.getElementById('feed-status').textContent =
+        t.length ? '定时：' + t.join(' / ') + ' 到点自动喂食' : '未设置定时';
+}
+let lastFired = '';
+setInterval(() => {
+    try {
+        const plan = JSON.parse(localStorage.getItem('feedPlan') || 'null');
+        if (!plan) return;
+        const now = new Date();
+        const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        const key = now.toDateString() + ' ' + hhmm;
+        if ([plan.t1, plan.t2, plan.t3].includes(hhmm) && lastFired !== key) {
+            lastFired = key;
+            if (client.connected) {
+                sendCmd('05');
+                addLog('⏰ 定时喂食触发 ' + hhmm);
+            }
+        }
+    } catch (e) {}
+}, 10000);
+
+/* ============ 日志 / Toast ============ */
+function addLog(text) {
+    const box = document.getElementById('log-box');
+    if (box.firstChild && box.firstChild.textContent === '等待数据...') box.innerHTML = '';
+    const t = new Date();
+    const ts = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') + ':' + String(t.getSeconds()).padStart(2, '0');
+    const div = document.createElement('div');
+    div.className = 'log-item';
+    div.innerHTML = '<span class="log-time">' + ts + '</span>' + text.replace(/</g, '&lt;');
+    box.insertBefore(div, box.firstChild);
+    while (box.children.length > 20) box.removeChild(box.lastChild);
+}
+let toastTimer = null;
+function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.style.display = 'block';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.style.display = 'none'; }, 2000);
+}
+
+loadFeedPlan();
+</script>
+</body>
+</html>
