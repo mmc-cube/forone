@@ -303,7 +303,7 @@ function onUplink(s) {
 /* ================= 界面刷新 ================= */
 const $ = id => document.getElementById(id);
 function fmtSigned(v) { return (v >= 0 ? '+' : '') + v; }
-function fmtSigned1(v) { return (v >= 0 ? '+' : '') + Math.abs(v).toFixed(1); }
+function fmtSigned1(v) { return (v >= 0 ? '+' : '-') + Math.abs(v).toFixed(1); }   /* 2026-11-02 修：原写法 Math.abs 吃掉负号，放电显示成正 */
 function updateUI() {
     if (cur.vbat_mv !== null && !isNaN(cur.vbat_mv)) {
         $('v-vbat').textContent = (cur.vbat_mv / 1000).toFixed(2);
