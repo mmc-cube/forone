@@ -270,10 +270,6 @@ body {
             <span class="data-name">水位</span>
             <span><span class="data-value" id="v-water">--</span><span class="data-unit">%</span></span>
         </div>
-        <div class="data-row">
-            <span class="data-name">空气质量</span>
-            <span><span class="data-value small" id="v-air">--</span><span class="data-unit">级</span></span>
-        </div>
     </div>
 
     <div class="card">
@@ -333,8 +329,8 @@ const UPLOAD_TOPIC = '123456/654321/zncwwswsxt/upload';
 const CMD_TOPIC    = '123456/654321/zncwwswsxt/cmd';
 
 let currentData = {
-    temp: null, humi: null, food: null, water: null, air: null, mode: null,
-    food_threshold: null, water_threshold: null, air_threshold: null
+    temp: null, humi: null, food: null, water: null, mode: null,
+    food_threshold: null, water_threshold: null
 };
 
 /* ============ MQTT ============ */
@@ -362,7 +358,6 @@ client.on('message', (topic, payload) => {
     currentData.humi = parseFloat(parts[1]);
     currentData.food = parseFloat(parts[2]);
     currentData.water = parseFloat(parts[3]);
-    currentData.air = parseFloat(parts[4]);
     currentData.mode = parseInt(parts[5], 10);
     onUplinkThreshold('food', parseFloat(parts[6]));
     onUplinkThreshold('water', parseFloat(parts[7]));
@@ -382,7 +377,6 @@ function updateUI() {
     setVal('v-humi', d.humi, false);
     setVal('v-food', d.food, d.food_threshold !== null && d.food < d.food_threshold);
     setVal('v-water', d.water, d.water_threshold !== null && d.water < d.water_threshold);
-    setVal('v-air', d.air, d.air_threshold !== null && d.air > d.air_threshold);
     const chip = document.getElementById('mode-chip');
     if (d.mode !== null && !isNaN(d.mode)) {
         chip.textContent = d.mode === 1 ? '模式：自动' : '模式：手动';
@@ -399,8 +393,6 @@ function setVal(id, v, alarm) {
 function checkAlarms() {
     const d = currentData, alarms = [];
     if (d.temp !== null && d.temp > 30) alarms.push('温度过高：' + d.temp.toFixed(1) + '℃（预警线30℃）');
-    /* 空气质量 <1 视为未安装/未启动，不报警 */
-    if (d.air !== null && d.air >= 1 && d.air_threshold !== null && d.air > d.air_threshold) alarms.push('空气质量超标');
     if (d.food !== null && d.food_threshold !== null && d.food < d.food_threshold) alarms.push('食物余量不足：' + d.food + 'g（阈值' + d.food_threshold + 'g）');
     if (d.water !== null && d.water_threshold !== null && d.water < d.water_threshold) alarms.push('水位过低：' + d.water + '%（阈值' + d.water_threshold + '%）');
     renderAlarms(alarms);
@@ -449,7 +441,7 @@ const thrEdit = {
 };
 const pendingThr = {};
 
-['food', 'water', 'air'].forEach(key => {
+['food', 'water'].forEach(key => {
     const el = document.getElementById('input-' + key);
     el.addEventListener('focus', () => { thrEdit[key].focused = true; });
     el.addEventListener('blur',  () => { thrEdit[key].focused = false; });
