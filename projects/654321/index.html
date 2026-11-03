@@ -286,11 +286,9 @@ body {
     <div class="card">
         <div class="card-title">控制</div>
         <button class="btn gray" onclick="sendCmd('07')">切换 自动/手动 模式</button>
-        <button class="btn" onclick="sendCmd('05')">喂食一次</button>
         <button class="btn green" onclick="sendCmd('06,1')">打开水泵</button>
         <button class="btn gray" onclick="sendCmd('06,0')">关闭水泵</button>
         <button class="btn gray" onclick="sendCmd('01')">消警</button>
-        <div class="hint">水泵开关仅在手动模式下生效；报警存在时按任意按键/发01可静音</div>
     </div>
 
     <div class="card">
@@ -311,23 +309,6 @@ body {
             <input id="input-water" type="number" inputmode="numeric" placeholder="%">
             <button onclick="sendThreshold('water', '03', 0, 100)">发送</button>
         </div>
-        <div class="thr-row">
-            <div class="thr-info">
-                <div class="thr-label">空气质量阈值</div>
-                <div class="thr-current">当前：<span id="cur-air">--</span> 级（设备暂未接传感器）</div>
-            </div>
-            <input id="input-air" type="number" inputmode="numeric" placeholder="级">
-            <button onclick="sendThreshold('air', '04', 0, 100)">发送</button>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-title">定时喂食</div>
-        <div class="feed-row"><span>早上</span><input type="time" id="feed-1" value="08:00"></div>
-        <div class="feed-row"><span>中午</span><input type="time" id="feed-2" value="12:30"></div>
-        <div class="feed-row"><span>晚上</span><input type="time" id="feed-3" value="18:00"></div>
-        <button class="btn green" style="margin-top:10px;" onclick="saveFeedPlan()">保存定时</button>
-        <div class="hint" id="feed-status">到点自动下发"喂食一次"指令</div>
     </div>
 </div>
 
@@ -385,7 +366,6 @@ client.on('message', (topic, payload) => {
     currentData.mode = parseInt(parts[5], 10);
     onUplinkThreshold('food', parseFloat(parts[6]));
     onUplinkThreshold('water', parseFloat(parts[7]));
-    onUplinkThreshold('air', parseFloat(parts[8]));
     updateUI();
     checkAlarms();
 });
@@ -419,7 +399,8 @@ function setVal(id, v, alarm) {
 function checkAlarms() {
     const d = currentData, alarms = [];
     if (d.temp !== null && d.temp > 30) alarms.push('温度过高：' + d.temp.toFixed(1) + '℃（预警线30℃）');
-    if (d.air_threshold !== null && d.air !== null && d.air > d.air_threshold) alarms.push('空气质量超标');
+    /* 空气质量 <1 视为未安装/未启动，不报警 */
+    if (d.air !== null && d.air >= 1 && d.air_threshold !== null && d.air > d.air_threshold) alarms.push('空气质量超标');
     if (d.food !== null && d.food_threshold !== null && d.food < d.food_threshold) alarms.push('食物余量不足：' + d.food + 'g（阈值' + d.food_threshold + 'g）');
     if (d.water !== null && d.water_threshold !== null && d.water < d.water_threshold) alarms.push('水位过低：' + d.water + '%（阈值' + d.water_threshold + '%）');
     renderAlarms(alarms);
@@ -464,8 +445,7 @@ function sendCmd(cmd) {
 /* ============ 阈值：展示与输入分离 + 独立按钮 + 乐观更新 ============ */
 const thrEdit = {
     food:  { dirty: false, focused: false },
-    water: { dirty: false, focused: false },
-    air:   { dirty: false, focused: false }
+    water: { dirty: false, focused: false }
 };
 const pendingThr = {};
 
@@ -512,51 +492,6 @@ function onUplinkThreshold(key, deviceValue) {
         document.getElementById('input-' + key).value = display;
     }
 }
-
-/* ============ 定时喂食 ============ */
-function saveFeedPlan() {
-    const plan = {
-        t1: document.getElementById('feed-1').value,
-        t2: document.getElementById('feed-2').value,
-        t3: document.getElementById('feed-3').value
-    };
-    localStorage.setItem('feedPlan', JSON.stringify(plan));
-    toast('定时已保存');
-    updateFeedStatus();
-}
-function loadFeedPlan() {
-    try {
-        const plan = JSON.parse(localStorage.getItem('feedPlan') || 'null');
-        if (plan) {
-            document.getElementById('feed-1').value = plan.t1;
-            document.getElementById('feed-2').value = plan.t2;
-            document.getElementById('feed-3').value = plan.t3;
-        }
-    } catch (e) {}
-    updateFeedStatus();
-}
-function updateFeedStatus() {
-    const t = [1, 2, 3].map(i => document.getElementById('feed-' + i).value).filter(Boolean);
-    document.getElementById('feed-status').textContent =
-        t.length ? '定时：' + t.join(' / ') + ' 到点自动喂食' : '未设置定时';
-}
-let lastFired = '';
-setInterval(() => {
-    try {
-        const plan = JSON.parse(localStorage.getItem('feedPlan') || 'null');
-        if (!plan) return;
-        const now = new Date();
-        const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-        const key = now.toDateString() + ' ' + hhmm;
-        if ([plan.t1, plan.t2, plan.t3].includes(hhmm) && lastFired !== key) {
-            lastFired = key;
-            if (client.connected) {
-                sendCmd('05');
-                addLog('⏰ 定时喂食触发 ' + hhmm);
-            }
-        }
-    } catch (e) {}
-}, 10000);
 
 /* ============ 日志 / Toast ============ */
 function addLog(text) {
