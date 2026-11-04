@@ -274,18 +274,13 @@ body{
 }
 .badge.show{display:block;}
 
-/* ---------- 语音助手 ---------- */
+/* ---------- 语音播报 ---------- */
 .voice-card{border-left:4px solid #7E57C2;}
-.voice-status{
-  font-size:13px;
-  color:var(--sub);
-  margin-bottom:10px;
+.voice-card .btn{
+  margin-top:0;
+  min-height:56px;
+  font-size:16px;
 }
-.voice-status.listening{color:#7E57C2;font-weight:600;}
-.voice-status.speaking{color:var(--primary);font-weight:600;}
-.voice-actions{display:flex;gap:8px;}
-.voice-actions .btn{margin-top:0;flex:1;width:auto;}
-.btn.listening{background:#7E57C2;}
 </style>
 </head>
 <body>
@@ -349,15 +344,9 @@ body{
     <div class="alarm-sub" id="alarmSub">布防状态下检测到人体时，此处变红并提示。</div>
   </div>
 
-  <!-- 语音助手卡 -->
+  <!-- 语音播报：一个大按钮 -->
   <div class="card voice-card">
-    <div class="card-title">语音助手</div>
-    <div class="voice-status" id="voiceStatus">语音就绪</div>
-    <div class="voice-actions">
-      <button class="btn secondary" onclick="speakEnv()">播报温湿度</button>
-      <button class="btn" id="btnVoiceTalk" onclick="toggleVoiceDialog()">语音对话</button>
-    </div>
-    <div class="hint" id="voiceHint">可说：温度多少 / 湿度多少 / 布防 / 撤防。</div>
+    <button class="btn" onclick="speakEnv()">播报温湿度</button>
   </div>
 
 </div>
@@ -790,27 +779,10 @@ function beep(){
 }
 
 /* ================================================================
- * 语音助手（TTS 播报 + 语音对话）
- * 优先使用 Android 壳注入的 window.VoiceBridge（系统 TTS / 语音识别）；
+ * 语音播报（TTS）
+ * 优先用 Android 壳注入的 window.VoiceBridge.speak；
  * 普通浏览器退化为 Web Speech API，仅用于界面预览。
  * ================================================================ */
-var VOICE = {
-  listening: false,
-  speaking: false,
-  cancelled: false,
-  fallbackTimer: null
-};
-
-function SRClass(){
-  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-}
-
-function setVoiceStatus(text, cls){
-  var el = $('voiceStatus');
-  if (!el) return;
-  el.textContent = text;
-  el.className = 'voice-status' + (cls ? ' ' + cls : '');
-}
 
 /* DHT11 未采集成功时下位机上传 0.0 / 0，据此判定无有效数据 */
 function hasTempData(){
@@ -822,18 +794,6 @@ function voiceEnvSentence(){
   return '当前温度 ' + state.temp.toFixed(1) + ' 摄氏度，湿度百分之 ' + state.humi + '。';
 }
 
-function markSpeaking(text){
-  VOICE.speaking = true;
-  setVoiceStatus('正在播报…', 'speaking');
-  if (VOICE.fallbackTimer) clearTimeout(VOICE.fallbackTimer);
-  /* 壳未回调 onVoiceSpeakEnd 时，按字数估算兜底复位 */
-  VOICE.fallbackTimer = setTimeout(function(){
-    VOICE.speaking = false;
-    VOICE.fallbackTimer = null;
-    if (!VOICE.listening) setVoiceStatus('语音就绪', '');
-  }, 600 + String(text).length * 220);
-}
-
 function speakText(text){
   if (!text) return;
   text = String(text);
@@ -842,9 +802,7 @@ function speakText(text){
   var bridge = window.VoiceBridge;
   if (bridge && typeof bridge.speak === 'function'){
     try {
-      if (typeof bridge.stopSpeak === 'function') bridge.stopSpeak();
       bridge.speak(text);
-      markSpeaking(text);
       return;
     } catch (e) {
       /* 桥接异常时继续尝试 Web Speech */
@@ -859,255 +817,18 @@ function speakText(text){
       u.rate = 1.0;
       u.pitch = 1.0;
       window.speechSynthesis.speak(u);
-      markSpeaking(text);
       return;
     } catch (e) {
       /* 继续走不可用提示 */
     }
   }
 
-  setVoiceStatus('当前环境不支持语音播报', '');
   addLog('语音不可用：请在 Android APP 壳内运行');
 }
 
 function speakEnv(){
   speakText(voiceEnvSentence());
 }
-
-function stopSpeak(){
-  var bridge = window.VoiceBridge;
-  if (bridge && typeof bridge.stopSpeak === 'function'){
-    try { bridge.stopSpeak(); } catch (e) {}
-  }
-  if (window.speechSynthesis){
-    try { window.speechSynthesis.cancel(); } catch (e) {}
-  }
-  VOICE.speaking = false;
-  if (!VOICE.listening) setVoiceStatus('语音就绪', '');
-}
-
-function updateVoiceButtons(){
-  var btn = $('btnVoiceTalk');
-  if (!btn) return;
-  btn.textContent = VOICE.listening ? '正在聆听…（点击停止）' : '语音对话';
-  if (VOICE.listening) btn.classList.add('listening');
-  else btn.classList.remove('listening');
-}
-
-function startVoiceDialog(){
-  if (VOICE.listening) return;
-  VOICE.cancelled = false;
-
-  /* 1) Android 壳注入的语音识别 */
-  var bridge = window.VoiceBridge;
-  if (bridge && typeof bridge.startListen === 'function'){
-    try {
-      VOICE.listening = true;
-      updateVoiceButtons();
-      setVoiceStatus('正在聆听，请说话…', 'listening');
-      bridge.startListen();
-      return;
-    } catch (e) {
-      VOICE.listening = false;
-      updateVoiceButtons();
-    }
-  }
-
-  /* 2) 浏览器 Web Speech API（电脑上预览用） */
-  var SR = SRClass();
-  if (SR){
-    try {
-      var rec = new SR();
-      rec.lang = 'zh-CN';
-      rec.continuous = false;
-      rec.interimResults = false;
-      rec.maxAlternatives = 1;
-      rec.onresult = function(ev){
-        VOICE.listening = false;
-        updateVoiceButtons();
-        var txt = (ev.results && ev.results[0] && ev.results[0][0]) ? ev.results[0][0].transcript : '';
-        handleVoiceText(txt);
-      };
-      rec.onerror = function(ev){
-        var wasCancelled = VOICE.cancelled;
-        VOICE.listening = false;
-        updateVoiceButtons();
-        if (wasCancelled){
-          setVoiceStatus('语音就绪', '');
-          return;
-        }
-        setVoiceStatus('未识别到语音', '');
-        addLog('语音识别失败：' + ((ev && ev.error) ? ev.error : 'unknown'));
-      };
-      rec.onend = function(){
-        if (VOICE.listening){
-          VOICE.listening = false;
-          updateVoiceButtons();
-          setVoiceStatus('语音就绪', '');
-        }
-      };
-      window.__voiceRec = rec;
-      VOICE.listening = true;
-      updateVoiceButtons();
-      setVoiceStatus('正在聆听，请说话…', 'listening');
-      rec.start();
-      return;
-    } catch (e) {
-      VOICE.listening = false;
-      updateVoiceButtons();
-    }
-  }
-
-  setVoiceStatus('当前环境不支持语音识别', '');
-  addLog('语音对话不可用：请在 Android APP 壳内运行');
-  alert('当前环境不支持语音识别，请在 Android APP 内使用');
-}
-
-function stopVoiceDialog(){
-  VOICE.listening = false;
-  VOICE.cancelled = true;
-  updateVoiceButtons();
-  setVoiceStatus('语音就绪', '');
-
-  var bridge = window.VoiceBridge;
-  if (bridge && typeof bridge.stopListen === 'function'){
-    try { bridge.stopListen(); } catch (e) {}
-  }
-  if (window.__voiceRec){
-    try {
-      window.__voiceRec.stop();
-      if (window.__voiceRec.abort) window.__voiceRec.abort();
-    } catch (e) {}
-  }
-}
-
-function toggleVoiceDialog(){
-  if (VOICE.listening) stopVoiceDialog();
-  else startVoiceDialog();
-}
-
-/* ================================================================
- * 语音对话意图匹配（仅 4 条：问温度 / 问湿度 / 布防 / 撤防）
- * ================================================================ */
-
-/* 语音下发的指令：不走 alert，用语音反馈结果 */
-function voiceSend(cmd, okText){
-  if (!isBtConnected || !window.BluetoothBridge){
-    speakText('蓝牙还没有连接，请先在数据页连接设备。');
-    return false;
-  }
-  try {
-    window.BluetoothBridge.send(cmd + '\n');
-  } catch (e) {
-    speakText('指令发送失败，请检查蓝牙连接。');
-    return false;
-  }
-  addLog('发送 ' + cmd, true);
-  if (okText) speakText(okText);
-  return true;
-}
-
-function handleVoiceText(text){
-  var raw = (text || '').trim();
-  if (!raw) return;
-  addLog('语音识别：' + raw);
-
-  var t = raw.replace(/\s+/g, '').replace(/[，。！？、,.!?]/g, '');
-  if (!t) return;
-
-  /* 撤防（必须先于“布防”判断，否则“撤防”会被“布防”截走） */
-  if (/撤防|解除|取消布防|关闭布防|停止布防/.test(t)){
-    if (voiceSend('02', '已撤防。')){
-      state.arm = 0;
-      state.remain = 0;
-      updateUI();
-    }
-    return;
-  }
-
-  /* 布防（定时布防不支持语音，避免误发 01） */
-  if (/布防|设防/.test(t)){
-    if (/定时|分钟|小时/.test(t)){
-      speakText('定时布防请在控制页设置。');
-      return;
-    }
-    if (voiceSend('01', '已布防。')){
-      state.arm = 1;
-      state.remain = 0;
-      updateUI();
-    }
-    return;
-  }
-
-  /* 温度 */
-  if (/温度|多少度|几度/.test(t)){
-    speakText(hasTempData() ? '当前温度 ' + state.temp.toFixed(1) + ' 摄氏度。' : '温度数据还没有采集到。');
-    return;
-  }
-
-  /* 湿度 */
-  if (/湿度|潮不潮|干不干/.test(t)){
-    speakText(hasTempData() ? '当前湿度百分之 ' + state.humi + '。' : '湿度数据还没有采集到。');
-    return;
-  }
-
-  speakText('没听懂。可以说：温度多少、湿度多少、布防、撤防。');
-}
-
-/* ================================================================
- * Android 壳回调（addJavascriptInterface 侧直接调用）
- * ================================================================ */
-window.onVoiceResult = function(text){
-  VOICE.listening = false;
-  updateVoiceButtons();
-  handleVoiceText(text);
-};
-
-window.onVoiceError = function(msg){
-  var wasCancelled = VOICE.cancelled;
-  VOICE.listening = false;
-  updateVoiceButtons();
-  if (wasCancelled){
-    setVoiceStatus('语音就绪', '');
-    return;
-  }
-
-  var m = String(msg || '');
-  if (m.indexOf('不支持') >= 0){
-    setVoiceStatus('设备不支持语音识别', '');
-    addLog('语音识别不可用：' + m);
-    return;
-  }
-
-  setVoiceStatus('未识别到语音', '');
-  addLog('语音识别失败：' + m);
-  speakText('没有听清，请再说一遍。');
-};
-
-window.onVoiceState = function(s){
-  VOICE.listening = (s === 'listening');
-  updateVoiceButtons();
-  setVoiceStatus(VOICE.listening ? '正在聆听，请说话…' : '语音就绪', VOICE.listening ? 'listening' : '');
-};
-
-window.onVoiceSpeakEnd = function(){
-  if (VOICE.fallbackTimer){
-    clearTimeout(VOICE.fallbackTimer);
-    VOICE.fallbackTimer = null;
-  }
-  VOICE.speaking = false;
-  if (!VOICE.listening) setVoiceStatus('语音就绪', '');
-};
-
-/* iframe 镜像（部署到 webpage_on 时与蓝牙回调保持一致） */
-try {
-  if (window.top && window.top !== window){
-    window.top.onVoiceResult    = window.onVoiceResult;
-    window.top.onVoiceError     = window.onVoiceError;
-    window.top.onVoiceState     = window.onVoiceState;
-    window.top.onVoiceSpeakEnd  = window.onVoiceSpeakEnd;
-  }
-} catch (e) {}
 </script>
 </body>
 </html>
