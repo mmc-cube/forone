@@ -126,6 +126,10 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
       <span><span class="data-val" id="v-Temperature">--</span><span class="unit">℃</span></span>
     </div>
     <div class="data-row">
+      <span class="data-name">液位状态</span>
+      <span class="data-val" id="v-LiquidLow" style="font-size:22px">--</span>
+    </div>
+    <div class="data-row">
       <span class="data-name">加热状态</span>
       <span class="data-val" id="v-HeatOn" style="font-size:22px">--</span>
     </div>
@@ -200,7 +204,7 @@ const RANGE = {
 
 /* ================= 状态 ================= */
 const D = {
-  Rate: null, Level: null, Temperature: null, HeatOn: null,
+  Rate: null, Level: null, Temperature: null, HeatOn: null, LiquidLow: null,
   ThrRateHigh: null, ThrHeatLow: null
 };
 
@@ -282,6 +286,7 @@ function applyUplink(map){
   D.Level       = toNum(map.Level);
   D.Temperature = toNum(map.Temperature);
   D.HeatOn      = toBool(map.HeatOn);
+  D.LiquidLow   = toBool(map.LiquidLow);
 
   onUplinkThreshold('ThrRateHigh', toNum(map.ThrRateHigh));
   onUplinkThreshold('ThrHeatLow',  toNum(map.ThrHeatLow));
@@ -306,6 +311,10 @@ function renderData(){
 
   document.getElementById('v-HeatOn').textContent =
     (D.HeatOn === null) ? '--' : (D.HeatOn ? '加热中' : '未加热');
+
+  const llEl = document.getElementById('v-LiquidLow');
+  llEl.textContent = (D.LiquidLow === null) ? '--' : (D.LiquidLow ? '耗尽' : '正常');
+  llEl.classList.toggle('alarm', D.LiquidLow === true);
 }
 
 function renderThreshold(key, value){
@@ -321,9 +330,10 @@ function renderThreshold(key, value){
 /* ================= 报警 ================= */
 function checkAlarms(){
   const list = [];
+  if (D.LiquidLow === true)
+    list.push('药液快流干：请及时更换');
   if (D.Rate !== null && D.ThrRateHigh !== null && D.Rate > D.ThrRateHigh)
     list.push('滴速过高：' + D.Rate + ' 滴/分');
-  /* 药液快流干由设备端单点液位开关判断（蜂鸣器 + OLED 感叹号），不上报平台 */
 
   const box = document.getElementById('alarm-box');
   if (list.length === 0){
