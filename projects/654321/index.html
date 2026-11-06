@@ -146,8 +146,6 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 .btn:active { opacity: 0.75; }
-.btn.green { background: var(--ok); }
-.btn.gray { background: #9E9E9E; }
 .btn.mode-chip {
     display: inline-block;
     width: auto;
@@ -281,10 +279,10 @@ body {
 <div id="tab-ctrl" class="tab-content">
     <div class="card">
         <div class="card-title">控制</div>
-        <button class="btn gray" onclick="sendCmd('07')">切换 自动/手动 模式</button>
-        <button class="btn green" onclick="sendCmd('06,1')">打开水泵</button>
-        <button class="btn gray" onclick="sendCmd('06,0')">关闭水泵</button>
-        <button class="btn gray" onclick="sendCmd('01')">消警</button>
+        <button class="btn" onclick="sendCmd('07')">切换 自动/手动 模式</button>
+        <button class="btn" onclick="sendCmd('06,1')">打开水泵</button>
+        <button class="btn" onclick="sendCmd('06,0')">关闭水泵</button>
+        <button class="btn" onclick="sendCmd('01')">消警</button>
     </div>
 
     <div class="card">
@@ -375,8 +373,9 @@ function updateUI() {
     const d = currentData;
     setVal('v-temp', d.temp, d.temp > 30);
     setVal('v-humi', d.humi, false);
-    setVal('v-food', d.food, d.food_threshold !== null && d.food < d.food_threshold);
-    setVal('v-water', d.water, d.water_threshold !== null && d.water < d.water_threshold);
+    /* 0 视为未启动/未连接：不标红、不报警（与下位机规则一致） */
+    setVal('v-food', d.food, d.food > 0 && d.food_threshold !== null && d.food < d.food_threshold);
+    setVal('v-water', d.water, d.water > 0 && d.water_threshold !== null && d.water < d.water_threshold);
     const chip = document.getElementById('mode-chip');
     if (d.mode !== null && !isNaN(d.mode)) {
         chip.textContent = d.mode === 1 ? '模式：自动' : '模式：手动';
@@ -393,8 +392,8 @@ function setVal(id, v, alarm) {
 function checkAlarms() {
     const d = currentData, alarms = [];
     if (d.temp !== null && d.temp > 30) alarms.push('温度过高：' + d.temp.toFixed(1) + '℃（预警线30℃）');
-    if (d.food !== null && d.food_threshold !== null && d.food < d.food_threshold) alarms.push('食物余量不足：' + d.food + 'g（阈值' + d.food_threshold + 'g）');
-    if (d.water !== null && d.water_threshold !== null && d.water < d.water_threshold) alarms.push('水位过低：' + d.water + '%（阈值' + d.water_threshold + '%）');
+    if (d.food !== null && d.food > 0 && d.food_threshold !== null && d.food < d.food_threshold) alarms.push('食物余量不足：' + d.food + 'g（阈值' + d.food_threshold + 'g）');
+    if (d.water !== null && d.water > 0 && d.water_threshold !== null && d.water < d.water_threshold) alarms.push('水位过低：' + d.water + '%（阈值' + d.water_threshold + '%）');
     renderAlarms(alarms);
     updateAlarmBadge(alarms.length);
 }
