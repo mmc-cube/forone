@@ -118,10 +118,6 @@ body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;}
       <span><span class="data-val" id="v-Rate">--</span><span class="unit">滴/分</span></span>
     </div>
     <div class="data-row">
-      <span class="data-name">液位</span>
-      <span><span class="data-val" id="v-Level">--</span><span class="unit">%</span></span>
-    </div>
-    <div class="data-row">
       <span class="data-name">药液温度</span>
       <span><span class="data-val" id="v-Temperature">--</span><span class="unit">℃</span></span>
     </div>
@@ -303,9 +299,6 @@ function renderData(){
   rateEl.classList.toggle('alarm',
     D.Rate !== null && D.ThrRateHigh !== null && D.Rate > D.ThrRateHigh);
 
-  const lvEl = document.getElementById('v-Level');
-  lvEl.textContent = (D.Level === null) ? '--' : D.Level;
-
   document.getElementById('v-Temperature').textContent =
     (D.Temperature === null) ? '--' : D.Temperature.toFixed(1);
 
@@ -436,7 +429,6 @@ function pushLog(map){
   const t = new Date().toLocaleTimeString();
   const parts = [];
   if (map.Rate !== undefined)        parts.push('滴速 ' + map.Rate);
-  if (map.Level !== undefined)       parts.push('液位 ' + map.Level);
   if (map.Temperature !== undefined) parts.push('温度 ' + map.Temperature);
   if (map.HeatOn !== undefined)      parts.push('加热 ' + map.HeatOn);
   logs.unshift('<span class="log-time">' + t + '</span>' + parts.join(' | '));
