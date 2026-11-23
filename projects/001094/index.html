@@ -439,8 +439,8 @@
         const DEV   = "stm32";
         const TOKEN = "version=2018-10-31&res=products%2FRpp2Ogm1m6&et=1924833600&method=md5&sign=OKQ%2BD%2BVZoohtqE71oC7PXA%3D%3D";
         const BASE  = "https://iot-api.heclouds.com";
-        const POLL_MS  = 1000;
-        const UPLOAD_S = 30;
+        const POLL_MS  = 400;
+        const UPLOAD_S = 35;
 
         const $ = id => document.getElementById(id);
         const toast = m => {
@@ -639,6 +639,7 @@
                     body: JSON.stringify({ product_id: PID, device_name: DEV, params })
                 }).then(x => x.json());
                 toast(isSetOk(r) ? "✅ 指令已下发" : `❌ ${r.code} ${r.msg || ""}`);
+                setTimeout(pollOnce, 120);
                 return r;
             } catch (e) {
                 toast("❌ 网络请求失败");
