@@ -33,7 +33,7 @@
         }
 
         .container {
-            max-width: 760px;
+            max-width: 420px;
             margin: 0 auto;
         }
 
@@ -134,33 +134,29 @@
             color: var(--sub);
         }
 
-        /* 2. 实时数据卡（横向双列网格） */
-        .data-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+        /* 2. 实时数据卡（手机端标准行布局） */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 10px 0;
+            border-bottom: 1px solid #F0F0F0;
         }
 
-        .data-cell {
-            background: #FAFAFA;
-            border: 1px solid #EFEFEF;
-            border-radius: 10px;
-            padding: 10px 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
+        .data-row:last-child {
+            border-bottom: none;
         }
 
         .data-label {
-            font-size: 12px;
+            font-size: 13px;
             color: var(--sub);
         }
 
         .data-value {
-            font-size: 24px;
+            font-size: 26px;
             font-weight: bold;
             color: var(--text);
-            line-height: 1.1;
+            line-height: 1;
         }
 
         .data-value.alarm {
@@ -206,21 +202,11 @@
             padding: 8px 0;
         }
 
-        /* 4. 控制卡（横向双列网格，按钮高度 >= 48px） */
+        /* 4. 控制卡（手机端全宽按钮，高度 >= 48px） */
         .ctrl-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            display: flex;
+            flex-direction: column;
             gap: 10px;
-        }
-
-        .ctrl-grid .btn-wide {
-            grid-column: 1 / -1;
-        }
-
-        @media (max-width: 460px) {
-            .ctrl-grid {
-                grid-template-columns: 1fr;
-            }
         }
 
         .btn {
@@ -371,39 +357,37 @@
         <div class="tab-panel active" id="tab-monitor">
             <div class="card">
                 <div class="card-title">实时数据</div>
-                <div class="data-grid">
-                    <div class="data-cell">
-                        <span class="data-label">柜内温度</span>
-                        <div><span class="data-value" id="v-temp">--</span><span class="data-unit">℃</span></div>
-                    </div>
-                    <div class="data-cell">
-                        <span class="data-label">相对湿度</span>
-                        <div><span class="data-value" id="v-humi">--</span><span class="data-unit">%RH</span></div>
-                    </div>
-                    <div class="data-cell">
-                        <span class="data-label">异味指标 (MQ-135)</span>
-                        <div><span class="data-value" id="v-odor">--</span><span class="data-unit">ADC</span></div>
-                    </div>
-                    <div class="data-cell">
-                        <span class="data-label">人体靠近 (HC-SR501)</span>
-                        <span class="badge-val" id="v-pir">--</span>
-                    </div>
-                    <div class="data-cell">
-                        <span class="data-label">工作模式</span>
-                        <span class="badge-val" id="st-mode">--</span>
-                    </div>
-                    <div class="data-cell">
-                        <span class="data-label">直流风扇</span>
-                        <span class="badge-val" id="st-fan">--</span>
-                    </div>
-                    <div class="data-cell">
-                        <span class="data-label">PTC 加热片</span>
-                        <span class="badge-val" id="st-heater">--</span>
-                    </div>
-                    <div class="data-cell">
-                        <span class="data-label">LED 照明灯</span>
-                        <span class="badge-val" id="st-light">--</span>
-                    </div>
+                <div class="data-row">
+                    <span class="data-label">柜内温度</span>
+                    <div><span class="data-value" id="v-temp">--</span><span class="data-unit">℃</span></div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">相对湿度</span>
+                    <div><span class="data-value" id="v-humi">--</span><span class="data-unit">%RH</span></div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">异味指标 (MQ-135)</span>
+                    <div><span class="data-value" id="v-odor">--</span><span class="data-unit">ADC</span></div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">人体靠近 (HC-SR501)</span>
+                    <span class="badge-val" id="v-pir">--</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">工作模式</span>
+                    <span class="badge-val" id="st-mode">--</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">直流风扇</span>
+                    <span class="badge-val" id="st-fan">--</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">PTC 加热片</span>
+                    <span class="badge-val" id="st-heater">--</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">LED 照明灯</span>
+                    <span class="badge-val" id="st-light">--</span>
                 </div>
             </div>
 
