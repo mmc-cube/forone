@@ -376,7 +376,10 @@
 
         <!-- 4. 控制卡 -->
         <div class="card">
-            <div class="card-title">远程控制（手动开关设备自动跳手动模式）</div>
+            <div class="card-title">
+                <span>远程控制（手动开关自动跳 MAN）</span>
+                <span id="ctrlSync" style="font-size:12px;color:var(--primary)"></span>
+            </div>
             <div class="ctrl-grid">
                 <button class="btn" id="bt-mode">切换工作模式（当前：AUTO 自动）</button>
                 <button class="btn" id="bt-fan">直流风扇：点击开启</button>
@@ -462,6 +465,7 @@
         let thrProtAt   = {};
         let ctrlProtect = {};
         let ctrlProtAt  = {};
+        let lastNewest  = 0;
         let logs = [];
         let lastLogSig = "";
 
@@ -491,6 +495,7 @@
         }
 
         async function pollOnce() {
+            const pollStartedAt = Date.now();
             try {
                 const r = await fetch(
                     `${BASE}/thingmodel/query-device-property?product_id=${PID}&device_name=${DEV}`,
@@ -511,7 +516,7 @@
                         D[k] = it.value;
 
                         if (THR_KEYS.includes(k)) {
-                            if (thrProtect[k] !== undefined && Math.abs(+it.value - thrProtect[k]) <= 1) {
+                            if (thrProtect[k] !== undefined && pollStartedAt > (thrProtAt[k] || 0) && Math.abs(+it.value - thrProtect[k]) <= 1) {
                                 delete thrProtect[k];
                             }
                             if (thrProtect[k] === undefined) {
@@ -520,7 +525,7 @@
                         }
 
                         if (CTRL_KEYS.includes(k)) {
-                            if (ctrlProtect[k] !== undefined && asBool(it.value) === ctrlProtect[k]) {
+                            if (ctrlProtect[k] !== undefined && pollStartedAt > (ctrlProtAt[k] || 0) && asBool(it.value) === ctrlProtect[k]) {
                                 delete ctrlProtect[k];
                             }
                         }
@@ -530,6 +535,7 @@
                 for (const k of THR_KEYS) {
                     if (thrProtect[k] !== undefined && now - (thrProtAt[k] || 0) > 15000) {
                         delete thrProtect[k];
+                        if (D[k] !== undefined) thrDisplay[k] = +D[k];
                     }
                 }
                 for (const k of CTRL_KEYS) {
@@ -538,7 +544,8 @@
                     }
                 }
 
-                render(newest);
+                if (newest) lastNewest = newest;
+                render(lastNewest);
                 pushLog();
             } catch (e) {
                 $("statusDot").className = "status-dot disconnected";
@@ -598,8 +605,10 @@
             ph("in-odor", "ThrOdorLimit");
             ph("in-temp", "ThrTempCutoff");
 
-            const syncing = Object.keys(thrProtect).length + Object.keys(ctrlProtect).length;
-            $("thrSync").textContent = syncing ? "同步中…" : "";
+            const thrSyncing  = Object.keys(thrProtect).length;
+            const ctrlSyncing = Object.keys(ctrlProtect).length;
+            $("thrSync").textContent  = thrSyncing  ? "同步中…" : "";
+            $("ctrlSync").textContent = ctrlSyncing ? "同步中…" : "";
 
             /* 报警判断（APP 端按 PRD 第四层独立判定） */
             const overH = ok(H) && ok(tH) && H >= tH;
@@ -631,6 +640,28 @@
         /* ================== 属性下发 ================== */
         const isSetOk = r => r && (r.code === 0 || (r.code === 10411 && String(r.msg || "").includes("超时")));
 
+        function rollbackOptimistic(params) {
+            let needModeRollback = false;
+            for (const k of Object.keys(params || {})) {
+                if (THR_KEYS.includes(k)) {
+                    delete thrProtect[k];
+                    delete thrProtAt[k];
+                    if (D[k] !== undefined) thrDisplay[k] = +D[k];
+                    else delete thrDisplay[k];
+                }
+                if (CTRL_KEYS.includes(k)) {
+                    delete ctrlProtect[k];
+                    delete ctrlProtAt[k];
+                    if (k === "FanOn" || k === "HeaterOn" || k === "LightOn") needModeRollback = true;
+                }
+            }
+            if (needModeRollback) {
+                delete ctrlProtect.AutoMode;
+                delete ctrlProtAt.AutoMode;
+            }
+            render(lastNewest);
+        }
+
         async function setProps(params) {
             try {
                 const r = await fetch(`${BASE}/thingmodel/set-device-property`, {
@@ -638,11 +669,17 @@
                     headers: { ...hdr(), "Content-Type": "application/json" },
                     body: JSON.stringify({ product_id: PID, device_name: DEV, params })
                 }).then(x => x.json());
-                toast(isSetOk(r) ? "✅ 指令已下发" : `❌ ${r.code} ${r.msg || ""}`);
-                setTimeout(pollOnce, 120);
+                if (isSetOk(r)) {
+                    toast("✅ 指令已下发");
+                    setTimeout(pollOnce, 120);
+                } else {
+                    toast(`❌ ${r.code} ${r.msg || "下发失败"}`);
+                    rollbackOptimistic(params);
+                }
                 return r;
             } catch (e) {
                 toast("❌ 网络请求失败");
+                rollbackOptimistic(params);
                 return null;
             }
         }
@@ -655,7 +692,8 @@
         $("bt-mode").onclick = () => {
             const next = !effCtrl("AutoMode", true);
             lockCtrl("AutoMode", next);
-            render(Date.now());
+            render(lastNewest);
+            pushLog();
             setProps({ AutoMode: next });
         };
 
@@ -663,7 +701,8 @@
             const next = !effCtrl("FanOn", false);
             lockCtrl("FanOn", next);
             lockCtrl("AutoMode", false);
-            render(Date.now());
+            render(lastNewest);
+            pushLog();
             setProps({ FanOn: next });
         };
 
@@ -671,7 +710,8 @@
             const next = !effCtrl("HeaterOn", false);
             lockCtrl("HeaterOn", next);
             lockCtrl("AutoMode", false);
-            render(Date.now());
+            render(lastNewest);
+            pushLog();
             setProps({ HeaterOn: next });
         };
 
@@ -679,7 +719,8 @@
             const next = !effCtrl("LightOn", false);
             lockCtrl("LightOn", next);
             lockCtrl("AutoMode", false);
-            render(Date.now());
+            render(lastNewest);
+            pushLog();
             setProps({ LightOn: next });
         };
 
@@ -701,7 +742,8 @@
             thrProtect[key] = num;
             thrProtAt[key]  = Date.now();
             $(inputId).value = "";
-            render(Date.now());
+            render(lastNewest);
+            pushLog();
 
             const p = {};
             p[key] = num;
