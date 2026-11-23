@@ -411,7 +411,6 @@
                     <button class="btn" id="bt-fan">直流风扇：点击开启</button>
                     <button class="btn" id="bt-heater">PTC 加热片：点击开启</button>
                     <button class="btn" id="bt-light">LED 照明灯：点击开启</button>
-                    <button class="btn btn-alarm" id="btn-clear">远程消警</button>
                 </div>
             </div>
         </div>
@@ -757,8 +756,6 @@
             pushLog();
             setProps({ LightOn: next });
         };
-
-        $("btn-clear").onclick = () => setProps({ AlarmClear: true });
 
         async function sendThreshold(key, inputId, minV, maxV) {
             const raw = $(inputId).value;
