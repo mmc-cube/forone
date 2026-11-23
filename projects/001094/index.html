@@ -438,14 +438,6 @@
                     <input class="threshold-input" id="in-odor" type="number" min="100" max="4000" step="50" placeholder="100~4000">
                     <button class="threshold-btn" id="bt-th-odor">发送</button>
                 </div>
-                <div class="threshold-row">
-                    <div class="threshold-info">
-                        <div class="threshold-label">加热过温保护</div>
-                        <div class="threshold-cur">当前生效：<span id="dv-temp">--</span> ℃</div>
-                    </div>
-                    <input class="threshold-input" id="in-temp" type="number" min="25" max="70" step="1" placeholder="25~70">
-                    <button class="threshold-btn" id="bt-th-temp">发送</button>
-                </div>
             </div>
         </div>
 
@@ -487,7 +479,7 @@
 
         /* ================== 预测 - 同步 - 接管 状态机 ================== */
         let D = {};
-        const THR_KEYS  = ["ThrHumiStart", "ThrOdorLimit", "ThrTempCutoff"];
+        const THR_KEYS  = ["ThrHumiStart", "ThrOdorLimit"];
         const CTRL_KEYS = ["AutoMode", "FanOn", "HeaterOn", "LightOn"];
         let thrDisplay  = {};
         let thrProtect  = {};
@@ -517,7 +509,7 @@
 
         function pushLog() {
             if (D.Temperature === undefined) return;
-            const sig = `${D.Temperature},${D.Humidity},${D.OdorAdc},${D.PirState},${D.AutoMode},${D.FanOn},${D.HeaterOn},${D.LightOn},${effThr("ThrHumiStart")},${effThr("ThrOdorLimit")},${effThr("ThrTempCutoff")}`;
+            const sig = `${D.Temperature},${D.Humidity},${D.OdorAdc},${D.PirState},${D.AutoMode},${D.FanOn},${D.HeaterOn},${D.LightOn},${effThr("ThrHumiStart")},${effThr("ThrOdorLimit")}`;
             if (sig === lastLogSig) return;
             lastLogSig = sig;
             const t = new Date().toLocaleTimeString();
@@ -596,7 +588,6 @@
 
             const tH = +effThr("ThrHumiStart");
             const tO = +effThr("ThrOdorLimit");
-            const tT = +effThr("ThrTempCutoff");
             const ok = v => !isNaN(v);
             const setNum = (id, v, dec) => $(id).textContent = ok(v) ? (dec ? v.toFixed(1) : Math.round(v)) : "--";
 
@@ -628,7 +619,6 @@
 
             setNum("dv-humi", tH, 0);
             setNum("dv-odor", tO, 0);
-            setNum("dv-temp", tT, 0);
 
             const ph = (id, k) => {
                 const v = effThr(k);
@@ -636,7 +626,6 @@
             };
             ph("in-humi", "ThrHumiStart");
             ph("in-odor", "ThrOdorLimit");
-            ph("in-temp", "ThrTempCutoff");
 
             const thrSyncing  = Object.keys(thrProtect).length;
             const ctrlSyncing = Object.keys(ctrlProtect).length;
@@ -646,16 +635,13 @@
             /* 报警判断（APP 端按 PRD 第四层独立判定） */
             const overH = ok(H) && ok(tH) && H >= tH;
             const overO = ok(O) && ok(tO) && O >= tO;
-            const overT = ok(T) && ok(tT) && T >= tT;
 
             $("v-humi").classList.toggle("alarm", overH);
             $("v-odor").classList.toggle("alarm", overO);
-            $("v-temp").classList.toggle("alarm", overT);
 
             const alarms = [];
             if (overH) alarms.push("湿度超标：已达到烘干启动阈值！");
             if (overO) alarms.push("异味超标：柜内异味浓度过高，请通风！");
-            if (overT) alarms.push("温度过高：已触发过温保护关断加热片！");
 
             $("alarmContent").innerHTML = alarms.length
                 ? alarms.map(a => `<div class="alarm-item">${a}</div>`).join("")
@@ -783,7 +769,6 @@
 
         $("bt-th-humi").onclick = () => sendThreshold("ThrHumiStart",  "in-humi", 20,  95);
         $("bt-th-odor").onclick = () => sendThreshold("ThrOdorLimit",  "in-odor", 100, 4000);
-        $("bt-th-temp").onclick = () => sendThreshold("ThrTempCutoff", "in-temp", 25,  70);
 
         pollOnce().then(() => {
             setInterval(pollOnce, POLL_MS);
