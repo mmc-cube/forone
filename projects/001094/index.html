@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智能鞋柜系统</title>
+    <style>
+        :root {
+            --bg: #F5F5F5;
+            --card: #FFFFFF;
+            --primary: #2196F3;
+            --alarm: #F44336;
+            --ok: #4CAF50;
+            --text: #212121;
+            --sub: #757575;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 12px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .container {
+            max-width: 420px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            font-size: 18px;
+            font-weight: 700;
+            text-align: center;
+            padding: 6px 0 14px;
+            color: var(--text);
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--sub);
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* 1. 状态栏 */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--sub);
+            flex-shrink: 0;
+        }
+
+        .status-dot.connected {
+            background: var(--ok);
+        }
+
+        .status-dot.disconnected {
+            background: var(--alarm);
+        }
+
+        .status-text {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .status-time {
+            margin-left: auto;
+            font-size: 12px;
+            color: var(--sub);
+        }
+
+        /* 2. 实时数据卡 */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 10px 0;
+            border-bottom: 1px solid #F0F0F0;
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        .data-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .data-value.alarm {
+            color: var(--alarm);
+        }
+
+        .data-unit {
+            font-size: 13px;
+            color: var(--sub);
+            margin-left: 4px;
+        }
+
+        .badge-val {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--sub);
+        }
+
+        .badge-val.on {
+            color: var(--primary);
+        }
+
+        /* 3. 报警状态卡 */
+        .alarm-item {
+            background: var(--alarm);
+            color: #FFFFFF;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .alarm-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .ok-text {
+            color: var(--ok);
+            font-size: 15px;
+            font-weight: 600;
+            text-align: center;
+            padding: 8px 0;
+        }
+
+        /* 4. 控制卡（按钮高度 >= 48px） */
+        .ctrl-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            width: 100%;
+            min-height: 48px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: #FFFFFF;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, opacity 0.15s;
+            padding: 0 14px;
+        }
+
+        .btn:active {
+            opacity: 0.82;
+        }
+
+        .btn-off {
+            background: #607D8B;
+        }
+
+        .btn-alarm {
+            background: var(--alarm);
+        }
+
+        /* 5. 阈值设置卡 */
+        .threshold-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid #F0F0F0;
+        }
+
+        .threshold-row:last-child {
+            border-bottom: none;
+        }
+
+        .threshold-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .threshold-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .threshold-cur {
+            font-size: 12px;
+            color: var(--sub);
+            margin-top: 2px;
+        }
+
+        .threshold-input {
+            width: 80px;
+            height: 48px;
+            border: 1px solid #DDD;
+            border-radius: 8px;
+            padding: 0 8px;
+            font-size: 16px;
+            text-align: center;
+            background: #FAFAFA;
+        }
+
+        .threshold-btn {
+            width: 72px;
+            min-height: 48px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: #FFFFFF;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .threshold-btn:active {
+            background: #1976D2;
+        }
+
+        /* 6. 日志卡（默认折叠） */
+        .log-header {
+            cursor: pointer;
+            user-select: none;
+            margin-bottom: 0;
+        }
+
+        .log-list {
+            display: none;
+            margin-top: 12px;
+            max-height: 260px;
+            overflow-y: auto;
+            border-top: 1px solid #EEE;
+            padding-top: 8px;
+        }
+
+        .log-list.open {
+            display: block;
+        }
+
+        .log-item {
+            font-size: 12px;
+            color: var(--sub);
+            padding: 6px 0;
+            border-bottom: 1px dashed #EEE;
+            word-break: break-all;
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: #9E9E9E;
+            margin-right: 6px;
+        }
+
+        #toast {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            transform: translateX(-50%);
+            background: rgba(33,33,33,0.9);
+            color: #FFF;
+            padding: 10px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: none;
+            z-index: 99;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">智能鞋柜系统</div>
+
+        <!-- 1. 状态栏 -->
+        <div class="card">
+            <div class="status-bar">
+                <div class="status-dot" id="statusDot"></div>
+                <span class="status-text" id="statusText">连接中…</span>
+                <span class="status-time" id="statusTime"></span>
+            </div>
+        </div>
+
+        <!-- 2. 实时数据卡 -->
+        <div class="card">
+            <div class="card-title">实时数据</div>
+            <div class="data-row">
+                <span class="data-label">柜内温度</span>
+                <div>
+                    <span class="data-value" id="v-temp">--</span>
+                    <span class="data-unit">℃</span>
+                </div>
+            </div>
+            <div class="data-row">
+                <span class="data-label">相对湿度</span>
+                <div>
+                    <span class="data-value" id="v-humi">--</span>
+                    <span class="data-unit">%RH</span>
+                </div>
+            </div>
+            <div class="data-row">
+                <span class="data-label">异味指标 (MQ-135)</span>
+                <div>
+                    <span class="data-value" id="v-odor">--</span>
+                    <span class="data-unit">ADC</span>
+                </div>
+            </div>
+            <div class="data-row">
+                <span class="data-label">人体靠近 (HC-SR501)</span>
+                <span class="badge-val" id="v-pir">--</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">工作模式</span>
+                <span class="badge-val" id="st-mode">--</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">直流风扇</span>
+                <span class="badge-val" id="st-fan">--</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">PTC 加热片</span>
+                <span class="badge-val" id="st-heater">--</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">LED 照明灯</span>
+                <span class="badge-val" id="st-light">--</span>
+            </div>
+        </div>
+
+        <!-- 3. 报警状态卡 -->
+        <div class="card">
+            <div class="card-title">报警状态</div>
+            <div id="alarmContent">
+                <div class="ok-text">运行正常 ✓</div>
+            </div>
+        </div>
+
+        <!-- 4. 控制卡 -->
+        <div class="card">
+            <div class="card-title">远程控制（手动开关设备自动跳手动模式）</div>
+            <div class="ctrl-grid">
+                <button class="btn" id="bt-mode">切换工作模式（当前：AUTO 自动）</button>
+                <button class="btn" id="bt-fan">直流风扇：点击开启</button>
+                <button class="btn" id="bt-heater">PTC 加热片：点击开启</button>
+                <button class="btn" id="bt-light">LED 照明灯：点击开启</button>
+                <button class="btn btn-alarm" id="btn-clear">远程消警</button>
+            </div>
+        </div>
+
+        <!-- 5. 阈值设置卡 -->
+        <div class="card">
+            <div class="card-title">
+                <span>阈值设置</span>
+                <span id="thrSync" style="font-size:12px;color:var(--primary)"></span>
+            </div>
+            <div class="threshold-row">
+                <div class="threshold-info">
+                    <div class="threshold-label">烘干启动湿度</div>
+                    <div class="threshold-cur">当前生效：<span id="dv-humi">--</span> %RH</div>
+                </div>
+                <input class="threshold-input" id="in-humi" type="number" min="20" max="95" step="1" placeholder="20~95">
+                <button class="threshold-btn" id="bt-th-humi">发送</button>
+            </div>
+            <div class="threshold-row">
+                <div class="threshold-info">
+                    <div class="threshold-label">异味报警阈值</div>
+                    <div class="threshold-cur">当前生效：<span id="dv-odor">--</span> ADC</div>
+                </div>
+                <input class="threshold-input" id="in-odor" type="number" min="100" max="4000" step="50" placeholder="100~4000">
+                <button class="threshold-btn" id="bt-th-odor">发送</button>
+            </div>
+            <div class="threshold-row">
+                <div class="threshold-info">
+                    <div class="threshold-label">加热过温保护</div>
+                    <div class="threshold-cur">当前生效：<span id="dv-temp">--</span> ℃</div>
+                </div>
+                <input class="threshold-input" id="in-temp" type="number" min="25" max="70" step="1" placeholder="25~70">
+                <button class="threshold-btn" id="bt-th-temp">发送</button>
+            </div>
+        </div>
+
+        <!-- 6. 日志卡（默认折叠） -->
+        <div class="card">
+            <div class="card-title log-header" id="logToggle">
+                <span>通信日志（最近 20 条）</span>
+                <span id="logArrow">展开 ▼</span>
+            </div>
+            <div class="log-list" id="logList">
+                <div class="log-item">等待数据…</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+        /* ================== OneNET 物模型配置（产品级 Token） ================== */
+        const PROJECT_ID = "001094"; // 001094/001/zhinengxiegui/upload
+        const PID   = "Rpp2Ogm1m6";
+        const DEV   = "stm32";
+        const TOKEN = "version=2018-10-31&res=products%2FRpp2Ogm1m6&et=1924833600&method=md5&sign=OKQ%2BD%2BVZoohtqE71oC7PXA%3D%3D";
+        const BASE  = "https://iot-api.heclouds.com";
+        const POLL_MS  = 1000;
+        const UPLOAD_S = 30;
+
+        const $ = id => document.getElementById(id);
+        const toast = m => {
+            const t = $("toast");
+            t.textContent = m;
+            t.style.display = "block";
+            clearTimeout(t._h);
+            t._h = setTimeout(() => t.style.display = "none", 2400);
+        };
+        const hdr = () => ({ "Authorization": TOKEN });
+        const asBool = v => (v === true || v === "true" || v === 1 || v === "1");
+
+        /* ================== 预测 - 同步 - 接管 状态机 ================== */
+        let D = {};
+        const THR_KEYS  = ["ThrHumiStart", "ThrOdorLimit", "ThrTempCutoff"];
+        const CTRL_KEYS = ["AutoMode", "FanOn", "HeaterOn", "LightOn"];
+        let thrDisplay  = {};
+        let thrProtect  = {};
+        let thrProtAt   = {};
+        let ctrlProtect = {};
+        let ctrlProtAt  = {};
+        let logs = [];
+        let lastLogSig = "";
+
+        const effThr = k => (thrDisplay[k] !== undefined ? thrDisplay[k] : D[k]);
+        const effCtrl = (k, defVal) => {
+            if (ctrlProtect[k] !== undefined) return ctrlProtect[k];
+            if (D[k] === undefined) return defVal;
+            return asBool(D[k]);
+        };
+
+        /* 日志折叠展开 */
+        $("logToggle").onclick = () => {
+            const open = $("logList").classList.toggle("open");
+            $("logArrow").textContent = open ? "收起 ▲" : "展开 ▼";
+        };
+
+        function pushLog() {
+            if (D.Temperature === undefined) return;
+            const sig = `${D.Temperature},${D.Humidity},${D.OdorAdc},${D.PirState},${D.AutoMode},${D.FanOn},${D.HeaterOn},${D.LightOn},${effThr("ThrHumiStart")},${effThr("ThrOdorLimit")},${effThr("ThrTempCutoff")}`;
+            if (sig === lastLogSig) return;
+            lastLogSig = sig;
+            const t = new Date().toLocaleTimeString();
+            const line = `T=${(+D.Temperature).toFixed(1)}℃ | H=${D.Humidity}% | MQ=${D.OdorAdc} | PIR=${asBool(D.PirState)?1:0} | 模式=${effCtrl("AutoMode",true)?"AUTO":"MAN"} | F=${effCtrl("FanOn",false)?1:0} H=${effCtrl("HeaterOn",false)?1:0} L=${effCtrl("LightOn",false)?1:0}`;
+            logs.unshift(`<div class="log-item"><span class="log-time">${t}</span>${line}</div>`);
+            if (logs.length > 20) logs.pop();
+            $("logList").innerHTML = logs.join("");
+        }
+
+        async function pollOnce() {
+            try {
+                const r = await fetch(
+                    `${BASE}/thingmodel/query-device-property?product_id=${PID}&device_name=${DEV}`,
+                    { headers: hdr(), cache: "no-store" }
+                ).then(x => x.json());
+                if (r.code !== 0) throw new Error(r.msg || ("code " + r.code));
+
+                const now = Date.now();
+                let newest = 0;
+                const items = Array.isArray(r.data) ? r.data : ((r.data && r.data.list) || []);
+                items.forEach(it => {
+                    if (it.time) {
+                        const t = new Date(it.time).getTime();
+                        if (t > newest) newest = t;
+                    }
+                    if (it.value !== null && it.value !== undefined) {
+                        const k = it.identifier;
+                        D[k] = it.value;
+
+                        if (THR_KEYS.includes(k)) {
+                            if (thrProtect[k] !== undefined && Math.abs(+it.value - thrProtect[k]) <= 1) {
+                                delete thrProtect[k];
+                            }
+                            if (thrProtect[k] === undefined) {
+                                thrDisplay[k] = +it.value;
+                            }
+                        }
+
+                        if (CTRL_KEYS.includes(k)) {
+                            if (ctrlProtect[k] !== undefined && asBool(it.value) === ctrlProtect[k]) {
+                                delete ctrlProtect[k];
+                            }
+                        }
+                    }
+                });
+
+                for (const k of THR_KEYS) {
+                    if (thrProtect[k] !== undefined && now - (thrProtAt[k] || 0) > 15000) {
+                        delete thrProtect[k];
+                    }
+                }
+                for (const k of CTRL_KEYS) {
+                    if (ctrlProtect[k] !== undefined && now - (ctrlProtAt[k] || 0) > 12000) {
+                        delete ctrlProtect[k];
+                    }
+                }
+
+                render(newest);
+                pushLog();
+            } catch (e) {
+                $("statusDot").className = "status-dot disconnected";
+                $("statusText").textContent = "未连接";
+            }
+        }
+
+        function render(newest) {
+            const T = +D.Temperature, H = +D.Humidity, O = +D.OdorAdc;
+            const pir    = asBool(D.PirState);
+            const autoM  = effCtrl("AutoMode", true);
+            const fan    = effCtrl("FanOn", false);
+            const heater = effCtrl("HeaterOn", false);
+            const light  = effCtrl("LightOn", false);
+
+            const tH = +effThr("ThrHumiStart");
+            const tO = +effThr("ThrOdorLimit");
+            const tT = +effThr("ThrTempCutoff");
+            const ok = v => !isNaN(v);
+            const setNum = (id, v, dec) => $(id).textContent = ok(v) ? (dec ? v.toFixed(1) : Math.round(v)) : "--";
+
+            setNum("v-temp", T, 1);
+            setNum("v-humi", H, 0);
+            setNum("v-odor", O, 0);
+
+            $("v-pir").textContent = (D.PirState === undefined) ? "--" : (pir ? "有人靠近" : "无人");
+            $("v-pir").classList.toggle("on", pir);
+
+            $("st-mode").textContent   = autoM ? "AUTO (自动)" : "MAN (手动)";
+            $("st-mode").classList.toggle("on", autoM);
+            $("st-fan").textContent    = fan ? "开启 (ON)" : "关闭 (OFF)";
+            $("st-fan").classList.toggle("on", fan);
+            $("st-heater").textContent = heater ? "开启 (ON)" : "关闭 (OFF)";
+            $("st-heater").classList.toggle("on", heater);
+            $("st-light").textContent  = light ? "开启 (ON)" : "关闭 (OFF)";
+            $("st-light").classList.toggle("on", light);
+
+            /* 按钮文案与样式跟随当前状态 */
+            $("bt-mode").textContent   = autoM ? "切换为手动模式 (当前：AUTO 自动)" : "切换为自动模式 (当前：MAN 手动)";
+            $("bt-mode").className     = "btn " + (autoM ? "" : "btn-off");
+            $("bt-fan").textContent    = fan ? "直流风扇：运行中（点击关闭）" : "直流风扇：已关闭（点击开启）";
+            $("bt-fan").className      = "btn " + (fan ? "" : "btn-off");
+            $("bt-heater").textContent = heater ? "PTC 加热片：加热中（点击关闭）" : "PTC 加热片：已关闭（点击开启）";
+            $("bt-heater").className   = "btn " + (heater ? "" : "btn-off");
+            $("bt-light").textContent  = light ? "LED 照明灯：已点亮（点击关闭）" : "LED 照明灯：已关闭（点击开启）";
+            $("bt-light").className    = "btn " + (light ? "" : "btn-off");
+
+            setNum("dv-humi", tH, 0);
+            setNum("dv-odor", tO, 0);
+            setNum("dv-temp", tT, 0);
+
+            const ph = (id, k) => {
+                const v = effThr(k);
+                if (v !== undefined && document.activeElement !== $(id)) $(id).placeholder = v;
+            };
+            ph("in-humi", "ThrHumiStart");
+            ph("in-odor", "ThrOdorLimit");
+            ph("in-temp", "ThrTempCutoff");
+
+            const syncing = Object.keys(thrProtect).length + Object.keys(ctrlProtect).length;
+            $("thrSync").textContent = syncing ? "同步中…" : "";
+
+            /* 报警判断（APP 端按 PRD 第四层独立判定） */
+            const overH = ok(H) && ok(tH) && H >= tH;
+            const overO = ok(O) && ok(tO) && O >= tO;
+            const overT = ok(T) && ok(tT) && T >= tT;
+
+            $("v-humi").classList.toggle("alarm", overH);
+            $("v-odor").classList.toggle("alarm", overO);
+            $("v-temp").classList.toggle("alarm", overT);
+
+            const alarms = [];
+            if (overH) alarms.push("湿度超标：已达到烘干启动阈值！");
+            if (overO) alarms.push("异味超标：柜内异味浓度过高，请通风！");
+            if (overT) alarms.push("温度过高：已触发过温保护关断加热片！");
+
+            $("alarmContent").innerHTML = alarms.length
+                ? alarms.map(a => `<div class="alarm-item">${a}</div>`).join("")
+                : '<div class="ok-text">运行正常 ✓</div>';
+
+            if (newest) {
+                const age = (Date.now() - newest) / 1000;
+                const on = age < UPLOAD_S * 2 + 30;
+                $("statusDot").className = "status-dot " + (on ? "connected" : "disconnected");
+                $("statusText").textContent = on ? "已连接" : "设备离线";
+                $("statusTime").textContent = new Date(newest).toLocaleTimeString();
+            }
+        }
+
+        /* ================== 属性下发 ================== */
+        const isSetOk = r => r && (r.code === 0 || (r.code === 10411 && String(r.msg || "").includes("超时")));
+
+        async function setProps(params) {
+            try {
+                const r = await fetch(`${BASE}/thingmodel/set-device-property`, {
+                    method: "POST",
+                    headers: { ...hdr(), "Content-Type": "application/json" },
+                    body: JSON.stringify({ product_id: PID, device_name: DEV, params })
+                }).then(x => x.json());
+                toast(isSetOk(r) ? "✅ 指令已下发" : `❌ ${r.code} ${r.msg || ""}`);
+                return r;
+            } catch (e) {
+                toast("❌ 网络请求失败");
+                return null;
+            }
+        }
+
+        function lockCtrl(key, val) {
+            ctrlProtect[key] = val;
+            ctrlProtAt[key]  = Date.now();
+        }
+
+        $("bt-mode").onclick = () => {
+            const next = !effCtrl("AutoMode", true);
+            lockCtrl("AutoMode", next);
+            render(Date.now());
+            setProps({ AutoMode: next });
+        };
+
+        $("bt-fan").onclick = () => {
+            const next = !effCtrl("FanOn", false);
+            lockCtrl("FanOn", next);
+            lockCtrl("AutoMode", false);
+            render(Date.now());
+            setProps({ FanOn: next });
+        };
+
+        $("bt-heater").onclick = () => {
+            const next = !effCtrl("HeaterOn", false);
+            lockCtrl("HeaterOn", next);
+            lockCtrl("AutoMode", false);
+            render(Date.now());
+            setProps({ HeaterOn: next });
+        };
+
+        $("bt-light").onclick = () => {
+            const next = !effCtrl("LightOn", false);
+            lockCtrl("LightOn", next);
+            lockCtrl("AutoMode", false);
+            render(Date.now());
+            setProps({ LightOn: next });
+        };
+
+        $("btn-clear").onclick = () => setProps({ AlarmClear: true });
+
+        async function sendThreshold(key, inputId, minV, maxV) {
+            const raw = $(inputId).value;
+            if (raw === "") {
+                toast("请先输入阈值数值");
+                return;
+            }
+            const num = Math.round(+raw);
+            if (isNaN(num) || num < minV || num > maxV) {
+                toast(`请输入 ${minV}~${maxV} 范围内的数值`);
+                return;
+            }
+            /* 本地立即预测 + 冻结保护 */
+            thrDisplay[key] = num;
+            thrProtect[key] = num;
+            thrProtAt[key]  = Date.now();
+            $(inputId).value = "";
+            render(Date.now());
+
+            const p = {};
+            p[key] = num;
+            await setProps(p);
+        }
+
+        $("bt-th-humi").onclick = () => sendThreshold("ThrHumiStart",  "in-humi", 20,  95);
+        $("bt-th-odor").onclick = () => sendThreshold("ThrOdorLimit",  "in-odor", 100, 4000);
+        $("bt-th-temp").onclick = () => sendThreshold("ThrTempCutoff", "in-temp", 25,  70);
+
+        pollOnce().then(() => {
+            setInterval(pollOnce, POLL_MS);
+        });
+    </script>
+</body>
+</html>
