@@ -33,7 +33,7 @@
         }
 
         .container {
-            max-width: 420px;
+            max-width: 760px;
             margin: 0 auto;
         }
 
@@ -41,8 +41,45 @@
             font-size: 18px;
             font-weight: 700;
             text-align: center;
-            padding: 6px 0 14px;
+            padding: 4px 0 10px;
             color: var(--text);
+        }
+
+        /* 横向 Tab 导航栏 */
+        .tab-bar {
+            display: flex;
+            gap: 6px;
+            background: var(--card);
+            padding: 6px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 12px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            min-height: 40px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--sub);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: #FFFFFF;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
         }
 
         .card {
@@ -97,29 +134,33 @@
             color: var(--sub);
         }
 
-        /* 2. 实时数据卡 */
-        .data-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            padding: 10px 0;
-            border-bottom: 1px solid #F0F0F0;
+        /* 2. 实时数据卡（横向双列网格） */
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
         }
 
-        .data-row:last-child {
-            border-bottom: none;
+        .data-cell {
+            background: #FAFAFA;
+            border: 1px solid #EFEFEF;
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
         .data-label {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--sub);
         }
 
         .data-value {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: bold;
             color: var(--text);
-            line-height: 1;
+            line-height: 1.1;
         }
 
         .data-value.alarm {
@@ -165,11 +206,21 @@
             padding: 8px 0;
         }
 
-        /* 4. 控制卡（按钮高度 >= 48px） */
+        /* 4. 控制卡（横向双列网格，按钮高度 >= 48px） */
         .ctrl-grid {
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
             gap: 10px;
+        }
+
+        .ctrl-grid .btn-wide {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 460px) {
+            .ctrl-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         .btn {
@@ -255,24 +306,12 @@
             background: #1976D2;
         }
 
-        /* 6. 日志卡（默认折叠） */
-        .log-header {
-            cursor: pointer;
-            user-select: none;
-            margin-bottom: 0;
-        }
-
+        /* 6. 日志卡（Tab 内直接展开） */
         .log-list {
-            display: none;
-            margin-top: 12px;
-            max-height: 260px;
+            max-height: 360px;
             overflow-y: auto;
             border-top: 1px solid #EEE;
             padding-top: 8px;
-        }
-
-        .log-list.open {
-            display: block;
         }
 
         .log-item {
@@ -311,7 +350,7 @@
     <div class="container">
         <div class="page-header">智能鞋柜系统</div>
 
-        <!-- 1. 状态栏 -->
+        <!-- 1. 常驻状态栏 -->
         <div class="card">
             <div class="status-bar">
                 <div class="status-dot" id="statusDot"></div>
@@ -320,115 +359,122 @@
             </div>
         </div>
 
-        <!-- 2. 实时数据卡 -->
-        <div class="card">
-            <div class="card-title">实时数据</div>
-            <div class="data-row">
-                <span class="data-label">柜内温度</span>
-                <div>
-                    <span class="data-value" id="v-temp">--</span>
-                    <span class="data-unit">℃</span>
+        <!-- 横向 Tab 导航 -->
+        <div class="tab-bar" id="tabBar">
+            <button class="tab-btn active" data-tab="tab-monitor">实时监控</button>
+            <button class="tab-btn" data-tab="tab-ctrl">远程控制</button>
+            <button class="tab-btn" data-tab="tab-thr">阈值设置</button>
+            <button class="tab-btn" data-tab="tab-log">通信日志</button>
+        </div>
+
+        <!-- Tab 1：实时监控（数据 + 报警） -->
+        <div class="tab-panel active" id="tab-monitor">
+            <div class="card">
+                <div class="card-title">实时数据</div>
+                <div class="data-grid">
+                    <div class="data-cell">
+                        <span class="data-label">柜内温度</span>
+                        <div><span class="data-value" id="v-temp">--</span><span class="data-unit">℃</span></div>
+                    </div>
+                    <div class="data-cell">
+                        <span class="data-label">相对湿度</span>
+                        <div><span class="data-value" id="v-humi">--</span><span class="data-unit">%RH</span></div>
+                    </div>
+                    <div class="data-cell">
+                        <span class="data-label">异味指标 (MQ-135)</span>
+                        <div><span class="data-value" id="v-odor">--</span><span class="data-unit">ADC</span></div>
+                    </div>
+                    <div class="data-cell">
+                        <span class="data-label">人体靠近 (HC-SR501)</span>
+                        <span class="badge-val" id="v-pir">--</span>
+                    </div>
+                    <div class="data-cell">
+                        <span class="data-label">工作模式</span>
+                        <span class="badge-val" id="st-mode">--</span>
+                    </div>
+                    <div class="data-cell">
+                        <span class="data-label">直流风扇</span>
+                        <span class="badge-val" id="st-fan">--</span>
+                    </div>
+                    <div class="data-cell">
+                        <span class="data-label">PTC 加热片</span>
+                        <span class="badge-val" id="st-heater">--</span>
+                    </div>
+                    <div class="data-cell">
+                        <span class="data-label">LED 照明灯</span>
+                        <span class="badge-val" id="st-light">--</span>
+                    </div>
                 </div>
             </div>
-            <div class="data-row">
-                <span class="data-label">相对湿度</span>
-                <div>
-                    <span class="data-value" id="v-humi">--</span>
-                    <span class="data-unit">%RH</span>
+
+            <div class="card">
+                <div class="card-title">报警状态</div>
+                <div id="alarmContent">
+                    <div class="ok-text">运行正常 ✓</div>
                 </div>
-            </div>
-            <div class="data-row">
-                <span class="data-label">异味指标 (MQ-135)</span>
-                <div>
-                    <span class="data-value" id="v-odor">--</span>
-                    <span class="data-unit">ADC</span>
-                </div>
-            </div>
-            <div class="data-row">
-                <span class="data-label">人体靠近 (HC-SR501)</span>
-                <span class="badge-val" id="v-pir">--</span>
-            </div>
-            <div class="data-row">
-                <span class="data-label">工作模式</span>
-                <span class="badge-val" id="st-mode">--</span>
-            </div>
-            <div class="data-row">
-                <span class="data-label">直流风扇</span>
-                <span class="badge-val" id="st-fan">--</span>
-            </div>
-            <div class="data-row">
-                <span class="data-label">PTC 加热片</span>
-                <span class="badge-val" id="st-heater">--</span>
-            </div>
-            <div class="data-row">
-                <span class="data-label">LED 照明灯</span>
-                <span class="badge-val" id="st-light">--</span>
             </div>
         </div>
 
-        <!-- 3. 报警状态卡 -->
-        <div class="card">
-            <div class="card-title">报警状态</div>
-            <div id="alarmContent">
-                <div class="ok-text">运行正常 ✓</div>
+        <!-- Tab 2：远程控制 -->
+        <div class="tab-panel" id="tab-ctrl">
+            <div class="card">
+                <div class="card-title">
+                    <span>远程控制（手动开关自动跳 MAN）</span>
+                    <span id="ctrlSync" style="font-size:12px;color:var(--primary)"></span>
+                </div>
+                <div class="ctrl-grid">
+                    <button class="btn btn-wide" id="bt-mode">切换工作模式（当前：AUTO 自动）</button>
+                    <button class="btn" id="bt-fan">直流风扇：点击开启</button>
+                    <button class="btn" id="bt-heater">PTC 加热片：点击开启</button>
+                    <button class="btn" id="bt-light">LED 照明灯：点击开启</button>
+                    <button class="btn btn-alarm" id="btn-clear">远程消警</button>
+                </div>
             </div>
         </div>
 
-        <!-- 4. 控制卡 -->
-        <div class="card">
-            <div class="card-title">
-                <span>远程控制（手动开关自动跳 MAN）</span>
-                <span id="ctrlSync" style="font-size:12px;color:var(--primary)"></span>
-            </div>
-            <div class="ctrl-grid">
-                <button class="btn" id="bt-mode">切换工作模式（当前：AUTO 自动）</button>
-                <button class="btn" id="bt-fan">直流风扇：点击开启</button>
-                <button class="btn" id="bt-heater">PTC 加热片：点击开启</button>
-                <button class="btn" id="bt-light">LED 照明灯：点击开启</button>
-                <button class="btn btn-alarm" id="btn-clear">远程消警</button>
+        <!-- Tab 3：阈值设置 -->
+        <div class="tab-panel" id="tab-thr">
+            <div class="card">
+                <div class="card-title">
+                    <span>阈值设置</span>
+                    <span id="thrSync" style="font-size:12px;color:var(--primary)"></span>
+                </div>
+                <div class="threshold-row">
+                    <div class="threshold-info">
+                        <div class="threshold-label">烘干启动湿度</div>
+                        <div class="threshold-cur">当前生效：<span id="dv-humi">--</span> %RH</div>
+                    </div>
+                    <input class="threshold-input" id="in-humi" type="number" min="20" max="95" step="1" placeholder="20~95">
+                    <button class="threshold-btn" id="bt-th-humi">发送</button>
+                </div>
+                <div class="threshold-row">
+                    <div class="threshold-info">
+                        <div class="threshold-label">异味报警阈值</div>
+                        <div class="threshold-cur">当前生效：<span id="dv-odor">--</span> ADC</div>
+                    </div>
+                    <input class="threshold-input" id="in-odor" type="number" min="100" max="4000" step="50" placeholder="100~4000">
+                    <button class="threshold-btn" id="bt-th-odor">发送</button>
+                </div>
+                <div class="threshold-row">
+                    <div class="threshold-info">
+                        <div class="threshold-label">加热过温保护</div>
+                        <div class="threshold-cur">当前生效：<span id="dv-temp">--</span> ℃</div>
+                    </div>
+                    <input class="threshold-input" id="in-temp" type="number" min="25" max="70" step="1" placeholder="25~70">
+                    <button class="threshold-btn" id="bt-th-temp">发送</button>
+                </div>
             </div>
         </div>
 
-        <!-- 5. 阈值设置卡 -->
-        <div class="card">
-            <div class="card-title">
-                <span>阈值设置</span>
-                <span id="thrSync" style="font-size:12px;color:var(--primary)"></span>
-            </div>
-            <div class="threshold-row">
-                <div class="threshold-info">
-                    <div class="threshold-label">烘干启动湿度</div>
-                    <div class="threshold-cur">当前生效：<span id="dv-humi">--</span> %RH</div>
+        <!-- Tab 4：通信日志 -->
+        <div class="tab-panel" id="tab-log">
+            <div class="card">
+                <div class="card-title">
+                    <span>通信日志（最近 20 条）</span>
                 </div>
-                <input class="threshold-input" id="in-humi" type="number" min="20" max="95" step="1" placeholder="20~95">
-                <button class="threshold-btn" id="bt-th-humi">发送</button>
-            </div>
-            <div class="threshold-row">
-                <div class="threshold-info">
-                    <div class="threshold-label">异味报警阈值</div>
-                    <div class="threshold-cur">当前生效：<span id="dv-odor">--</span> ADC</div>
+                <div class="log-list" id="logList">
+                    <div class="log-item">等待数据…</div>
                 </div>
-                <input class="threshold-input" id="in-odor" type="number" min="100" max="4000" step="50" placeholder="100~4000">
-                <button class="threshold-btn" id="bt-th-odor">发送</button>
-            </div>
-            <div class="threshold-row">
-                <div class="threshold-info">
-                    <div class="threshold-label">加热过温保护</div>
-                    <div class="threshold-cur">当前生效：<span id="dv-temp">--</span> ℃</div>
-                </div>
-                <input class="threshold-input" id="in-temp" type="number" min="25" max="70" step="1" placeholder="25~70">
-                <button class="threshold-btn" id="bt-th-temp">发送</button>
-            </div>
-        </div>
-
-        <!-- 6. 日志卡（默认折叠） -->
-        <div class="card">
-            <div class="card-title log-header" id="logToggle">
-                <span>通信日志（最近 20 条）</span>
-                <span id="logArrow">展开 ▼</span>
-            </div>
-            <div class="log-list" id="logList">
-                <div class="log-item">等待数据…</div>
             </div>
         </div>
     </div>
@@ -476,11 +522,15 @@
             return asBool(D[k]);
         };
 
-        /* 日志折叠展开 */
-        $("logToggle").onclick = () => {
-            const open = $("logList").classList.toggle("open");
-            $("logArrow").textContent = open ? "收起 ▲" : "展开 ▼";
-        };
+        /* 横向 Tab 切换 */
+        $("tabBar").addEventListener("click", e => {
+            const btn = e.target.closest(".tab-btn");
+            if (!btn) return;
+            document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+            btn.classList.add("active");
+            $(btn.dataset.tab).classList.add("active");
+        });
 
         function pushLog() {
             if (D.Temperature === undefined) return;
@@ -585,7 +635,7 @@
 
             /* 按钮文案与样式跟随当前状态 */
             $("bt-mode").textContent   = autoM ? "切换为手动模式 (当前：AUTO 自动)" : "切换为自动模式 (当前：MAN 手动)";
-            $("bt-mode").className     = "btn " + (autoM ? "" : "btn-off");
+            $("bt-mode").className     = "btn btn-wide " + (autoM ? "" : "btn-off");
             $("bt-fan").textContent    = fan ? "直流风扇：运行中（点击关闭）" : "直流风扇：已关闭（点击开启）";
             $("bt-fan").className      = "btn " + (fan ? "" : "btn-off");
             $("bt-heater").textContent = heater ? "PTC 加热片：加热中（点击关闭）" : "PTC 加热片：已关闭（点击开启）";
