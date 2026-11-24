@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水产养殖水质检测系统 · OneNET 监控</title>
+    <style>
+        :root {
+            --bg: #F3F7F4;
+            --card: #FFFFFF;
+            --primary: #16875D;
+            --primary-dark: #116B4A;
+            --alarm: #E53935;
+            --ok: #2E7D32;
+            --text: #14221C;
+            --sub: #6D7C74;
+            --shadow: 0 2px 10px rgba(20, 34, 28, 0.08);
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 12px;
+        }
+        .container { max-width: 440px; margin: 0 auto; }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 14px;
+            color: var(--sub);
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+        .tab {
+            height: 40px; border: none; border-radius: 8px;
+            background: #FFFFFF; color: var(--sub); font-size: 13px; font-weight: 600;
+            cursor: pointer; box-shadow: var(--shadow); transition: background 0.2s, color 0.2s;
+            white-space: nowrap;
+        }
+        .tab.active { background: var(--primary); color: white; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .status-bar { display: flex; align-items: center; gap: 8px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--sub); }
+        .status-dot.connected { background: var(--ok); }
+        .status-dot.disconnected { background: var(--alarm); }
+        .status-text { font-size: 14px; }
+        .data-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0; border-bottom: 1px solid #EDF2EE;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-size: 13px; color: var(--sub); }
+        .data-value { font-size: 26px; font-weight: bold; color: var(--text); }
+        .data-unit { font-size: 13px; color: var(--sub); margin-left: 4px; }
+        .data-value.alarm { color: var(--alarm); }
+        .state-value { font-size: 18px; font-weight: bold; color: var(--sub); }
+        .state-value.on { color: var(--primary); }
+        .alarm-item {
+            background: var(--alarm); color: white; padding: 10px 12px;
+            border-radius: 8px; margin-bottom: 8px; font-size: 14px;
+        }
+        .alarm-item:last-child { margin-bottom: 0; }
+        .ok-text { color: var(--ok); font-size: 14px; text-align: center; padding: 10px; }
+        .btn-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .btn {
+            width: 100%; height: 46px; border: none; border-radius: 8px;
+            background: var(--primary); color: white; font-size: 15px; font-weight: 600;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .btn:active { background: var(--primary-dark); }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn-outline { background: #E9F3EE; color: var(--primary-dark); }
+        .btn-alarm { background: var(--alarm); }
+        .btn-alarm:active { background: #C62828; }
+        .threshold-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .threshold-row:last-of-type { margin-bottom: 0; }
+        .threshold-label { font-size: 13px; color: var(--sub); width: 92px; }
+        .threshold-input {
+            flex: 1; width: 80px; height: 40px; border: 1px solid #DCE5DF;
+            border-radius: 8px; padding: 0 8px; font-size: 16px; text-align: center;
+        }
+        .threshold-input::placeholder { color: #B4C0B9; }
+        .threshold-btn {
+            flex: 0 0 72px; height: 40px; border: none; border-radius: 8px;
+            background: var(--primary); color: white; font-size: 14px; cursor: pointer;
+        }
+        .threshold-btn:active { background: var(--primary-dark); }
+        select.threshold-input { background: white; }
+        .stats-row { display: flex; gap: 8px; }
+        .stat { flex: 1; text-align: center; background: #F4F8F5; border-radius: 8px; padding: 10px 4px; }
+        .stat-lab { font-size: 12px; color: var(--sub); }
+        .stat-val { font-size: 20px; font-weight: bold; color: var(--primary); margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" id="tab-rt">实时监控</button>
+            <button class="tab" id="tab-ctrl">设备控制</button>
+            <button class="tab" id="tab-thr">阈值设置</button>
+            <button class="tab" id="tab-his">历史数据</button>
+        </div>
+
+        <!-- ==================== 页 1：实时监控 ==================== -->
+        <div class="page active" id="page-rt">
+            <div class="card">
+                <div class="status-bar">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span class="status-text" id="statusText">连接中…</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">实时水质</div>
+                <div class="data-row">
+                    <span class="data-label">水温</span>
+                    <div><span class="data-value" id="v-temp">--</span><span class="data-unit">℃</span></div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">pH 值</span>
+                    <div><span class="data-value" id="v-ph">--</span><span class="data-unit">pH</span></div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">相对浊度</span>
+                    <div><span class="data-value" id="v-turb">--</span><span class="data-unit">%</span></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">报警状态<span id="muteTag" style="font-size:12px;color:var(--sub)"></span></div>
+                <div id="alarmContent">
+                    <div class="ok-text">水质正常 ✓</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 页 2：设备控制 ==================== -->
+        <div class="page" id="page-ctrl">
+            <div class="card">
+                <div class="card-title">设备状态与控制</div>
+                <div class="data-row">
+                    <span class="data-label">当前模式</span>
+                    <span class="state-value on" id="st-mode">--</span>
+                </div>
+                <div class="data-row" style="margin-bottom:12px;">
+                    <span class="data-label">换水泵</span>
+                    <span class="state-value" id="st-pump">--</span>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-outline" id="btn-auto">自动模式 (AUTO)</button>
+                    <button class="btn btn-outline" id="btn-manual">手动模式 (MANUAL)</button>
+                </div>
+                <div class="btn-row">
+                    <button class="btn" id="btn-pump" disabled>手动启停水泵</button>
+                </div>
+                <button class="btn btn-alarm" id="btn-mute">报警消音</button>
+            </div>
+        </div>
+
+        <!-- ==================== 页 3：阈值设置 ==================== -->
+        <div class="page" id="page-thr">
+            <div class="card">
+                <div class="card-title">当前阈值（设备生效值）<span id="thrSync" style="font-size:12px;color:var(--primary)"></span></div>
+                <div class="data-row">
+                    <span class="data-label">水温下限 / 上限</span>
+                    <div><span class="data-value" style="font-size:20px" id="dv-temp-range">-- / --</span><span class="data-unit">℃</span></div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">pH 下限 / 上限</span>
+                    <div><span class="data-value" style="font-size:20px" id="dv-ph-range">-- / --</span><span class="data-unit">pH</span></div>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">浊度上限</span>
+                    <div><span class="data-value" style="font-size:20px" id="dv-turb">--</span><span class="data-unit">%</span></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">阈值设置（单项下发）</div>
+                <div class="threshold-row">
+                    <span class="threshold-label">水温下限 ℃</span>
+                    <input class="threshold-input" id="in-tlow" type="number" min="-55" max="125" step="0.1">
+                    <button class="threshold-btn" id="bt-tlow">发送</button>
+                </div>
+                <div class="threshold-row">
+                    <span class="threshold-label">水温上限 ℃</span>
+                    <input class="threshold-input" id="in-thigh" type="number" min="-55" max="125" step="0.1">
+                    <button class="threshold-btn" id="bt-thigh">发送</button>
+                </div>
+                <div class="threshold-row">
+                    <span class="threshold-label">pH 下限</span>
+                    <input class="threshold-input" id="in-plow" type="number" min="0" max="14" step="0.1">
+                    <button class="threshold-btn" id="bt-plow">发送</button>
+                </div>
+                <div class="threshold-row">
+                    <span class="threshold-label">pH 上限</span>
+                    <input class="threshold-input" id="in-phigh" type="number" min="0" max="14" step="0.1">
+                    <button class="threshold-btn" id="bt-phigh">发送</button>
+                </div>
+                <div class="threshold-row">
+                    <span class="threshold-label">浊度上限 %</span>
+                    <input class="threshold-input" id="in-turb" type="number" min="0" max="1000" step="0.1">
+                    <button class="threshold-btn" id="bt-turb">发送</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 页 4：历史数据 ==================== -->
+        <div class="page" id="page-his">
+            <div class="card">
+                <div class="card-title">按天查询（数据变动即上报 · 静默时 60 秒心跳）</div>
+                <div class="threshold-row" style="margin-bottom:12px;">
+                    <select class="threshold-input" id="h-ident">
+                        <option value="water_temp">水温 (℃)</option>
+                        <option value="ph_value">pH 值</option>
+                        <option value="turbidity_value">相对浊度 (%)</option>
+                    </select>
+                    <input class="threshold-input" id="h-date" type="date">
+                </div>
+                <button class="btn" id="btn-hist">查询</button>
+            </div>
+            <div class="card">
+                <div class="card-title"><span id="hmsg">选择日期后点"查询"</span></div>
+                <canvas id="chart" style="width:100%;height:300px;display:block"></canvas>
+            </div>
+            <div class="card" id="statsCard" style="display:none">
+                <div class="card-title">当日统计（按原始数据计算）</div>
+                <div class="stats-row">
+                    <div class="stat"><div class="stat-lab">日最高</div><div class="stat-val" id="st-max">--</div></div>
+                    <div class="stat"><div class="stat-lab">日最低</div><div class="stat-val" id="st-min">--</div></div>
+                    <div class="stat"><div class="stat-lab">日平均</div><div class="stat-val" id="st-avg">--</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" style="position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000a;color:#fff;
+         padding:8px 16px;border-radius:20px;font-size:13px;display:none;z-index:9"></div>
+
+    <script>
+        /* ================== OneNET 产品级配置 ================== */
+        const PID  = "ISdm97og4K";
+        const DEV  = "stm32001";
+        const TOKEN = "version=2018-10-31&res=products%2FISdm97og4K&et=1924833600&method=md5&sign=MUEzQ3x8zR0btSTfneZNVg%3D%3D";
+        const BASE = "https://iot-api.heclouds.com";
+        const POLL_MS = 1000;
+        const UPLOAD_S = 60;
+
+        const $ = id => document.getElementById(id);
+        const toast = m => { const t=$("toast"); t.textContent=m; t.style.display="block";
+                             clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",2600); };
+        const sleep = ms => new Promise(r=>setTimeout(r,ms));
+        const hdr = () => ({ "Authorization": TOKEN });
+        const asBool = v => v === true || v === "true" || v === 1 || v === "1";
+
+        const TABS = ["rt", "ctrl", "thr", "his"];
+        TABS.forEach(t => { $("tab-" + t).onclick = () => switchTab(t); });
+        function switchTab(t) {
+            TABS.forEach(k => {
+                $("tab-" + k).classList.toggle("active", k === t);
+                $("page-" + k).classList.toggle("active", k === t);
+            });
+            if (t === "his" && lastPts) drawChart();
+        }
+
+        let D = {};
+        const THR_KEYS = ["temp_low","temp_high","ph_low","ph_high","turbidity_high"];
+        const CTRL_KEYS = ["pump_state","control_mode","alarm_muted"];
+        let thrDisplay = {};
+        let thrProtect = {};
+        let thrProtAt  = {};
+        let ctrlProtect = {};
+        let ctrlProtAt  = {};
+        const effThr = k => (thrDisplay[k] !== undefined ? thrDisplay[k] : D[k]);
+
+        async function pollOnce() {
+            try {
+                const r = await fetch(`${BASE}/thingmodel/query-device-property?product_id=${PID}&device_name=${DEV}`,
+                                      { headers: hdr() }).then(x => x.json());
+                if (r.code !== 0) throw r.msg;
+                const now = Date.now();
+                let newest = 0;
+                const items = Array.isArray(r.data) ? r.data : ((r.data && r.data.list) || []);
+                items.forEach(it => {
+                    if (it.time) { const t = new Date(it.time).getTime(); if (t > newest) newest = t; }
+                    if (it.value !== null && it.value !== undefined) {
+                        const k = it.identifier;
+                        if (CTRL_KEYS.includes(k) && ctrlProtect[k] !== undefined) {
+                            if (asBool(it.value) === ctrlProtect[k] || now - (ctrlProtAt[k] || 0) > 15000) {
+                                delete ctrlProtect[k];
+                                D[k] = it.value;
+                            }
+                        } else {
+                            D[k] = it.value;
+                        }
+                        if (THR_KEYS.includes(k)) {
+                            if (thrProtect[k] !== undefined && Math.abs(Number(it.value) - thrProtect[k]) <= 0.15) {
+                                delete thrProtect[k];
+                            }
+                            if (thrProtect[k] === undefined) thrDisplay[k] = it.value;
+                        }
+                    }
+                });
+                for (const k of THR_KEYS) {
+                    if (thrProtect[k] !== undefined && now - (thrProtAt[k] || 0) > 90000) delete thrProtect[k];
+                }
+                for (const k of CTRL_KEYS) {
+                    if (ctrlProtect[k] !== undefined && now - (ctrlProtAt[k] || 0) > 15000) delete ctrlProtect[k];
+                }
+                render(newest);
+            } catch (e) {
+                $("statusDot").className = "status-dot disconnected";
+                $("statusText").textContent = "连接失败";
+            }
+        }
+
+        function render(newest) {
+            const T = Number(D.water_temp), P = Number(D.ph_value), TB = Number(D.turbidity_value);
+            const tL = Number(effThr("temp_low")), tH = Number(effThr("temp_high"));
+            const pL = Number(effThr("ph_low")),   pH = Number(effThr("ph_high"));
+            const tbH = Number(effThr("turbidity_high"));
+            const ok = v => Number.isFinite(v);
+
+            $("v-temp").textContent = ok(T)  ? T.toFixed(1)  : "--";
+            $("v-ph").textContent   = ok(P)  ? P.toFixed(1)  : "--";
+            $("v-turb").textContent = ok(TB) ? TB.toFixed(1) : "--";
+
+            const ph = (id, k) => { const v = effThr(k); if (v !== undefined) $(id).placeholder = v; };
+            ph("in-tlow","temp_low"); ph("in-thigh","temp_high");
+            ph("in-plow","ph_low");   ph("in-phigh","ph_high");
+            ph("in-turb","turbidity_high");
+
+            $("dv-temp-range").textContent = `${ok(tL) ? tL.toFixed(1) : "--"} / ${ok(tH) ? tH.toFixed(1) : "--"}`;
+            $("dv-ph-range").textContent   = `${ok(pL) ? pL.toFixed(1) : "--"} / ${ok(pH) ? pH.toFixed(1) : "--"}`;
+            $("dv-turb").textContent       = ok(tbH) ? tbH.toFixed(1) : "--";
+            $("thrSync").textContent = Object.keys(thrProtect).length ? "同步中…" : "";
+
+            const tempAlm = ok(T) && ok(tL) && ok(tH) && (T < tL || T > tH);
+            const phAlm   = ok(P) && ok(pL) && ok(pH) && (P < pL || P > pH);
+            const turbAlm = ok(TB) && ok(tbH) && (TB > tbH);
+
+            $("v-temp").classList.toggle("alarm", tempAlm);
+            $("v-ph").classList.toggle("alarm", phAlm);
+            $("v-turb").classList.toggle("alarm", turbAlm);
+
+            const alarms = [];
+            if (tempAlm) alarms.push(T < tL ? "水温偏低" : "水温偏高");
+            if (phAlm)   alarms.push(P < pL ? "pH 偏低" : "pH 偏高");
+            if (turbAlm) alarms.push("浊度超标");
+
+            const muted = asBool(D.alarm_muted);
+            $("muteTag").textContent = muted ? "已消音（恢复正常后自动复位）" : "";
+            $("alarmContent").innerHTML = alarms.length
+                ? alarms.map(a => `<div class="alarm-item">${a}${muted ? "（已消音）" : ""}</div>`).join("")
+                : '<div class="ok-text">水质正常 ✓</div>';
+
+            const isManual = asBool(D.control_mode);
+            const pumpOn   = asBool(D.pump_state);
+            $("st-mode").textContent = D.control_mode === undefined ? "--" : (isManual ? "MANUAL (手动)" : "AUTO (自动)");
+            $("st-pump").textContent = D.pump_state === undefined ? "--" : (pumpOn ? "ON 运行中" : "OFF 已停止");
+            $("st-pump").classList.toggle("on", pumpOn);
+
+            $("btn-pump").disabled = !isManual;
+            $("btn-pump").textContent = isManual
+                ? (pumpOn ? "手动关闭水泵 (OFF)" : "手动开启水泵 (ON)")
+                : "自动模式（浊度超限自动控制）";
+
+            if (newest) {
+                const age = (Date.now() - newest) / 1000;
+                const on = age < UPLOAD_S * 2 + 30;
+                $("statusDot").className = "status-dot " + (on ? "connected" : "disconnected");
+                $("statusText").textContent = on
+                    ? (age < 90 ? "已连接 · 刚刚更新" : `已连接 · ${Math.round(age / 60)} 分钟前更新`)
+                    : "设备离线";
+            }
+        }
+
+        async function setProps(params) {
+            try {
+                const r = await fetch(`${BASE}/thingmodel/set-device-property`, {
+                    method: "POST",
+                    headers: { ...hdr(), "Content-Type": "application/json" },
+                    body: JSON.stringify({ product_id: PID, device_name: DEV, params })
+                }).then(x => x.json());
+                if (r && (r.code === 0 || r.code === 10411)) {
+                    toast("✅ 已下发");
+                }
+                return r;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function sendCtrl(key, val) {
+            ctrlProtect[key] = val;
+            ctrlProtAt[key]  = Date.now();
+            D[key] = val;
+            render(Date.now());
+            const p = {}; p[key] = val;
+            setProps(p);
+        }
+        $("btn-auto").onclick   = () => sendCtrl("control_mode", false);
+        $("btn-manual").onclick = () => sendCtrl("control_mode", true);
+        $("btn-pump").onclick   = () => sendCtrl("pump_state", !asBool(D.pump_state));
+        $("btn-mute").onclick   = () => sendCtrl("alarm_muted", true);
+
+        async function sendThreshold(key, inputId) {
+            const v = $(inputId).value;
+            if (v === "") { toast("请先输入数值"); return; }
+            const num = Number(v);
+            const p = {}; p[key] = num;
+            const r = await setProps(p);
+            if (r && (r.code === 0 || r.code === 10411)) {
+                thrDisplay[key] = num;
+                thrProtect[key] = num;
+                thrProtAt[key]  = Date.now();
+                $(inputId).value = "";
+                render(Date.now());
+            }
+        }
+        $("bt-tlow").onclick  = () => sendThreshold("temp_low", "in-tlow");
+        $("bt-thigh").onclick = () => sendThreshold("temp_high", "in-thigh");
+        $("bt-plow").onclick  = () => sendThreshold("ph_low", "in-plow");
+        $("bt-phigh").onclick = () => sendThreshold("ph_high", "in-phigh");
+        $("bt-turb").onclick  = () => sendThreshold("turbidity_high", "in-turb");
+
+        async function fetchHistory(ident, startMs, endMs, onProg) {
+            let all = [], offset = 0;
+            while (true) {
+                const u = `${BASE}/thingmodel/query-device-property-history?product_id=${PID}&device_name=${DEV}`
+                        + `&identifier=${ident}&start_time=${startMs}&end_time=${endMs}&sort=1&offset=${offset}&limit=100`;
+                const r = await fetch(u, { headers: hdr() }).then(x => x.json());
+                if (r.code !== 0) throw (r.msg || ("code " + r.code));
+                const list = (r.data && r.data.list) || [];
+                all = all.concat(list);
+                onProg(`已拉取 ${all.length} 条…`);
+                if (list.length < 100 || all.length > 90000) break;
+                offset += 100;
+                await sleep(120);
+            }
+            return all;
+        }
+
+        let lastPts = null, lastRange = null, lastGapMs = 90 * 60 * 1000;
+        function chooseBucketMs(spanMs) {
+            if (spanMs <= 10 * 60 * 1000)      return 15 * 1000;
+            if (spanMs <= 60 * 60 * 1000)      return 60 * 1000;
+            if (spanMs <= 3 * 60 * 60 * 1000)  return 5 * 60 * 1000;
+            if (spanMs <= 8 * 60 * 60 * 1000)  return 15 * 60 * 1000;
+            return 60 * 60 * 1000;
+        }
+        function formatBucketLabel(ms) {
+            if (ms < 60 * 1000) return `${ms / 1000}秒`;
+            if (ms < 3600 * 1000) return `${ms / 60000}分钟`;
+            return "1小时";
+        }
+        function aggregateAdaptive(rawPts) {
+            if (!rawPts.length) return { pts: [], range: null, bucketMs: 3600000 };
+            let minT = Infinity, maxT = -Infinity;
+            rawPts.forEach(p => { if (p[0] < minT) minT = p[0]; if (p[0] > maxT) maxT = p[0]; });
+            const span = Math.max(maxT - minT, 60 * 1000);
+            const bucketMs = chooseBucketMs(span);
+            const buckets = new Map();
+            rawPts.forEach(p => {
+                const idx = Math.floor(p[0] / bucketMs);
+                if (!buckets.has(idx)) buckets.set(idx, []);
+                buckets.get(idx).push(p[1]);
+            });
+            const pts = [...buckets.entries()].sort((a, b) => a[0] - b[0])
+                .map(([idx, arr]) => [idx * bucketMs + bucketMs / 2, arr.reduce((s, x) => s + x, 0) / arr.length]);
+            let rMin = pts[0][0], rMax = pts[pts.length - 1][0];
+            if (rMax - rMin < bucketMs * 2) {
+                const mid = (rMin + rMax) / 2;
+                rMin = mid - bucketMs * 2;
+                rMax = mid + bucketMs * 2;
+            } else {
+                const pad = (rMax - rMin) * 0.05;
+                rMin -= pad; rMax += pad;
+            }
+            return { pts, range: [rMin, rMax], bucketMs };
+        }
+
+        function drawChart() {
+            const cv = $("chart"), dpr = window.devicePixelRatio || 1;
+            const W = cv.clientWidth || 380, H = 300;
+            cv.width = W * dpr; cv.height = H * dpr;
+            const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+            ctx.clearRect(0, 0, W, H);
+            ctx.font = "11px sans-serif";
+            if (!lastPts || !lastPts.length || !lastRange) {
+                ctx.fillStyle = "#757575"; ctx.fillText("该日无数据", W / 2 - 30, H / 2); return;
+            }
+            const [ds, de] = lastRange;
+            const L = 48, R = 16, T = 14, B = 26, pw = W - L - R, ph = H - T - B;
+            let lo = Infinity, hi = -Infinity;
+            lastPts.forEach(p => { lo = Math.min(lo, p[1]); hi = Math.max(hi, p[1]); });
+            if (lo === hi) { lo -= 1; hi += 1; }
+            const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+            const X = ms => L + pw * (ms - ds) / (de - ds);
+            const Y = v => T + ph * (1 - (v - lo) / (hi - lo));
+            ctx.strokeStyle = "#eee"; ctx.fillStyle = "#757575";
+            for (let i = 0; i <= 4; i++) {
+                const y = T + ph * i / 4;
+                ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(W - R, y); ctx.stroke();
+                ctx.fillText((hi - (hi - lo) * i / 4).toFixed(Math.abs(hi - lo) < 10 ? 1 : 0), 6, y + 4);
+            }
+            const withSec = (de - ds) <= 5 * 60 * 1000;
+            for (let i = 0; i <= 4; i++) {
+                const t = ds + (de - ds) * i / 4;
+                const x = X(t);
+                const d = new Date(t);
+                const lbl = d.toLocaleTimeString("zh-CN", {
+                    hour12: false, hour: "2-digit", minute: "2-digit",
+                    ...(withSec ? { second: "2-digit" } : {})
+                });
+                const tx = Math.min(Math.max(x - (withSec ? 22 : 14), L), W - R - (withSec ? 44 : 28));
+                ctx.fillText(lbl, tx, H - 8);
+                ctx.beginPath(); ctx.moveTo(x, T + ph); ctx.lineTo(x, T + ph + 4); ctx.stroke();
+            }
+            const runs = []; let cur = [lastPts[0]];
+            for (let i = 1; i < lastPts.length; i++) {
+                if (lastPts[i][0] - lastPts[i - 1][0] <= lastGapMs) cur.push(lastPts[i]);
+                else { runs.push(cur); cur = [lastPts[i]]; }
+            }
+            runs.push(cur);
+            runs.forEach(run => {
+                ctx.beginPath();
+                run.forEach((p, i) => { const x = X(p[0]), y = Y(p[1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+                if (run.length === 1) {
+                    ctx.fillStyle = "#16875D";
+                    ctx.arc(X(run[0][0]), Y(run[0][1]), 3.5, 0, Math.PI * 2); ctx.fill();
+                    return;
+                }
+                ctx.strokeStyle = "#16875D"; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+                ctx.lineTo(X(run[run.length - 1][0]), T + ph);
+                ctx.lineTo(X(run[0][0]), T + ph); ctx.closePath();
+                ctx.fillStyle = "rgba(22,135,93,.10)"; ctx.fill();
+                run.forEach(p => {
+                    ctx.beginPath();
+                    ctx.fillStyle = "#16875D";
+                    ctx.arc(X(p[0]), Y(p[1]), 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            });
+        }
+
+        $("btn-hist").onclick = async () => {
+            const ident = $("h-ident").value, date = $("h-date").value;
+            if (!date) { toast("请选择日期"); return; }
+            const start = new Date(date + "T00:00:00+08:00").getTime();
+            const end = start + 86400000;
+            $("btn-hist").disabled = true; $("hmsg").textContent = "查询中…";
+            try {
+                const list = await fetchHistory(ident, start, end, m => $("hmsg").textContent = m);
+                const vals = list.map(it => +it.value);
+                if (vals.length) {
+                    $("st-max").textContent = Math.max(...vals).toFixed(1);
+                    $("st-min").textContent = Math.min(...vals).toFixed(1);
+                    $("st-avg").textContent = (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+                }
+                $("statsCard").style.display = vals.length ? "block" : "none";
+                const rawPts = list.map(it => [+new Date(it.time), +it.value]);
+                const agg = aggregateAdaptive(rawPts);
+                lastPts = agg.pts;
+                lastRange = agg.range;
+                lastGapMs = agg.bucketMs * 2.5;
+                $("hmsg").textContent = `共 ${list.length} 条原始数据 · 按 ${formatBucketLabel(agg.bucketMs)} 聚合为 ${lastPts.length} 点（${date}）`;
+                drawChart();
+            } catch (e) {
+                $("hmsg").textContent = "查询失败：" + e;
+            }
+            $("btn-hist").disabled = false;
+        };
+        $("h-date").value = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
+        window.addEventListener("resize", () => { if (lastPts) drawChart(); });
+
+        pollOnce().then(() => { setInterval(pollOnce, POLL_MS); });
+    </script>
+</body>
+</html>
