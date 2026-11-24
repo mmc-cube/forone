@@ -422,19 +422,27 @@
         $("btn-pump").onclick   = () => sendCtrl("pump_state", !asBool(D.pump_state));
         $("btn-mute").onclick   = () => sendCtrl("alarm_muted", true);
 
-        async function sendThreshold(key, inputId) {
+        function sendThreshold(key, inputId) {
             const v = $(inputId).value;
             if (v === "") { toast("请先输入数值"); return; }
             const num = Number(v);
+            if (!Number.isFinite(num)) { toast("请输入有效数字"); return; }
+
+            const curTL = Number(effThr("temp_low")), curTH = Number(effThr("temp_high"));
+            const curPL = Number(effThr("ph_low")),   curPH = Number(effThr("ph_high"));
+            if (key === "temp_low"  && Number.isFinite(curTH) && num >= curTH) { toast("水温下限必须小于上限"); return; }
+            if (key === "temp_high" && Number.isFinite(curTL) && num <= curTL) { toast("水温上限必须大于下限"); return; }
+            if (key === "ph_low"    && Number.isFinite(curPH) && num >= curPH) { toast("pH 下限必须小于上限"); return; }
+            if (key === "ph_high"   && Number.isFinite(curPL) && num <= curPL) { toast("pH 上限必须大于下限"); return; }
+
+            thrDisplay[key] = num;
+            thrProtect[key] = num;
+            thrProtAt[key]  = Date.now();
+            $(inputId).value = "";
+            render(Date.now());
+
             const p = {}; p[key] = num;
-            const r = await setProps(p);
-            if (r && (r.code === 0 || r.code === 10411)) {
-                thrDisplay[key] = num;
-                thrProtect[key] = num;
-                thrProtAt[key]  = Date.now();
-                $(inputId).value = "";
-                render(Date.now());
-            }
+            setProps(p);
         }
         $("bt-tlow").onclick  = () => sendThreshold("temp_low", "in-tlow");
         $("bt-thigh").onclick = () => sendThreshold("temp_high", "in-thigh");
