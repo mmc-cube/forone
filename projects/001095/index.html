@@ -165,7 +165,7 @@
                 <div class="btn-row">
                     <button class="btn" id="btn-pump" disabled>手动启停水泵</button>
                 </div>
-                <button class="btn btn-alarm" id="btn-mute">报警消音</button>
+                <button class="btn btn-alarm" id="btn-mute" disabled>报警消音（当前无报警）</button>
             </div>
         </div>
 
@@ -376,6 +376,12 @@
             $("btn-pump").textContent = isManual
                 ? (pumpOn ? "手动关闭水泵 (OFF)" : "手动开启水泵 (ON)")
                 : "自动模式（浊度超限自动控制）";
+
+            const canMute = alarms.length > 0 && !muted;
+            $("btn-mute").disabled = !canMute;
+            $("btn-mute").textContent = !alarms.length
+                ? "报警消音（当前无报警）"
+                : (muted ? "报警已消音" : "报警消音");
 
             if (newest) {
                 const age = (Date.now() - newest) / 1000;
