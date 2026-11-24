@@ -12,9 +12,9 @@
     --text: #1F2937;
     --sub: #6B7280;
     --primary: #2196F3;
-    --ok: #16A34A;
-    --warn: #F59E0B;
+    --primary-weak: #EBF5FF;
     --danger: #DC2626;
+    --danger-weak: #FEF2F2;
     --border: #E5E7EB;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -23,23 +23,24 @@
     background: var(--bg);
     color: var(--text);
     font-size: 14px;
-    line-height: 1.5;
-    padding: 12px;
+    line-height: 1.6;
+    padding: 14px 14px 84px;
   }
-  .container { max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+  .container { max-width: 420px; margin: 0 auto; }
+  .tab-page { display: none; flex-direction: column; gap: 16px; }
+  .tab-page.active { display: flex; }
+
   .card {
     background: var(--card);
     border-radius: 14px;
-    padding: 14px 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    padding: 16px 18px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   }
-  .connect-card { border-left: 4px solid var(--warn); }
-  .connect-card.connected { border-left-color: var(--ok); }
   .card-title {
     font-size: 15px;
     font-weight: 700;
-    color: #111827;
-    margin-bottom: 10px;
+    color: var(--text);
+    margin-bottom: 12px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -48,27 +49,30 @@
     display: flex;
     align-items: center;
     font-size: 14px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     gap: 8px;
+    color: var(--sub);
   }
   .dot {
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
-    background: #9CA3AF;
+    background: #CBD5E1;
     display: inline-block;
   }
-  .dot.on { background: var(--ok); }
-  .status-text.on { color: var(--ok); font-weight: 600; }
+  .dot.on { background: var(--primary); }
+  .status-text.on { color: var(--primary); font-weight: 600; }
+
   .select-box {
     width: 100%;
-    height: 44px;
+    height: 46px;
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 0 10px;
+    padding: 0 12px;
     font-size: 14px;
     background: #FFFFFF;
-    margin-bottom: 10px;
+    color: var(--text);
+    margin-bottom: 12px;
   }
   .btn {
     width: 100%;
@@ -80,72 +84,81 @@
     cursor: pointer;
     background: var(--primary);
     color: #FFFFFF;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   .btn:last-child { margin-bottom: 0; }
-  .btn.outline { background: #FFFFFF; color: var(--primary); border: 1px solid var(--primary); }
-  .btn.success { background: var(--ok); }
-  .btn.danger { background: var(--danger); }
-  .btn.secondary { background: #E5E7EB; color: var(--text); }
-  .btn:disabled { background: #BDBDBD; color: #FFFFFF; border-color: #BDBDBD; cursor: not-allowed; }
-  .row { display: flex; gap: 10px; }
+  .btn.outline {
+    background: #FFFFFF;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+  }
+  .btn.danger { background: var(--danger); color: #FFFFFF; }
+  .btn:disabled {
+    background: #E5E7EB;
+    color: #9CA3AF;
+    border-color: #E5E7EB;
+    cursor: not-allowed;
+  }
+  .row { display: flex; gap: 12px; }
   .row > * { flex: 1; margin-bottom: 0; }
-  .hint { font-size: 12px; color: var(--sub); line-height: 1.6; margin-top: 6px; }
-  .badge {
+  .hint { font-size: 12px; color: var(--sub); line-height: 1.6; margin-top: 8px; }
+
+  .tag {
     font-size: 12px;
     font-weight: 600;
     padding: 4px 10px;
     border-radius: 999px;
-    background: #E5E7EB;
-    color: #374151;
+    background: var(--primary-weak);
+    color: var(--primary);
   }
-  .badge.ok { background: #DCFCE7; color: #166534; }
-  .badge.warn { background: #FEE2E2; color: #991B1B; }
-  .badge.info { background: #DBEAFE; color: #1E40AF; }
-  .metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .tag.alarm { background: var(--danger-weak); color: var(--danger); }
+
+  .metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .metric-box {
-    background: #F9FAFB;
+    background: #FAFAFA;
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 10px 12px;
+    padding: 12px 14px;
   }
   .metric-label { font-size: 12px; color: var(--sub); }
-  .metric-value { font-size: 20px; font-weight: 700; color: #111827; margin-top: 2px; }
+  .metric-value { font-size: 20px; font-weight: 700; color: var(--text); margin-top: 4px; }
+
   .alarm-box {
-    padding: 12px;
+    padding: 12px 14px;
     border-radius: 10px;
-    background: #F0FDF4;
-    color: #166534;
+    background: var(--primary-weak);
+    color: var(--primary);
     font-weight: 600;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
   }
   .alarm-box.active {
-    background: #FEF2F2;
-    color: #991B1B;
-    border: 1px solid #FECACA;
+    background: var(--danger-weak);
+    color: var(--danger);
   }
+
   .thr-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 8px 0;
+    gap: 10px;
+    padding: 10px 0;
     border-bottom: 1px solid #F3F4F6;
   }
   .thr-item:last-child { border-bottom: none; }
   .thr-label { font-weight: 600; min-width: 96px; }
   .thr-input {
-    width: 84px;
-    height: 40px;
-    border: 1px solid #D1D5DB;
+    width: 88px;
+    height: 42px;
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 0 8px;
     font-size: 15px;
     text-align: center;
+    color: var(--text);
   }
   .thr-btn {
-    min-width: 72px;
-    min-height: 40px;
+    min-width: 76px;
+    min-height: 42px;
     border: none;
     border-radius: 8px;
     background: var(--primary);
@@ -154,150 +167,194 @@
     font-weight: 600;
     cursor: pointer;
   }
+
   .log-box {
-    background: #F9FAFB;
+    background: #FAFAFA;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px;
-    max-height: 180px;
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 280px;
+    max-height: 62vh;
     overflow-y: auto;
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
     font-size: 12px;
-    color: #374151;
+    color: var(--text);
     white-space: pre-wrap;
-    margin-top: 8px;
   }
-  .hidden { display: none; }
+
+  .tab-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #FFFFFF;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: center;
+    z-index: 100;
+  }
+  .tab-bar-inner {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+  }
+  .tab-btn {
+    flex: 1;
+    height: 58px;
+    border: none;
+    background: #FFFFFF;
+    color: var(--sub);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border-top: 2px solid transparent;
+  }
+  .tab-btn.active {
+    color: var(--primary);
+    border-top-color: var(--primary);
+  }
 </style>
 </head>
 <body>
 <div class="container">
-  <!-- 蓝牙连接卡 -->
-  <div class="card connect-card" id="connectCard">
-    <div class="card-title">
-      <span>蓝牙连接（JDY-31）</span>
+  <!-- Tab 1: 监测 -->
+  <div id="pageMonitor" class="tab-page active">
+    <div class="card">
+      <div class="card-title"><span>蓝牙连接</span></div>
+      <div class="bt-status-row">
+        <span class="dot" id="btDot"></span>
+        <span class="status-text" id="btStatus">未连接</span>
+      </div>
+      <select id="deviceList" class="select-box">
+        <option value="">请先扫描已配对蓝牙设备</option>
+      </select>
+      <div class="row" style="margin-bottom:10px;">
+        <button class="btn outline" id="btnScan" onclick="scanDevices()">扫描设备</button>
+        <button class="btn" id="btnConnect" onclick="connectSelected()">连接</button>
+      </div>
+      <button class="btn outline" id="btnDisconnect" onclick="disconnectBt()" style="display:none">断开连接</button>
+      <div class="hint">请先在手机系统蓝牙中配对 JDY-31（PIN 常为 1234 / 0000），再回到此页面连接。</div>
     </div>
-    <div class="bt-status-row">
-      <span class="dot" id="btDot"></span>
-      <span class="status-text" id="btStatus">未连接</span>
-    </div>
-    <select id="deviceList" class="select-box">
-      <option value="">请先扫描已配对蓝牙设备</option>
-    </select>
-    <button class="btn outline" id="btnScan" onclick="scanDevices()">扫描已配对设备</button>
-    <button class="btn" id="btnConnect" onclick="connectSelected()">连接</button>
-    <button class="btn danger" id="btnDisconnect" onclick="disconnectBt()" style="display:none">断开连接</button>
-    <div class="hint">请先在手机系统蓝牙中配对 JDY-31（PIN 常为 1234 / 0000），再回到此页面连接。</div>
-  </div>
 
-  <!-- 实时数据卡 -->
-  <div class="card">
-    <div class="card-title">
-      <span>实时监测数据</span>
-      <span id="waterModeBadge" class="badge info">灌溉模式</span>
+    <div class="card">
+      <div class="card-title">
+        <span>实时监测数据</span>
+        <span id="waterModeBadge" class="tag">灌溉模式</span>
+      </div>
+      <div class="metrics">
+        <div class="metric-box">
+          <div class="metric-label">pH 值</div>
+          <div id="valPh" class="metric-value">--</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">水体浊度</div>
+          <div id="valTurb" class="metric-value">--</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">水温</div>
+          <div id="valTemp" class="metric-value">--</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">水泵 / 模式</div>
+          <div id="valPumpMode" class="metric-value" style="font-size:16px;">--</div>
+        </div>
+      </div>
     </div>
-    <div class="metrics">
-      <div class="metric-box">
-        <div class="metric-label">pH 值</div>
-        <div id="valPh" class="metric-value">--</div>
-      </div>
-      <div class="metric-box">
-        <div class="metric-label">水体浊度</div>
-        <div id="valTurb" class="metric-value">--</div>
-      </div>
-      <div class="metric-box">
-        <div class="metric-label">水温</div>
-        <div id="valTemp" class="metric-value">--</div>
-      </div>
-      <div class="metric-box">
-        <div class="metric-label">水泵 / 模式</div>
-        <div id="valPumpMode" class="metric-value" style="font-size:16px;">--</div>
-      </div>
-    </div>
-  </div>
 
-  <!-- 报警状态卡 -->
-  <div class="card">
-    <div class="card-title">
-      <span>报警状态</span>
-      <span id="alarmBadge" class="badge ok">正常</span>
-    </div>
-    <div id="alarmDetail" class="alarm-box">当前各项参数均在阈值范围内</div>
-    <button id="btnMute" class="btn danger" onclick="sendViaBt('01')">远程消警</button>
-  </div>
-
-  <!-- 控制卡 -->
-  <div class="card">
-    <div class="card-title">
-      <span>水泵与模式控制</span>
-      <span id="modeBadge" class="badge info">AUTO</span>
-    </div>
-    <div class="row" style="margin-bottom:10px;">
-      <button class="btn secondary" onclick="sendViaBt('09,1')">切换 AUTO</button>
-      <button class="btn secondary" onclick="sendViaBt('09,0')">切换 MANUAL</button>
-    </div>
-    <div class="row">
-      <button id="btnPumpOn" class="btn success" onclick="sendViaBt('07')" disabled>开启水泵</button>
-      <button id="btnPumpOff" class="btn danger" onclick="sendViaBt('08')" disabled>关闭水泵</button>
-    </div>
-  </div>
-
-  <!-- 当前阈值显示区 -->
-  <div class="card">
-    <div class="card-title"><span>当前阈值</span></div>
-    <div class="metrics">
-      <div class="metric-box">
-        <div class="metric-label">pH 范围</div>
-        <div id="curPhRange" class="metric-value" style="font-size:16px;">5.5 ~ 8.5</div>
+    <div class="card">
+      <div class="card-title">
+        <span>报警状态</span>
+        <span id="alarmBadge" class="tag">正常</span>
       </div>
-      <div class="metric-box">
-        <div class="metric-label">浊度上限</div>
-        <div id="curTurbMax" class="metric-value" style="font-size:16px;">50%</div>
-      </div>
-      <div class="metric-box" style="grid-column: span 2;">
-        <div class="metric-label">水温范围</div>
-        <div id="curTempRange" class="metric-value" style="font-size:16px;">15.0 ~ 35.0 ℃</div>
+      <div id="alarmDetail" class="alarm-box">当前各项参数均在阈值范围内</div>
+      <button id="btnMute" class="btn outline" onclick="sendViaBt('01')">远程消警</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span>当前阈值</span></div>
+      <div class="metrics">
+        <div class="metric-box">
+          <div class="metric-label">pH 范围</div>
+          <div id="curPhRange" class="metric-value" style="font-size:16px;">5.5 ~ 8.5</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">浊度上限</div>
+          <div id="curTurbMax" class="metric-value" style="font-size:16px;">50%</div>
+        </div>
+        <div class="metric-box" style="grid-column: span 2;">
+          <div class="metric-label">水温范围</div>
+          <div id="curTempRange" class="metric-value" style="font-size:16px;">15.0 ~ 35.0 ℃</div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- 阈值设置区 -->
-  <div class="card">
-    <div class="card-title"><span>阈值设置</span></div>
-    <div class="thr-item">
-      <span class="thr-label">pH 下限</span>
-      <input id="inPhLow" class="thr-input" type="number" step="0.1" value="5.5">
-      <button class="thr-btn" onclick="sendThreshold('02', 'inPhLow')">下发</button>
+  <!-- Tab 2: 控制与设置 -->
+  <div id="pageControl" class="tab-page">
+    <div class="card">
+      <div class="card-title">
+        <span>水泵与模式控制</span>
+        <span id="modeBadge" class="tag">AUTO</span>
+      </div>
+      <div class="row" style="margin-bottom:12px;">
+        <button id="btnModeAuto" class="btn" onclick="sendViaBt('09,1')">AUTO 模式</button>
+        <button id="btnModeMan" class="btn outline" onclick="sendViaBt('09,0')">MANUAL 模式</button>
+      </div>
+      <div class="row">
+        <button id="btnPumpOn" class="btn" onclick="sendViaBt('07')" disabled>开启水泵</button>
+        <button id="btnPumpOff" class="btn outline" onclick="sendViaBt('08')" disabled>关闭水泵</button>
+      </div>
+      <div class="hint">AUTO 模式下水泵由设备自动控制，手动开关已禁用；切换至 MANUAL 后可远程启停。</div>
     </div>
-    <div class="thr-item">
-      <span class="thr-label">pH 上限</span>
-      <input id="inPhHigh" class="thr-input" type="number" step="0.1" value="8.5">
-      <button class="thr-btn" onclick="sendThreshold('03', 'inPhHigh')">下发</button>
-    </div>
-    <div class="thr-item">
-      <span class="thr-label">浊度上限(%)</span>
-      <input id="inTurbMax" class="thr-input" type="number" step="1" value="50">
-      <button class="thr-btn" onclick="sendThreshold('04', 'inTurbMax')">下发</button>
-    </div>
-    <div class="thr-item">
-      <span class="thr-label">水温下限(℃)</span>
-      <input id="inTempLow" class="thr-input" type="number" step="0.5" value="15.0">
-      <button class="thr-btn" onclick="sendThreshold('05', 'inTempLow')">下发</button>
-    </div>
-    <div class="thr-item">
-      <span class="thr-label">水温上限(℃)</span>
-      <input id="inTempHigh" class="thr-input" type="number" step="0.5" value="35.0">
-      <button class="thr-btn" onclick="sendThreshold('06', 'inTempHigh')">下发</button>
+
+    <div class="card">
+      <div class="card-title"><span>阈值设置</span></div>
+      <div class="thr-item">
+        <span class="thr-label">pH 下限</span>
+        <input id="inPhLow" class="thr-input" type="number" step="0.1" value="5.5">
+        <button class="thr-btn" onclick="sendThreshold('02', 'inPhLow')">下发</button>
+      </div>
+      <div class="thr-item">
+        <span class="thr-label">pH 上限</span>
+        <input id="inPhHigh" class="thr-input" type="number" step="0.1" value="8.5">
+        <button class="thr-btn" onclick="sendThreshold('03', 'inPhHigh')">下发</button>
+      </div>
+      <div class="thr-item">
+        <span class="thr-label">浊度上限(%)</span>
+        <input id="inTurbMax" class="thr-input" type="number" step="1" value="50">
+        <button class="thr-btn" onclick="sendThreshold('04', 'inTurbMax')">下发</button>
+      </div>
+      <div class="thr-item">
+        <span class="thr-label">水温下限(℃)</span>
+        <input id="inTempLow" class="thr-input" type="number" step="0.5" value="15.0">
+        <button class="thr-btn" onclick="sendThreshold('05', 'inTempLow')">下发</button>
+      </div>
+      <div class="thr-item">
+        <span class="thr-label">水温上限(℃)</span>
+        <input id="inTempHigh" class="thr-input" type="number" step="0.5" value="35.0">
+        <button class="thr-btn" onclick="sendThreshold('06', 'inTempHigh')">下发</button>
+      </div>
     </div>
   </div>
 
-  <!-- 可折叠日志卡 -->
-  <div class="card">
-    <div class="card-title" style="margin-bottom:0; cursor:pointer;" onclick="toggleLog()">
-      <span>通信日志</span>
-      <span id="logToggleText" class="badge">展开</span>
+  <!-- Tab 3: 日志 -->
+  <div id="pageLog" class="tab-page">
+    <div class="card">
+      <div class="card-title">
+        <span>通信日志</span>
+        <button class="tag" style="border:none; cursor:pointer;" onclick="clearLog()">清空</button>
+      </div>
+      <div id="logBox" class="log-box"></div>
     </div>
-    <div id="logBox" class="log-box hidden"></div>
+  </div>
+</div>
+
+<!-- 底部 Tab 栏 -->
+<div class="tab-bar">
+  <div class="tab-bar-inner">
+    <button id="tabMonitor" class="tab-btn active" onclick="switchTab('Monitor')">监测</button>
+    <button id="tabControl" class="tab-btn" onclick="switchTab('Control')">控制</button>
+    <button id="tabLog" class="tab-btn" onclick="switchTab('Log')">日志</button>
   </div>
 </div>
 
@@ -311,6 +368,13 @@
     ph_low: 5.5, ph_high: 8.5, turbidity_max: 50,
     temp_low: 15.0, temp_high: 35.0
   };
+
+  function switchTab(name) {
+    ['Monitor', 'Control', 'Log'].forEach(function(t) {
+      $('page' + t).classList.toggle('active', t === name);
+      $('tab' + t).classList.toggle('active', t === name);
+    });
+  }
 
   function getBridge() {
     if (window.BluetoothBridge) return window.BluetoothBridge;
@@ -328,16 +392,10 @@
     box.textContent = '[' + ts + '] ' + msg + '\n' + box.textContent.slice(0, 3000);
   }
 
-  function toggleLog() {
-    var box = $('logBox');
-    var txt = $('logToggleText');
-    box.classList.toggle('hidden');
-    txt.textContent = box.classList.contains('hidden') ? '展开' : '收起';
+  function clearLog() {
+    $('logBox').textContent = '';
   }
 
-  /* ================================================================
-   * 蓝牙控制（Android WebView BluetoothBridge）
-   * ================================================================ */
   function scanDevices() {
     var bridge = getBridge();
     if (bridge) {
@@ -387,9 +445,6 @@
     sendViaBt(code + ',' + val);
   }
 
-  /* ================================================================
-   * 回调（Android 端调用）
-   * ================================================================ */
   window.onBtDeviceList = function(deviceArray) {
     if (typeof deviceArray === 'string') {
       try { deviceArray = JSON.parse(deviceArray); } catch (e) { deviceArray = []; }
@@ -419,7 +474,6 @@
     isBtConnected = true;
     address = address || '设备';
 
-    $('connectCard').classList.add('connected');
     $('btDot').classList.add('on');
     $('btStatus').textContent = '已连接：' + address;
     $('btStatus').classList.add('on');
@@ -429,7 +483,6 @@
     $('btnDisconnect').style.display = 'block';
     addLog('已连接 ' + address);
 
-    /* 握手：连接成功后主动发 00，设备收到后立即回传一帧当前状态 */
     setTimeout(function() {
       var bridge = getBridge();
       if (isBtConnected && bridge) {
@@ -442,7 +495,6 @@
   window.onBtDisconnected = function() {
     isBtConnected = false;
 
-    $('connectCard').classList.remove('connected');
     $('btDot').classList.remove('on');
     $('btStatus').textContent = '未连接';
     $('btStatus').classList.remove('on');
@@ -485,9 +537,6 @@
     renderUI();
   };
 
-  /* ================================================================
-   * iframe 镜像（部署到 webpage_on 时必须保留）
-   * ================================================================ */
   try {
     if (window.top && window.top !== window) {
       window.top.onBtDeviceList   = window.onBtDeviceList;
@@ -513,8 +562,9 @@
     var isAuto = state.control_mode === 1;
     $('btnPumpOn').disabled = isAuto;
     $('btnPumpOff').disabled = isAuto;
+    $('btnModeAuto').className = isAuto ? 'btn' : 'btn outline';
+    $('btnModeMan').className = isAuto ? 'btn outline' : 'btn';
 
-    /* 仅更新只读“当前阈值”显示区，不覆盖下方设置输入框 */
     $('curPhRange').textContent = state.ph_low.toFixed(1) + ' ~ ' + state.ph_high.toFixed(1);
     $('curTurbMax').textContent = Math.round(state.turbidity_max) + '%';
     $('curTempRange').textContent = state.temp_low.toFixed(1) + ' ~ ' + state.temp_high.toFixed(1) + ' ℃';
@@ -526,16 +576,19 @@
 
     var alarmBadge = $('alarmBadge');
     var alarmDetail = $('alarmDetail');
+    var btnMute = $('btnMute');
     if (alarms.length > 0) {
       alarmBadge.textContent = '报警';
-      alarmBadge.className = 'badge warn';
+      alarmBadge.className = 'tag alarm';
       alarmDetail.textContent = '异常项：' + alarms.join('、');
       alarmDetail.className = 'alarm-box active';
+      btnMute.className = 'btn danger';
     } else {
       alarmBadge.textContent = '正常';
-      alarmBadge.className = 'badge ok';
+      alarmBadge.className = 'tag';
       alarmDetail.textContent = '当前各项参数均在阈值范围内';
       alarmDetail.className = 'alarm-box';
+      btnMute.className = 'btn outline';
     }
   }
 
