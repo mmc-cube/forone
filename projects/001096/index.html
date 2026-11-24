@@ -242,7 +242,26 @@
     </div>
   </div>
 
-  <!-- 阈值设置卡 -->
+  <!-- 当前阈值显示区 -->
+  <div class="card">
+    <div class="card-title"><span>当前阈值</span></div>
+    <div class="metrics">
+      <div class="metric-box">
+        <div class="metric-label">pH 范围</div>
+        <div id="curPhRange" class="metric-value" style="font-size:16px;">5.5 ~ 8.5</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">浊度上限</div>
+        <div id="curTurbMax" class="metric-value" style="font-size:16px;">50%</div>
+      </div>
+      <div class="metric-box" style="grid-column: span 2;">
+        <div class="metric-label">水温范围</div>
+        <div id="curTempRange" class="metric-value" style="font-size:16px;">15.0 ~ 35.0 ℃</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 阈值设置区 -->
   <div class="card">
     <div class="card-title"><span>阈值设置</span></div>
     <div class="thr-item">
@@ -481,11 +500,6 @@
     addLog('iframe 镜像失败: ' + e.message);
   }
 
-  function syncInput(id, val) {
-    var el = $(id);
-    if (document.activeElement !== el) el.value = val;
-  }
-
   function renderUI() {
     $('valPh').textContent = state.ph.toFixed(1);
     $('valTurb').textContent = Math.round(state.turbidity) + '%';
@@ -500,11 +514,10 @@
     $('btnPumpOn').disabled = isAuto;
     $('btnPumpOff').disabled = isAuto;
 
-    syncInput('inPhLow', state.ph_low.toFixed(1));
-    syncInput('inPhHigh', state.ph_high.toFixed(1));
-    syncInput('inTurbMax', Math.round(state.turbidity_max));
-    syncInput('inTempLow', state.temp_low.toFixed(1));
-    syncInput('inTempHigh', state.temp_high.toFixed(1));
+    /* 仅更新只读“当前阈值”显示区，不覆盖下方设置输入框 */
+    $('curPhRange').textContent = state.ph_low.toFixed(1) + ' ~ ' + state.ph_high.toFixed(1);
+    $('curTurbMax').textContent = Math.round(state.turbidity_max) + '%';
+    $('curTempRange').textContent = state.temp_low.toFixed(1) + ' ~ ' + state.temp_high.toFixed(1) + ' ℃';
 
     var alarms = [];
     if (state.ph < state.ph_low || state.ph > state.ph_high) alarms.push('pH 越限');
