@@ -438,13 +438,6 @@
             const num = Number(v);
             if (!Number.isFinite(num)) { toast("请输入有效数字"); return; }
 
-            const curTL = Number(effThr("temp_low")), curTH = Number(effThr("temp_high"));
-            const curPL = Number(effThr("ph_low")),   curPH = Number(effThr("ph_high"));
-            if (key === "temp_low"  && Number.isFinite(curTH) && num >= curTH) { toast("水温下限必须小于上限"); return; }
-            if (key === "temp_high" && Number.isFinite(curTL) && num <= curTL) { toast("水温上限必须大于下限"); return; }
-            if (key === "ph_low"    && Number.isFinite(curPH) && num >= curPH) { toast("pH 下限必须小于上限"); return; }
-            if (key === "ph_high"   && Number.isFinite(curPL) && num <= curPL) { toast("pH 上限必须大于下限"); return; }
-
             thrDisplay[key] = num;
             thrProtect[key] = num;
             thrProtAt[key]  = Date.now();
