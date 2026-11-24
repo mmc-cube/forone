@@ -1,26 +1,40 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#2196F3">
 <title>稻田水体环境监测与智能调控系统</title>
 <style>
+  :root {
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --text: #1F2937;
+    --sub: #6B7280;
+    --primary: #2196F3;
+    --ok: #16A34A;
+    --warn: #F59E0B;
+    --danger: #DC2626;
+    --border: #E5E7EB;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: #F5F5F5;
-    color: #1F2937;
+    background: var(--bg);
+    color: var(--text);
     font-size: 14px;
     line-height: 1.5;
     padding: 12px;
   }
   .container { max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
   .card {
-    background: #FFFFFF;
+    background: var(--card);
     border-radius: 14px;
     padding: 14px 16px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   }
+  .connect-card { border-left: 4px solid var(--warn); }
+  .connect-card.connected { border-left-color: var(--ok); }
   .card-title {
     font-size: 15px;
     font-weight: 700;
@@ -30,6 +44,53 @@
     justify-content: space-between;
     align-items: center;
   }
+  .bt-status-row {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #9CA3AF;
+    display: inline-block;
+  }
+  .dot.on { background: var(--ok); }
+  .status-text.on { color: var(--ok); font-weight: 600; }
+  .select-box {
+    width: 100%;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0 10px;
+    font-size: 14px;
+    background: #FFFFFF;
+    margin-bottom: 10px;
+  }
+  .btn {
+    width: 100%;
+    min-height: 48px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--primary);
+    color: #FFFFFF;
+    margin-bottom: 8px;
+  }
+  .btn:last-child { margin-bottom: 0; }
+  .btn.outline { background: #FFFFFF; color: var(--primary); border: 1px solid var(--primary); }
+  .btn.success { background: var(--ok); }
+  .btn.danger { background: var(--danger); }
+  .btn.secondary { background: #E5E7EB; color: var(--text); }
+  .btn:disabled { background: #BDBDBD; color: #FFFFFF; border-color: #BDBDBD; cursor: not-allowed; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; margin-bottom: 0; }
+  .hint { font-size: 12px; color: var(--sub); line-height: 1.6; margin-top: 6px; }
   .badge {
     font-size: 12px;
     font-weight: 600;
@@ -41,32 +102,14 @@
   .badge.ok { background: #DCFCE7; color: #166534; }
   .badge.warn { background: #FEE2E2; color: #991B1B; }
   .badge.info { background: #DBEAFE; color: #1E40AF; }
-  .btn {
-    width: 100%;
-    min-height: 48px;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.15s, transform 0.1s;
-  }
-  .btn:active { transform: scale(0.98); }
-  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-  .btn-primary { background: #2563EB; color: #FFFFFF; }
-  .btn-success { background: #16A34A; color: #FFFFFF; }
-  .btn-danger { background: #DC2626; color: #FFFFFF; }
-  .btn-secondary { background: #E5E7EB; color: #1F2937; }
-  .row { display: flex; gap: 10px; }
-  .row > * { flex: 1; }
   .metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .metric-box {
     background: #F9FAFB;
-    border: 1px solid #E5E7EB;
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
   }
-  .metric-label { font-size: 12px; color: #6B7280; }
+  .metric-label { font-size: 12px; color: var(--sub); }
   .metric-value { font-size: 20px; font-weight: 700; color: #111827; margin-top: 2px; }
   .alarm-box {
     padding: 12px;
@@ -105,7 +148,7 @@
     min-height: 40px;
     border: none;
     border-radius: 8px;
-    background: #2563EB;
+    background: var(--primary);
     color: #FFFFFF;
     font-size: 14px;
     font-weight: 600;
@@ -113,7 +156,7 @@
   }
   .log-box {
     background: #F9FAFB;
-    border: 1px solid #E5E7EB;
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 8px;
     max-height: 180px;
@@ -129,15 +172,22 @@
 </head>
 <body>
 <div class="container">
-  <!-- 连接状态卡 -->
-  <div class="card">
+  <!-- 蓝牙连接卡 -->
+  <div class="card connect-card" id="connectCard">
     <div class="card-title">
-      <span>蓝牙连接（JDY-31 · 9600bps）</span>
-      <span id="connBadge" class="badge">未连接</span>
+      <span>蓝牙连接（JDY-31）</span>
     </div>
-    <div class="row">
-      <button id="btnConnect" class="btn btn-primary" onclick="toggleConnect()">连接蓝牙串口</button>
+    <div class="bt-status-row">
+      <span class="dot" id="btDot"></span>
+      <span class="status-text" id="btStatus">未连接</span>
     </div>
+    <select id="deviceList" class="select-box">
+      <option value="">请先扫描已配对蓝牙设备</option>
+    </select>
+    <button class="btn outline" id="btnScan" onclick="scanDevices()">扫描已配对设备</button>
+    <button class="btn" id="btnConnect" onclick="connectSelected()">连接</button>
+    <button class="btn danger" id="btnDisconnect" onclick="disconnectBt()" style="display:none">断开连接</button>
+    <div class="hint">请先在手机系统蓝牙中配对 JDY-31（PIN 常为 1234 / 0000），再回到此页面连接。</div>
   </div>
 
   <!-- 实时数据卡 -->
@@ -173,7 +223,7 @@
       <span id="alarmBadge" class="badge ok">正常</span>
     </div>
     <div id="alarmDetail" class="alarm-box">当前各项参数均在阈值范围内</div>
-    <button id="btnMute" class="btn btn-danger" onclick="sendCmd('01')">远程消警（01）</button>
+    <button id="btnMute" class="btn danger" onclick="sendViaBt('01')">远程消警（01）</button>
   </div>
 
   <!-- 控制卡 -->
@@ -183,12 +233,12 @@
       <span id="modeBadge" class="badge info">AUTO</span>
     </div>
     <div class="row" style="margin-bottom:10px;">
-      <button class="btn btn-secondary" onclick="sendCmd('09,1')">切换 AUTO</button>
-      <button class="btn btn-secondary" onclick="sendCmd('09,0')">切换 MANUAL</button>
+      <button class="btn secondary" onclick="sendViaBt('09,1')">切换 AUTO</button>
+      <button class="btn secondary" onclick="sendViaBt('09,0')">切换 MANUAL</button>
     </div>
     <div class="row">
-      <button id="btnPumpOn" class="btn btn-success" onclick="sendCmd('07')" disabled>开启水泵（07）</button>
-      <button id="btnPumpOff" class="btn btn-danger" onclick="sendCmd('08')" disabled>关闭水泵（08）</button>
+      <button id="btnPumpOn" class="btn success" onclick="sendViaBt('07')" disabled>开启水泵（07）</button>
+      <button id="btnPumpOff" class="btn danger" onclick="sendViaBt('08')" disabled>关闭水泵（08）</button>
     </div>
   </div>
 
@@ -233,152 +283,236 @@
 </div>
 
 <script>
-  let port = null;
-  let reader = null;
-  let writer = null;
-  let rxBuffer = '';
-  let connected = false;
+  function $(id) { return document.getElementById(id); }
 
-  const state = {
+  var isBtConnected = false;
+  var state = {
     ph: 7.0, turbidity: 0, water_temp: 20.0,
     pump_state: 0, control_mode: 1, water_mode: 0,
     ph_low: 5.5, ph_high: 8.5, turbidity_max: 50,
     temp_low: 15.0, temp_high: 35.0
   };
 
-  function appendLog(msg) {
-    const box = document.getElementById('logBox');
-    const ts = new Date().toLocaleTimeString();
-    box.textContent = `[${ts}] ${msg}\n` + box.textContent.slice(0, 3000);
+  function getBridge() {
+    if (window.BluetoothBridge) return window.BluetoothBridge;
+    try {
+      if (window.top && window.top !== window && window.top.BluetoothBridge) {
+        return window.top.BluetoothBridge;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function addLog(msg) {
+    var box = $('logBox');
+    var ts = new Date().toLocaleTimeString();
+    box.textContent = '[' + ts + '] ' + msg + '\n' + box.textContent.slice(0, 3000);
   }
 
   function toggleLog() {
-    const box = document.getElementById('logBox');
-    const txt = document.getElementById('logToggleText');
+    var box = $('logBox');
+    var txt = $('logToggleText');
     box.classList.toggle('hidden');
     txt.textContent = box.classList.contains('hidden') ? '展开' : '收起';
   }
 
-  function setConnUI(isConnected) {
-    connected = isConnected;
-    const badge = document.getElementById('connBadge');
-    const btn = document.getElementById('btnConnect');
-    badge.textContent = isConnected ? '已连接' : '未连接';
-    badge.className = 'badge ' + (isConnected ? 'ok' : '');
-    btn.textContent = isConnected ? '断开连接' : '连接蓝牙串口';
-  }
-
-  async function toggleConnect() {
-    if (connected) {
-      try {
-        if (reader) { await reader.cancel(); reader = null; }
-        if (writer) { writer.releaseLock(); writer = null; }
-        if (port) { await port.close(); port = null; }
-      } catch (e) { appendLog('断开异常: ' + e.message); }
-      setConnUI(false);
-      return;
-    }
-
-    if (!('serial' in navigator)) {
-      alert('当前浏览器不支持 Web Serial API，请使用 PC/Android Chrome/Edge 连接蓝牙串口，或通过 Android WebView 桥接使用。');
-      return;
-    }
-
-    try {
-      port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 9600 });
-      writer = port.writable.getWriter();
-      setConnUI(true);
-      appendLog('串口已打开 (9600bps)');
-      readLoop();
-    } catch (e) {
-      appendLog('连接失败: ' + e.message);
-      setConnUI(false);
+  /* ================================================================
+   * 蓝牙控制（Android WebView BluetoothBridge）
+   * ================================================================ */
+  function scanDevices() {
+    var bridge = getBridge();
+    if (bridge) {
+      addLog('扫描已配对设备...');
+      bridge.getPairedDevices();
+    } else {
+      alert('请在 Android WebView 壳中运行本页面');
+      addLog('错误：当前环境没有 BluetoothBridge');
     }
   }
 
-  async function readLoop() {
-    const decoder = new TextDecoder();
-    try {
-      while (port && port.readable) {
-        reader = port.readable.getReader();
-        try {
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            if (value) {
-              rxBuffer += decoder.decode(value, { stream: true });
-              const lines = rxBuffer.split(/\r?\n/);
-              rxBuffer = lines.pop() || '';
-              lines.forEach(handleLine);
-            }
-          }
-        } finally {
-          reader.releaseLock();
-          reader = null;
-        }
+  function connectSelected() {
+    var addr = $('deviceList').value;
+    if (!addr) {
+      alert('请先选择设备；若列表为空，请先在系统蓝牙中配对 JDY-31');
+      return;
+    }
+    var bridge = getBridge();
+    if (bridge) {
+      addLog('正在连接 ' + addr);
+      bridge.connect(addr);
+    } else {
+      alert('请在 Android WebView 壳中运行本页面');
+    }
+  }
+
+  function disconnectBt() {
+    var bridge = getBridge();
+    if (bridge) bridge.disconnect();
+  }
+
+  function sendViaBt(cmd) {
+    var bridge = getBridge();
+    if (!isBtConnected || !bridge) {
+      alert('蓝牙未连接，请先连接设备');
+      addLog('发送失败：蓝牙未连接');
+      return false;
+    }
+    bridge.send(cmd + '\n');
+    addLog('发送 ' + cmd);
+    return true;
+  }
+
+  function sendThreshold(code, inputId) {
+    var val = $(inputId).value.trim();
+    if (val === '') return;
+    sendViaBt(code + ',' + val);
+  }
+
+  /* ================================================================
+   * 回调（Android 端调用）
+   * ================================================================ */
+  window.onBtDeviceList = function(deviceArray) {
+    if (typeof deviceArray === 'string') {
+      try { deviceArray = JSON.parse(deviceArray); } catch (e) { deviceArray = []; }
+    }
+    var select = $('deviceList');
+    select.innerHTML = '';
+
+    if (!deviceArray || deviceArray.length === 0) {
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '未找到已配对设备，请先在系统蓝牙中配对';
+      select.appendChild(opt);
+      addLog('扫描完成：没有已配对设备');
+      return;
+    }
+
+    deviceArray.forEach(function(d) {
+      var o = document.createElement('option');
+      o.value = d.address;
+      o.textContent = (d.name || '未知设备') + ' (' + d.address + ')';
+      select.appendChild(o);
+    });
+    addLog('扫描完成：' + deviceArray.length + ' 个设备');
+  };
+
+  window.onBtConnected = function(address) {
+    isBtConnected = true;
+    address = address || '设备';
+
+    $('connectCard').classList.add('connected');
+    $('btDot').classList.add('on');
+    $('btStatus').textContent = '已连接：' + address;
+    $('btStatus').classList.add('on');
+    $('btnScan').style.display = 'none';
+    $('deviceList').disabled = true;
+    $('btnConnect').style.display = 'none';
+    $('btnDisconnect').style.display = 'block';
+    addLog('已连接 ' + address);
+
+    /* 握手：连接成功后主动发 00，设备收到后立即回传一帧当前状态 */
+    setTimeout(function() {
+      var bridge = getBridge();
+      if (isBtConnected && bridge) {
+        bridge.send('00\n');
+        addLog('发送 00（握手）');
       }
-    } catch (e) {
-      appendLog('读取中断: ' + e.message);
-    }
-    setConnUI(false);
-  }
+    }, 500);
+  };
 
-  function handleLine(line) {
-    const trimmed = line.trim();
-    if (!trimmed) return;
-    const parts = trimmed.split(',');
+  window.onBtDisconnected = function() {
+    isBtConnected = false;
+
+    $('connectCard').classList.remove('connected');
+    $('btDot').classList.remove('on');
+    $('btStatus').textContent = '未连接';
+    $('btStatus').classList.remove('on');
+    $('btnScan').style.display = 'block';
+    $('deviceList').disabled = false;
+    $('btnConnect').style.display = 'block';
+    $('btnDisconnect').style.display = 'none';
+    addLog('蓝牙已断开');
+  };
+
+  window.onBtError = function(errMsg) {
+    isBtConnected = false;
+    addLog('蓝牙错误：' + errMsg);
+    alert('蓝牙错误：' + errMsg);
+    window.onBtDisconnected();
+  };
+
+  window.onBtData = function(line) {
+    line = (line || '').trim();
+    if (!line) return;
+    var parts = line.split(',');
     if (parts.length !== 11) return;
 
-    const nums = parts.map(Number);
-    if (nums.some(Number.isNaN)) return;
+    var nums = parts.map(Number);
+    if (nums.some(isNaN)) return;
 
-    [
-      state.ph, state.turbidity, state.water_temp,
-      state.pump_state, state.control_mode, state.water_mode,
-      state.ph_low, state.ph_high, state.turbidity_max,
-      state.temp_low, state.temp_high
-    ] = nums;
+    state.ph = nums[0];
+    state.turbidity = nums[1];
+    state.water_temp = nums[2];
+    state.pump_state = nums[3];
+    state.control_mode = nums[4];
+    state.water_mode = nums[5];
+    state.ph_low = nums[6];
+    state.ph_high = nums[7];
+    state.turbidity_max = nums[8];
+    state.temp_low = nums[9];
+    state.temp_high = nums[10];
 
-    appendLog('RX: ' + trimmed);
+    addLog('收到 ' + line);
     renderUI();
+  };
+
+  /* ================================================================
+   * iframe 镜像（部署到 webpage_on 时必须保留）
+   * ================================================================ */
+  try {
+    if (window.top && window.top !== window) {
+      window.top.onBtDeviceList   = window.onBtDeviceList;
+      window.top.onBtConnected    = window.onBtConnected;
+      window.top.onBtDisconnected = window.onBtDisconnected;
+      window.top.onBtError        = window.onBtError;
+      window.top.onBtData         = window.onBtData;
+    }
+  } catch (e) {
+    addLog('iframe 镜像失败: ' + e.message);
   }
 
-  //供 Android WebView 原生桥接调用
-  window.onBtData = handleLine;
+  function syncInput(id, val) {
+    var el = $(id);
+    if (document.activeElement !== el) el.value = val;
+  }
 
   function renderUI() {
-    document.getElementById('valPh').textContent = state.ph.toFixed(1);
-    document.getElementById('valTurb').textContent = Math.round(state.turbidity) + '%';
-    document.getElementById('valTemp').textContent = state.water_temp.toFixed(1) + ' ℃';
-    document.getElementById('valPumpMode').textContent =
+    $('valPh').textContent = state.ph.toFixed(1);
+    $('valTurb').textContent = Math.round(state.turbidity) + '%';
+    $('valTemp').textContent = state.water_temp.toFixed(1) + ' ℃';
+    $('valPumpMode').textContent =
       (state.pump_state ? 'ON' : 'OFF') + ' / ' + (state.control_mode ? 'AUTO' : 'MANUAL');
 
-    const wBadge = document.getElementById('waterModeBadge');
-    wBadge.textContent = state.water_mode ? '排水模式' : '灌溉模式';
+    $('waterModeBadge').textContent = state.water_mode ? '排水模式' : '灌溉模式';
+    $('modeBadge').textContent = state.control_mode ? 'AUTO' : 'MANUAL';
 
-    const mBadge = document.getElementById('modeBadge');
-    mBadge.textContent = state.control_mode ? 'AUTO' : 'MANUAL';
+    var isAuto = state.control_mode === 1;
+    $('btnPumpOn').disabled = isAuto;
+    $('btnPumpOff').disabled = isAuto;
 
-    const isAuto = state.control_mode === 1;
-    document.getElementById('btnPumpOn').disabled = isAuto;
-    document.getElementById('btnPumpOff').disabled = isAuto;
-
-    // 同步阈值输入框（仅未聚焦时更新，避免打断用户输入）
     syncInput('inPhLow', state.ph_low.toFixed(1));
     syncInput('inPhHigh', state.ph_high.toFixed(1));
     syncInput('inTurbMax', Math.round(state.turbidity_max));
     syncInput('inTempLow', state.temp_low.toFixed(1));
     syncInput('inTempHigh', state.temp_high.toFixed(1));
 
-    // JS 端独立计算报警状态
-    const alarms = [];
+    var alarms = [];
     if (state.ph < state.ph_low || state.ph > state.ph_high) alarms.push('pH 越限');
     if (state.turbidity > state.turbidity_max) alarms.push('浊度超限');
     if (state.water_temp < state.temp_low || state.water_temp > state.temp_high) alarms.push('水温越限');
 
-    const alarmBadge = document.getElementById('alarmBadge');
-    const alarmDetail = document.getElementById('alarmDetail');
+    var alarmBadge = $('alarmBadge');
+    var alarmDetail = $('alarmDetail');
     if (alarms.length > 0) {
       alarmBadge.textContent = '报警';
       alarmBadge.className = 'badge warn';
@@ -390,35 +524,6 @@
       alarmDetail.textContent = '当前各项参数均在阈值范围内';
       alarmDetail.className = 'alarm-box';
     }
-  }
-
-  function syncInput(id, val) {
-    const el = document.getElementById(id);
-    if (document.activeElement !== el) el.value = val;
-  }
-
-  async function sendCmd(cmd) {
-    const payload = cmd + '\r\n';
-    appendLog('TX: ' + cmd);
-    if (window.Android && typeof window.Android.send === 'function') {
-      window.Android.send(payload);
-      return;
-    }
-    if (!writer) {
-      appendLog('未连接蓝牙串口，指令未发送');
-      return;
-    }
-    try {
-      await writer.write(new TextEncoder().encode(payload));
-    } catch (e) {
-      appendLog('发送失败: ' + e.message);
-    }
-  }
-
-  function sendThreshold(code, inputId) {
-    const val = document.getElementById(inputId).value.trim();
-    if (val === '') return;
-    sendCmd(`${code},${val}`);
   }
 
   renderUI();
