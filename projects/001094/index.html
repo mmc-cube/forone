@@ -366,7 +366,7 @@
                     <div><span class="data-value" id="v-humi">--</span><span class="data-unit">%RH</span></div>
                 </div>
                 <div class="data-row">
-                    <span class="data-label">异味指标 (MQ-135)</span>
+                    <span class="data-label">有害气体 (MQ-135)</span>
                     <div><span class="data-value" id="v-odor">--</span><span class="data-unit">ADC</span></div>
                 </div>
                 <div class="data-row">
@@ -432,7 +432,7 @@
                 </div>
                 <div class="threshold-row">
                     <div class="threshold-info">
-                        <div class="threshold-label">异味报警阈值</div>
+                        <div class="threshold-label">有害气体报警阈值</div>
                         <div class="threshold-cur">当前生效：<span id="dv-odor">--</span> ADC</div>
                     </div>
                     <input class="threshold-input" id="in-odor" type="number" min="100" max="4000" step="50" placeholder="100~4000">
@@ -641,7 +641,7 @@
 
             const alarms = [];
             if (overH) alarms.push("湿度超标：已达到烘干启动阈值！");
-            if (overO) alarms.push("异味超标：柜内异味浓度过高，请通风！");
+            if (overO) alarms.push("有害气体超标：柜内有害气体浓度过高，请通风！");
 
             $("alarmContent").innerHTML = alarms.length
                 ? alarms.map(a => `<div class="alarm-item">${a}</div>`).join("")
