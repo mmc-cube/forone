@@ -236,7 +236,7 @@
                 <canvas id="chart" style="width:100%;height:300px;display:block"></canvas>
             </div>
             <div class="card" id="statsCard" style="display:none">
-                <div class="card-title">当日统计（按原始数据计算）</div>
+                <div class="card-title">当日统计（按抽样数据估算）</div>
                 <div class="stats-row">
                     <div class="stat"><div class="stat-lab">日最高</div><div class="stat-val" id="st-max">--</div></div>
                     <div class="stat"><div class="stat-lab">日最低</div><div class="stat-val" id="st-min">--</div></div>
@@ -442,21 +442,73 @@
         $("bt-phigh").onclick = () => sendThreshold("ph_high", "in-phigh");
         $("bt-turb").onclick  = () => sendThreshold("turbidity_high", "in-turb");
 
-        async function fetchHistory(ident, startMs, endMs, onProg) {
-            let all = [], offset = 0;
-            while (true) {
-                const u = `${BASE}/thingmodel/query-device-property-history?product_id=${PID}&device_name=${DEV}`
-                        + `&identifier=${ident}&start_time=${startMs}&end_time=${endMs}&sort=1&offset=${offset}&limit=100`;
-                const r = await fetch(u, { headers: hdr() }).then(x => x.json());
-                if (r.code !== 0) throw (r.msg || ("code " + r.code));
-                const list = (r.data && r.data.list) || [];
-                all = all.concat(list);
-                onProg(`已拉取 ${all.length} 条…`);
-                if (list.length < 100 || all.length > 90000) break;
-                offset += 100;
-                await sleep(120);
+        async function fetchSlice(ident, s, e, limit = 10) {
+            const u = `${BASE}/thingmodel/query-device-property-history?product_id=${PID}&device_name=${DEV}`
+                    + `&identifier=${ident}&start_time=${s}&end_time=${e}&sort=2&offset=0&limit=${limit}`;
+            const r = await fetch(u, { headers: hdr() }).then(x => x.json());
+            if (r.code !== 0) throw (r.msg || ("code " + r.code));
+            return (r.data && r.data.list) || [];
+        }
+
+        async function runConcurrent(tasks, concurrency = 6) {
+            const results = [];
+            let idx = 0;
+            async function worker() {
+                while (idx < tasks.length) {
+                    const cur = idx++;
+                    results[cur] = await tasks[cur]();
+                }
             }
-            return all;
+            const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, worker);
+            await Promise.all(workers);
+            return results;
+        }
+
+        async function fetchHistory(ident, startMs, endMs, onProg) {
+            const effectiveEnd = Math.min(endMs, Date.now());
+            if (effectiveEnd <= startMs) return [];
+
+            // 第一级：按 1 小时分片并发抽样（每段只取最新 10 条，避免拉取数万条）
+            const hourMs = 3600000;
+            const hourTasks = [];
+            for (let s = startMs; s < effectiveEnd; s += hourMs) {
+                const e = Math.min(s + hourMs, effectiveEnd);
+                hourTasks.push(() => fetchSlice(ident, s, e, 10));
+            }
+            onProg(`并发抽样 ${hourTasks.length} 个时段…`);
+            const hourChunks = await runConcurrent(hourTasks, 6);
+            let all = hourChunks.flat();
+
+            // 第二级：如果当天数据跨度较短（<= 3 小时），自动加密细分为 16 个时间窗再抽样
+            if (all.length) {
+                let minT = Infinity, maxT = -Infinity;
+                all.forEach(it => {
+                    const t = new Date(it.time).getTime();
+                    if (t < minT) minT = t;
+                    if (t > maxT) maxT = t;
+                });
+                const span = maxT - minT;
+                if (span > 0 && span <= 3 * hourMs) {
+                    const subCount = 16;
+                    const step = Math.max(Math.ceil(span / subCount), 15000);
+                    const subTasks = [];
+                    for (let s = minT; s < maxT; s += step) {
+                        const e = Math.min(s + step, maxT + 1000);
+                        subTasks.push(() => fetchSlice(ident, s, e, 6));
+                    }
+                    onProg(`短跨度加密抽样 ${subTasks.length} 段…`);
+                    const subChunks = await runConcurrent(subTasks, 6);
+                    all = all.concat(subChunks.flat());
+                }
+            }
+
+            // 按时间戳去重并正序排列
+            const seen = new Map();
+            all.forEach(it => {
+                const t = new Date(it.time).getTime();
+                if (!seen.has(t)) seen.set(t, it);
+            });
+            return [...seen.entries()].sort((a, b) => a[0] - b[0]).map(x => x[1]);
         }
 
         let lastPts = null, lastRange = null, lastGapMs = 90 * 60 * 1000;
@@ -582,7 +634,7 @@
                 lastPts = agg.pts;
                 lastRange = agg.range;
                 lastGapMs = agg.bucketMs * 2.5;
-                $("hmsg").textContent = `共 ${list.length} 条原始数据 · 按 ${formatBucketLabel(agg.bucketMs)} 聚合为 ${lastPts.length} 点（${date}）`;
+                $("hmsg").textContent = `抽样 ${list.length} 条 · 按 ${formatBucketLabel(agg.bucketMs)} 聚合为 ${lastPts.length} 点（${date}）`;
                 drawChart();
             } catch (e) {
                 $("hmsg").textContent = "查询失败：" + e;
